@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
-  Palette, Plus, Eye, EyeOff, Search, LogOut, Loader2, Settings, LayoutDashboard
+  Palette, Plus, Eye, EyeOff, Search, LogOut, Loader2, Settings, LayoutDashboard, Store, User
 } from "lucide-react";
 import { Paint } from "@/data/defaultColors";
 import { toast } from "sonner";
