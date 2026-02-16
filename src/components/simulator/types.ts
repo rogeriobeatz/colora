@@ -3,8 +3,7 @@ import { Paint } from "@/data/defaultColors";
 export interface DetectedWall {
   id: string;
   label: string;
-  tipo: "parede" | "teto" | "piso" | "outro";
-  polygon: { x: number; y: number }[];
+  description?: string;
 }
 
 export interface Room {

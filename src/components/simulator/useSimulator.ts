@@ -23,7 +23,7 @@ export function useSimulator() {
       const id = genId();
       const newRoom: Room = {
         id,
-        name: `Ambiente ${roomCounter++}`,
+        name: `Room ${roomCounter++}`,
         imageUrl: imageBase64,
         originalImageUrl: imageBase64,
         walls: [],
@@ -36,46 +36,29 @@ export function useSimulator() {
       setSelectedWallId(null);
 
       try {
-        console.log("[useSimulator] Iniciando análise da imagem...");
+        console.log("[useSimulator] Starting room analysis...");
         
         const { data, error } = await supabase.functions.invoke("analyze-room", {
           body: { imageBase64 },
         });
 
         if (error) {
-          console.error("[useSimulator] Erro na Edge Function:", error);
+          console.error("[useSimulator] Edge Function Error:", error);
           throw error;
         }
 
-        console.log("[useSimulator] Resposta da análise:", data);
+        console.log("[useSimulator] Analysis response:", data);
 
         if (data.error) {
           throw new Error(data.error);
         }
 
-        // Processar superfícies detectadas - novo formato
-        const detectedWalls: DetectedWall[] = (data.superficies || []).map((s: any, idx: number) => ({
-          id: s.id || `superficie_${idx}_${Date.now()}`,
-          label: s.nome || s.label || "Superfície",
-          tipo: s.tipo || s.type || "parede",
-          polygon: (s.poligono || s.polygon || []).map((p: any) => ({
-            x: Number(p.x) || 0,
-            y: Number(p.y) || 0,
-          })),
+        // Process detected walls - new semantic format
+        const detectedWalls: DetectedWall[] = (data.walls || []).map((w: any, idx: number) => ({
+          id: w.id || `wall_${idx}_${Date.now()}`,
+          label: w.label || w.nome || w.name || "Wall",
+          description: w.description || w.descricao || "",
         }));
-
-        // Se não detectou nada pelo novo formato, tentar formato antigo
-        if (detectedWalls.length === 0 && data.walls) {
-          detectedWalls.push(...data.walls.map((w: any, idx: number) => ({
-            id: w.id || `wall_${idx}_${Date.now()}`,
-            label: w.label || `Parede ${idx + 1}`,
-            tipo: "parede" as const,
-            polygon: (w.polygon || []).map((p: any) => ({
-              x: Number(p.x) || 0,
-              y: Number(p.y) || 0,
-            })),
-          })));
-        }
 
         setRooms((prev) =>
           prev.map((r) =>
@@ -91,22 +74,22 @@ export function useSimulator() {
         );
 
         if (detectedWalls.length > 0) {
-          toast.success(`${detectedWalls.length} superfícies detectadas!`, {
-            description: "Selecione uma superfície para pintar",
+          toast.success(`${detectedWalls.length} walls identified!`, {
+            description: "Select a wall to paint",
           });
-          // Selecionar automaticamente a primeira parede
+          // Auto-select first wall
           setSelectedWallId(detectedWalls[0].id);
         } else {
-          toast.warning("Nenhuma superfície detectada", {
-            description: "Tente usar uma foto mais clara do ambiente",
+          toast.warning("No walls detected", {
+            description: "Try using a clearer room photo",
           });
         }
       } catch (err: any) {
-        console.error("[useSimulator] Erro na análise:", err);
+        console.error("[useSimulator] Analysis error:", err);
         setRooms((prev) => prev.map((r) => r.id === id ? { ...r, isAnalyzing: false, isAnalyzed: false } : r));
         
-        const errorMessage = err.message || "Não foi possível analisar a imagem";
-        toast.error("Erro na análise", { description: errorMessage });
+        const errorMessage = err.message || "Could not analyze image";
+        toast.error("Analysis error", { description: errorMessage });
       }
     };
     reader.readAsDataURL(file);
@@ -114,20 +97,20 @@ export function useSimulator() {
 
   const applyColor = useCallback(async () => {
     if (!activeRoom || !selectedWallId || !selectedPaint) {
-      toast.error("Selecione uma superfície e uma cor");
+      toast.error("Select a wall and a color");
       return;
     }
 
     const wall = activeRoom.walls.find((w) => w.id === selectedWallId);
     if (!wall) {
-      toast.error("Superfície não encontrada");
+      toast.error("Wall not found");
       return;
     }
 
     setIsPainting(true);
 
     try {
-      console.log("[useSimulator] Pintando superfície:", wall.label, "com cor:", selectedPaint.hex);
+      console.log("[useSimulator] Painting wall:", wall.label, "with color:", selectedPaint.hex);
 
       const { data, error } = await supabase.functions.invoke("paint-wall", {
         body: {
@@ -135,12 +118,12 @@ export function useSimulator() {
           paintColor: selectedPaint.hex,
           paintName: selectedPaint.name,
           wallLabel: wall.label,
-          surfaceType: wall.tipo,
+          surfaceType: "wall",
         },
       });
 
       if (error) {
-        console.error("[useSimulator] Erro na pintura:", error);
+        console.error("[useSimulator] Painting error:", error);
         throw error;
       }
 
@@ -149,7 +132,7 @@ export function useSimulator() {
       }
 
       if (!data.imageUrl) {
-        throw new Error("URL da imagem não retornada");
+        throw new Error("Image URL not returned");
       }
 
       const simulation: WallSimulation = {
@@ -172,13 +155,13 @@ export function useSimulator() {
         )
       );
 
-      toast.success("Cor aplicada com sucesso!", {
-        description: `${selectedPaint.name} na ${wall.label}`,
+      toast.success("Color applied successfully!", {
+        description: `${selectedPaint.name} on ${wall.label}`,
       });
     } catch (err: any) {
-      console.error("[useSimulator] Erro ao pintar:", err);
-      toast.error("Erro ao aplicar cor", { 
-        description: err.message || "Tente novamente" 
+      console.error("[useSimulator] Paint error:", err);
+      toast.error("Error applying color", { 
+        description: err.message || "Please try again" 
       });
     } finally {
       setIsPainting(false);
@@ -191,7 +174,7 @@ export function useSimulator() {
     const sim = activeRoom.simulations.find(s => s.id === simId);
     if (!sim) return;
     
-    // Verificar se é a última simulação da sala
+    // Check if it's the last simulation in the room
     const remainingSims = activeRoom.simulations.filter(s => s.id !== simId);
     
     setRooms((prev) =>
@@ -209,7 +192,7 @@ export function useSimulator() {
   const retryAnalysis = useCallback(() => {
     if (!activeRoom) return;
     
-    // Converter dataURL para File e re-adicionar
+    // Convert dataURL to File and re-add
     const file = dataURLtoFile(activeRoom.originalImageUrl, `room_${Date.now()}.jpg`);
     setRooms(prev => prev.filter(r => r.id !== activeRoom.id));
     addRoom(file);
@@ -242,7 +225,7 @@ export function useSimulator() {
   };
 }
 
-// Helper para converter base64 para File
+// Helper to convert base64 to File
 function dataURLtoFile(dataurl: string, filename: string) {
   const arr = dataurl.split(',');
   const mime = arr[0].match(/:(.*?);/)![1];

@@ -1,5 +1,5 @@
 import { useRef, useState, useEffect } from "react";
-import { ChevronLeft, ChevronRight, RefreshCw, ScanEye, AlertTriangle, MousePointer2 } from "lucide-react";
+import { ChevronLeft, ChevronRight, RefreshCw, ScanEye, AlertTriangle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Room } from "./types";
 
@@ -19,7 +19,7 @@ const ImageViewer = ({ room, selectedWallId, onSelectWall, onRetryAnalysis, prim
 
   const hasSimulations = room.simulations.length > 0;
 
-  // Atualizar tamanho da imagem quando renderizada
+  // Update image size when rendered
   useEffect(() => {
     const img = containerRef.current?.querySelector('img');
     if (img) {
@@ -62,14 +62,9 @@ const ImageViewer = ({ room, selectedWallId, onSelectWall, onRetryAnalysis, prim
     }
   };
 
-  // Gerar string de pontos do polígono para SVG
-  const getPolygonPoints = (polygon: { x: number; y: number }[]) => {
-    return polygon.map(p => `${p.x},${p.y}`).join(" ");
-  };
-
   return (
     <div className="relative">
-      {/* Estado: Analisando */}
+      {/* State: Analyzing */}
       {room.isAnalyzing && (
         <div className="absolute inset-0 z-30 rounded-2xl bg-background/80 backdrop-blur-md flex flex-col items-center justify-center gap-4">
           <div className="bg-card rounded-3xl p-8 text-center shadow-elevated animate-scale-in border border-border">
@@ -84,20 +79,20 @@ const ImageViewer = ({ room, selectedWallId, onSelectWall, onRetryAnalysis, prim
               />
               <ScanEye className="absolute inset-0 m-auto w-8 h-8" style={{ color: primaryColor }} />
             </div>
-            <p className="font-display font-bold text-lg text-foreground">Analisando Ambiente</p>
-            <p className="text-sm text-muted-foreground mt-1">Detectando superfícies...</p>
+            <p className="font-display font-bold text-lg text-foreground">Analyzing Room</p>
+            <p className="text-sm text-muted-foreground mt-1">Identifying wall surfaces...</p>
           </div>
         </div>
       )}
 
-      {/* Estado: Erro na análise */}
+      {/* State: Analysis error */}
       {!room.isAnalyzing && !room.isAnalyzed && room.walls.length === 0 && onRetryAnalysis && (
         <div className="absolute inset-0 z-30 rounded-2xl bg-background/60 backdrop-blur-sm flex flex-col items-center justify-center gap-4">
           <div className="bg-card rounded-2xl p-6 text-center shadow-elevated animate-scale-in max-w-sm">
             <AlertTriangle className="w-12 h-12 text-amber-500 mx-auto mb-3" />
-            <p className="font-display font-semibold text-foreground">Não foi possível detectar superfícies</p>
+            <p className="font-display font-semibold text-foreground">Could not identify walls</p>
             <p className="text-xs text-muted-foreground mt-2 mb-4">
-              Tente usar uma foto mais clara, com boa iluminação e ângulo frontal do ambiente.
+              Try using a clearer photo with good lighting and a full view of the room.
             </p>
             <Button 
               size="sm" 
@@ -105,13 +100,13 @@ const ImageViewer = ({ room, selectedWallId, onSelectWall, onRetryAnalysis, prim
               className="gap-2"
               style={{ backgroundColor: primaryColor }}
             >
-              <RefreshCw className="w-4 h-4" /> Tentar novamente
+              <RefreshCw className="w-4 h-4" /> Try again
             </Button>
           </div>
         </div>
       )}
 
-      {/* Container principal da imagem */}
+      {/* Main image container */}
       <div
         ref={containerRef}
         className={`relative rounded-2xl overflow-hidden bg-muted border border-border select-none shadow-soft ${
@@ -123,18 +118,18 @@ const ImageViewer = ({ room, selectedWallId, onSelectWall, onRetryAnalysis, prim
         onMouseLeave={handleMouseUp}
         onTouchMove={handleTouchMove}
       >
-        {/* Imagem processada (após pintura) */}
+        {/* Processed image (after painting) */}
         <img 
           src={room.imageUrl} 
-          alt="Ambiente" 
+          alt="Room" 
           className="w-full h-auto block"
           draggable={false}
         />
 
-        {/* Slider Antes/Depois */}
+        {/* Before/After Slider */}
         {hasSimulations && (
           <>
-            {/* Imagem original (lado esquerdo) */}
+            {/* Original image (left side) */}
             <div
               className="absolute inset-0 overflow-hidden pointer-events-none"
               style={{ width: `${sliderPos}%` }}
@@ -151,7 +146,7 @@ const ImageViewer = ({ room, selectedWallId, onSelectWall, onRetryAnalysis, prim
               />
             </div>
 
-            {/* Linha do slider */}
+            {/* Slider line */}
             <div
               className="absolute top-0 bottom-0 z-10"
               style={{ 
@@ -168,76 +163,30 @@ const ImageViewer = ({ room, selectedWallId, onSelectWall, onRetryAnalysis, prim
               </div>
             </div>
 
-            {/* Labels antes/depois */}
+            {/* Before/After labels */}
             <div className="absolute top-4 left-4 bg-black/60 text-white text-xs font-bold px-3 py-1.5 rounded-full backdrop-blur-sm z-10">
-              Antes
+              Before
             </div>
             <div className="absolute top-4 right-4 bg-black/60 text-white text-xs font-bold px-3 py-1.5 rounded-full backdrop-blur-sm z-10">
-              Depois
+              After
             </div>
           </>
         )}
-
-        {/* Camada de Polígonos SVG */}
-        {room.isAnalyzed && !room.isAnalyzing && room.walls.length > 0 && (
-          <svg
-            className="absolute inset-0 w-full h-full z-20 pointer-events-none"
-            viewBox="0 0 100 100"
-            preserveAspectRatio="none"
-            style={{ pointerEvents: 'auto' }}
-          >
-            {room.walls.map((wall) => {
-              const isSelected = selectedWallId === wall.id;
-              return (
-                <g key={wall.id}>
-                  {/* Preenchimento */}
-                  <polygon
-                    points={getPolygonPoints(wall.polygon)}
-                    fill={isSelected ? `${primaryColor}33` : "transparent"}
-                    stroke={isSelected ? primaryColor : "transparent"}
-                    strokeWidth="0.8"
-                    className="cursor-pointer transition-all duration-200"
-                    style={{ 
-                      pointerEvents: 'auto',
-                      filter: isSelected ? 'drop-shadow(0 0 4px rgba(0,0,0,0.3))' : 'none'
-                    }}
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      onSelectWall(wall.id);
-                    }}
-                  />
-                  {/* Borda mais visível quando selecionado */}
-                  {isSelected && (
-                    <polygon
-                      points={getPolygonPoints(wall.polygon)}
-                      fill="none"
-                      stroke={primaryColor}
-                      strokeWidth="1"
-                      strokeDasharray="2,1"
-                      className="pointer-events-none animate-pulse"
-                    />
-                  )}
-                </g>
-              );
-            })}
-          </svg>
-        )}
       </div>
 
-      {/* Instruções e seleção de superfícies */}
+      {/* Wall selection buttons - semantic labels */}
       {room.isAnalyzed && !room.isAnalyzing && room.walls.length > 0 && (
         <div className="mt-4 space-y-3">
-          {/* Instrução */}
+          {/* Instruction */}
           <div className="flex items-center gap-2 text-sm text-muted-foreground bg-card p-3 rounded-xl border border-border">
-            <MousePointer2 className="w-4 h-4" style={{ color: primaryColor }} />
-            <span>Clique em uma superfície para selecionar, depois escolha uma cor</span>
+            <span className="font-semibold" style={{ color: primaryColor }}>Select a wall</span>
+            <span>then choose a color to paint</span>
           </div>
 
-          {/* Botões das superfícies */}
+          {/* Wall buttons with semantic names */}
           <div className="flex flex-wrap gap-2">
             {room.walls.map((wall) => {
               const isSelected = selectedWallId === wall.id;
-              const tipoIcon = wall.tipo === 'teto' ? '⬆️' : wall.tipo === 'piso' ? '⬇️' : '🧱';
               
               return (
                 <button
@@ -252,7 +201,7 @@ const ImageViewer = ({ room, selectedWallId, onSelectWall, onRetryAnalysis, prim
                     backgroundColor: isSelected ? primaryColor : undefined 
                   }}
                 >
-                  <span>{tipoIcon}</span>
+                  <span className="text-base">🧱</span>
                   <span>{wall.label}</span>
                 </button>
               );
