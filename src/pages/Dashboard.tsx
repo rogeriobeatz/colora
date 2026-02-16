@@ -1,22 +1,26 @@
-import { useState } from "react";
-import { Link } from "react-router-dom";
+import { useState, useEffect } from "react";
+import { Link, useNavigate } from "react-router-dom";
 import { useStore } from "@/contexts/StoreContext";
+import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import {
-  Palette, Building2, Plus, Trash2, Edit2, Download, Upload, Eye, EyeOff, Search, X
+  Palette, Building2, Plus, Trash2, Edit2, Download, Upload, Eye, EyeOff, Search, LogOut, Loader2
 } from "lucide-react";
 import { Catalog, Paint } from "@/data/defaultColors";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { toast } from "sonner";
+import { supabase } from "@/integrations/supabase/client";
 
 const Dashboard = () => {
+  const { user, loading: authLoading, signOut } = useAuth();
+  const navigate = useNavigate();
   const {
-    company, initCompany, updateCompany, addCatalog, updateCatalog, deleteCatalog,
-    addPaint, updatePaint, deletePaint, importPaintsCSV, exportPaintsCSV,
+    company, setCompany, updateCompany, addCatalog, updateCatalog, deleteCatalog,
+    addPaint, updatePaint, deletePaint, importPaintsCSV, exportPaintsCSV, initCompany,
   } = useStore();
 
   const [companyName, setCompanyName] = useState("");
@@ -26,46 +30,85 @@ const Dashboard = () => {
   const [paintForm, setPaintForm] = useState({ name: "", code: "", hex: "#000000", rgb: "", cmyk: "", category: "" });
   const [newCatalogName, setNewCatalogName] = useState("");
   const [showPaintDialog, setShowPaintDialog] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
 
-  if (!company) {
+  useEffect(() => {
+    if (!authLoading && !user) {
+      navigate("/login");
+    }
+  }, [user, authLoading, navigate]);
+
+  // Load profile from Supabase if logged in
+  useEffect(() => {
+    const loadProfile = async () => {
+      if (user) {
+        const { data, error } = await supabase
+          .from('profiles')
+          .select('*')
+          .eq('id', user.id)
+          .single();
+        
+        if (data && !error) {
+          // If we have a profile, update the store
+          // Note: In a real app, we'd sync the whole company object with Supabase
+          // For now, we'll just ensure the company name and slug match
+          if (!company || company.id !== user.id) {
+            initCompany(data.company_name || "Minha Loja");
+            updateCompany({ 
+              id: user.id, 
+              name: data.company_name, 
+              slug: data.company_slug,
+              primaryColor: data.primary_color,
+              secondaryColor: data.secondary_color
+            });
+          }
+        }
+      }
+    };
+    loadProfile();
+  }, [user]);
+
+  if (authLoading) {
     return (
-      <div className="min-h-screen bg-background flex items-center justify-center px-4">
-        <div className="max-w-md w-full bg-card rounded-2xl p-8 shadow-elevated border border-border text-center">
-          <div className="w-16 h-16 rounded-2xl gradient-primary flex items-center justify-center mx-auto mb-6">
-            <Building2 className="w-8 h-8 text-primary-foreground" />
-          </div>
-          <h1 className="text-2xl font-display font-bold text-foreground mb-2">Criar sua Empresa</h1>
-          <p className="text-muted-foreground text-sm mb-6">
-            Comece criando sua empresa para acessar o simulador e gerenciar catálogos.
-          </p>
-          <div className="space-y-4">
-            <Input
-              placeholder="Nome da empresa"
-              value={companyName}
-              onChange={(e) => setCompanyName(e.target.value)}
-            />
-            <Button
-              className="w-full"
-              onClick={() => {
-                if (companyName.trim()) {
-                  initCompany(companyName.trim());
-                  toast.success("Empresa criada com sucesso!");
-                }
-              }}
-              disabled={!companyName.trim()}
-            >
-              Criar Empresa
-            </Button>
-          </div>
-          <Button variant="ghost" className="mt-4" asChild>
-            <Link to="/">← Voltar</Link>
-          </Button>
-        </div>
+      <div className="min-h-screen flex items-center justify-center">
+        <Loader2 className="w-8 h-8 animate-spin text-primary" />
       </div>
     );
   }
 
-  const activeCatalog = company.catalogs.find((c) => c.id === selectedCatalog) || company.catalogs[0];
+  if (!user) return null;
+
+  const handleSignOut = async () => {
+    await signOut();
+    toast.success("Sessão encerrada");
+    navigate("/");
+  };
+
+  const handleSaveProfile = async () => {
+    if (!user || !company) return;
+    setIsSaving(true);
+    try {
+      const { error } = await supabase
+        .from('profiles')
+        .upsert({
+          id: user.id,
+          company_name: company.name,
+          company_slug: company.slug,
+          primary_color: company.primaryColor,
+          secondary_color: company.secondaryColor,
+          updated_at: new Date().toISOString(),
+        });
+
+      if (error) throw error;
+      toast.success("Dados salvos no servidor!");
+    } catch (error: any) {
+      toast.error("Erro ao salvar: " + error.message);
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const activeCatalog = company?.catalogs.find((c) => c.id === selectedCatalog) || company?.catalogs[0];
   const filteredPaints = activeCatalog?.paints.filter(
     (p) =>
       p.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -137,18 +180,21 @@ const Dashboard = () => {
               <span className="font-display text-lg font-bold text-foreground">Colora</span>
             </Link>
             <span className="text-muted-foreground">/</span>
-            <span className="text-sm font-medium text-foreground">{company.name}</span>
+            <span className="text-sm font-medium text-foreground">{company?.name || "Dashboard"}</span>
           </div>
           <div className="flex items-center gap-2">
             <Button variant="outline" size="sm" asChild>
-              <Link to={`/empresa/${company.slug}`} className="gap-1.5">
+              <Link to={company ? `/empresa/${company.slug}` : "#"} className="gap-1.5">
                 <Eye className="w-3.5 h-3.5" /> White-label
               </Link>
             </Button>
             <Button size="sm" asChild>
               <Link to="/simulator" className="gap-1.5">
-                <Palette className="w-3.5 h-3.5" /> Simulador de Ambientes
+                <Palette className="w-3.5 h-3.5" /> Simulador
               </Link>
+            </Button>
+            <Button variant="ghost" size="icon" onClick={handleSignOut} title="Sair">
+              <LogOut className="w-4 h-4 text-muted-foreground" />
             </Button>
           </div>
         </div>
@@ -165,46 +211,51 @@ const Dashboard = () => {
           <TabsContent value="company">
             <div className="bg-card rounded-xl border border-border p-6 max-w-lg">
               <h2 className="text-lg font-display font-semibold text-foreground mb-4">Dados da Empresa</h2>
-              <div className="space-y-4">
-                <div>
-                  <Label>Nome</Label>
-                  <Input value={company.name} onChange={(e) => updateCompany({ name: e.target.value })} />
-                </div>
-                <div>
-                  <Label>Slug (URL)</Label>
-                  <Input value={company.slug} onChange={(e) => updateCompany({ slug: e.target.value })} />
-                  <p className="text-xs text-muted-foreground mt-1">
-                    Acesse em: /empresa/{company.slug}
-                  </p>
-                </div>
-                <div className="grid grid-cols-2 gap-4">
+              {company && (
+                <div className="space-y-4">
                   <div>
-                    <Label>Cor Primária</Label>
-                    <div className="flex gap-2 items-center">
-                      <input
-                        type="color"
-                        value={company.primaryColor}
-                        onChange={(e) => updateCompany({ primaryColor: e.target.value })}
-                        className="w-10 h-10 rounded-lg border border-border cursor-pointer"
-                      />
-                      <Input value={company.primaryColor} onChange={(e) => updateCompany({ primaryColor: e.target.value })} />
-                    </div>
+                    <Label>Nome</Label>
+                    <Input value={company.name} onChange={(e) => updateCompany({ name: e.target.value })} />
                   </div>
                   <div>
-                    <Label>Cor Secundária</Label>
-                    <div className="flex gap-2 items-center">
-                      <input
-                        type="color"
-                        value={company.secondaryColor}
-                        onChange={(e) => updateCompany({ secondaryColor: e.target.value })}
-                        className="w-10 h-10 rounded-lg border border-border cursor-pointer"
-                      />
-                      <Input value={company.secondaryColor} onChange={(e) => updateCompany({ secondaryColor: e.target.value })} />
+                    <Label>Slug (URL)</Label>
+                    <Input value={company.slug} onChange={(e) => updateCompany({ slug: e.target.value })} />
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Acesse em: /empresa/{company.slug}
+                    </p>
+                  </div>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <Label>Cor Primária</Label>
+                      <div className="flex gap-2 items-center">
+                        <input
+                          type="color"
+                          value={company.primaryColor}
+                          onChange={(e) => updateCompany({ primaryColor: e.target.value })}
+                          className="w-10 h-10 rounded-lg border border-border cursor-pointer"
+                        />
+                        <Input value={company.primaryColor} onChange={(e) => updateCompany({ primaryColor: e.target.value })} />
+                      </div>
+                    </div>
+                    <div>
+                      <Label>Cor Secundária</Label>
+                      <div className="flex gap-2 items-center">
+                        <input
+                          type="color"
+                          value={company.secondaryColor}
+                          onChange={(e) => updateCompany({ secondaryColor: e.target.value })}
+                          className="w-10 h-10 rounded-lg border border-border cursor-pointer"
+                        />
+                        <Input value={company.secondaryColor} onChange={(e) => updateCompany({ secondaryColor: e.target.value })} />
+                      </div>
                     </div>
                   </div>
+                  <Button onClick={handleSaveProfile} disabled={isSaving}>
+                    {isSaving ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}
+                    Salvar Alterações
+                  </Button>
                 </div>
-                <Button onClick={() => toast.success("Dados salvos!")}>Salvar Alterações</Button>
-              </div>
+              )}
             </div>
           </TabsContent>
 
@@ -240,7 +291,7 @@ const Dashboard = () => {
                     <Plus className="w-4 h-4" />
                   </Button>
                 </div>
-                {company.catalogs.map((cat) => (
+                {company?.catalogs.map((cat) => (
                   <div
                     key={cat.id}
                     className={`p-3 rounded-xl border cursor-pointer transition-all ${
