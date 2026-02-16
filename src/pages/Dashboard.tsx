@@ -13,22 +13,12 @@ import {
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 
-interface Profile {
-  id: string;
-  company_name: string | null;
-  company_slug: string | null;
-  primary_color: string | null;
-  secondary_color: string | null;
-  avatar_url: string | null;
-  updated_at: string | null;
-}
-
 const Dashboard = () => {
   const { user, loading: authLoading, signOut } = useAuth();
   const navigate = useNavigate();
   const {
     company, updateCompany, addCatalog, updateCatalog, deleteCatalog,
-    importPaintsCSV, exportPaintsCSV, initCompany, refreshData
+    importPaintsCSV, exportPaintsCSV, refreshData
   } = useStore();
 
   const [selectedCatalogId, setSelectedCatalogId] = useState<string | null>(null);
@@ -169,9 +159,12 @@ const Dashboard = () => {
       <header className="sticky top-0 z-50 bg-background/80 backdrop-blur-lg border-b border-border">
         <div className="container mx-auto flex items-center justify-between h-16 px-4">
           <div className="flex items-center gap-4">
-            <div className="w-8 h-8 rounded-lg flex items-center justify-center" style={{ backgroundColor: company.primaryColor }}>
+            <div 
+              className="w-8 h-8 rounded-lg flex items-center justify-center overflow-hidden" 
+              style={{ backgroundColor: company.logo ? 'transparent' : company.primaryColor }}
+            >
               {company.logo ? (
-                <img src={company.logo} alt="Logo" className="w-full h-full object-contain rounded-lg" />
+                <img src={company.logo} alt="Logo" className="w-full h-full object-contain" />
               ) : (
                 <Palette className="w-4 h-4 text-white" />
               )}
@@ -457,7 +450,10 @@ const Dashboard = () => {
                   <div className="h-1.5" style={{ background: `linear-gradient(90deg, ${company.primaryColor}, ${company.secondaryColor})` }} />
                   <div className="p-4 border-b border-border flex items-center justify-between bg-white">
                     <div className="flex items-center gap-2">
-                      <div className="w-6 h-6 rounded flex items-center justify-center" style={{ backgroundColor: company.primaryColor }}>
+                      <div 
+                        className="w-6 h-6 rounded flex items-center justify-center overflow-hidden" 
+                        style={{ backgroundColor: company.logo ? 'transparent' : company.primaryColor }}
+                      >
                         {company.logo ? (
                           <img src={company.logo} alt="Logo" className="w-full h-full object-contain" />
                         ) : (
