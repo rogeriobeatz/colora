@@ -1,1 +1,7 @@
 project_id = "wkhgnavkcwdhzvgqbuvo"
+
+[functions.analyze-room]
+verify_jwt = false
+
+[functions.paint-wall]
+verify_jwt = false
