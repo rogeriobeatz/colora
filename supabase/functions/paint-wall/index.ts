@@ -15,61 +15,65 @@ serve(async (req) => {
   }
 
   try {
-    const { imageBase64, paintColor, wallLabel } = await req.json();
+    // --- CHANGE 1: Accept wallLabelEn (English Name) ---
+    const { imageBase64, paintColor, wallLabel, wallLabelEn } = await req.json();
 
     if (!imageBase64 || !paintColor) {
-      throw new Error("Imagem e Cor são obrigatórias");
+      throw new Error("Image and Color are required");
     }
 
-    // Configurações de Ambiente
+    // --- CHANGE 2: Define Technical Name for AI ---
+    // Priority: English Label (Best) > Portuguese Label (Fallback) > "wall" (Generic)
+    const technicalWallName = wallLabelEn || wallLabel || "wall";
+
+    // Environment Configuration
     const KIE_API_KEY = Deno.env.get("KIE_API_KEY");
     const SUPABASE_URL = Deno.env.get("SUPABASE_URL");
     const SUPABASE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
 
     if (!KIE_API_KEY || !SUPABASE_URL || !SUPABASE_KEY) {
-      throw new Error("Variáveis de ambiente não configuradas (KIE ou Supabase)");
+      throw new Error("Environment variables not configured (KIE or Supabase)");
     }
 
     const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
 
-    // --- PASSO 1: Upload da Imagem para o Supabase Storage ---
-    // A API do Kie exige uma URL pública, não aceita Base64 direto.
-    console.log("1. Fazendo upload da imagem...");
+    // --- STEP 1: Upload Image to Supabase Storage ---
+    console.log(`1. Uploading image to process: ${technicalWallName} (${paintColor})...`);
     
     const base64Data = imageBase64.replace(/^data:image\/\w+;base64,/, "");
     const buffer = Uint8Array.from(atob(base64Data), c => c.charCodeAt(0));
     const fileName = `input_${Date.now()}_${Math.random().toString(36).substring(7)}.png`;
 
     const { error: uploadError } = await supabase.storage
-      .from('images') // CERTIFIQUE-SE QUE ESTE BUCKET EXISTE E É PÚBLICO
+      .from('images') // ENSURE THIS BUCKET EXISTS AND IS PUBLIC
       .upload(fileName, buffer, { contentType: 'image/png' });
 
-    if (uploadError) throw new Error(`Erro no upload: ${uploadError.message}`);
+    if (uploadError) throw new Error(`Upload error: ${uploadError.message}`);
 
     const { data: { publicUrl } } = supabase.storage
       .from('images')
       .getPublicUrl(fileName);
 
-    console.log("   Imagem acessível em:", publicUrl);
+    console.log("   Image accessible at:", publicUrl);
 
-    // --- PASSO 2: Preparar Prompt e Payload ---
-    const superficie = wallLabel || "wall";
+    // --- STEP 2: Prepare Prompt and Payload ---
     
-    // Prompt focado em Inpainting/Recolorização
-    const prompt = `Repaint ONLY the ${superficie} with the color ${paintColor}. Keep all furniture, shadows, lighting, and textures exactly the same. High quality, photorealistic, interior design photography.`;
+    // --- CHANGE 3: Use technicalWallName in the prompt ---
+    // Using **bold** helps the model focus on the subject
+    const prompt = `Repaint ONLY the **${technicalWallName}** with the color ${paintColor}. Keep all furniture, shadows, lighting, and textures exactly the same. High quality, photorealistic, interior design photography.`;
 
     const payload = {
-      model: "flux-2/pro-image-to-image", // Modelo correto segundo sua doc
+      model: "flux-2/pro-image-to-image",
       input: {
-        input_urls: [publicUrl], // Array com a URL gerada
+        input_urls: [publicUrl],
         prompt: prompt,
         aspect_ratio: "auto",
         resolution: "1K"
       }
     };
 
-    // --- PASSO 3: Criar Tarefa no Kie.ai ---
-    console.log("2. Enviando para Kie.ai...");
+    // --- STEP 3: Create Task in Kie.ai ---
+    console.log("2. Sending to Kie.ai with prompt:", prompt);
     
     const createRes = await fetch(`${KIE_BASE_URL}/api/v1/jobs/createTask`, {
       method: "POST",
@@ -82,17 +86,17 @@ serve(async (req) => {
 
     if (!createRes.ok) {
       const err = await createRes.text();
-      throw new Error(`Erro Kie Create (${createRes.status}): ${err}`);
+      throw new Error(`Kie Create Error (${createRes.status}): ${err}`);
     }
 
     const createData = await createRes.json();
-    if (createData.code !== 200) throw new Error(`Erro API Kie: ${createData.msg}`);
+    if (createData.code !== 200) throw new Error(`Kie API Error: ${createData.msg}`);
     
     const taskId = createData.data.taskId;
-    console.log("   Task criada ID:", taskId);
+    console.log("   Task created ID:", taskId);
 
-    // --- PASSO 4: Polling (Aguardar Resultado) ---
-    console.log("3. Aguardando processamento...");
+    // --- STEP 4: Polling (Wait for Result) ---
+    console.log("3. Waiting for processing...");
     const finalImageUrl = await pollKieTask(taskId, KIE_API_KEY);
 
     return new Response(
@@ -101,7 +105,7 @@ serve(async (req) => {
     );
 
   } catch (error: any) {
-    console.error("ERRO FATAL:", error.message);
+    console.error("FATAL ERROR:", error.message);
     return new Response(
       JSON.stringify({ error: error.message, sucesso: false }),
       { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
@@ -109,12 +113,12 @@ serve(async (req) => {
   }
 });
 
-// Função auxiliar de Polling corrigida para a estrutura do Kie
+// Helper Polling Function
 async function pollKieTask(taskId: string, apiKey: string): Promise<string> {
-  const maxAttempts = 30; // ~60 segundos
+  const maxAttempts = 30; // ~60 seconds
   
   for (let i = 0; i < maxAttempts; i++) {
-    await new Promise(r => setTimeout(r, 2000)); // Espera 2s
+    await new Promise(r => setTimeout(r, 2000)); // Wait 2s
 
     const res = await fetch(`${KIE_BASE_URL}/api/v1/jobs/recordInfo?taskId=${taskId}`, {
       headers: { "Authorization": `Bearer ${apiKey}` }
@@ -126,18 +130,17 @@ async function pollKieTask(taskId: string, apiKey: string): Promise<string> {
     const data = body.data;
 
     if (data.state === "success") {
-      // O Kie retorna o resultado como STRING JSON dentro de resultJson
       try {
         const resultObj = JSON.parse(data.resultJson);
         return resultObj.resultUrls[0];
       } catch (e) {
-        throw new Error("Erro ao ler JSON de resposta do Kie");
+        throw new Error("Error parsing Kie JSON response");
       }
     }
 
     if (data.state === "fail") {
-      throw new Error(`Kie falhou: ${data.failMsg}`);
+      throw new Error(`Kie failed: ${data.failMsg}`);
     }
   }
-  throw new Error("Timeout: A imagem demorou muito para gerar.");
+  throw new Error("Timeout: Image generation took too long.");
 }
