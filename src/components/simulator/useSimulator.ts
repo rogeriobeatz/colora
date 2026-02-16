@@ -27,6 +27,7 @@ export function useSimulator() {
         id,
         name,
         imageUrl: imageBase64,
+        originalImageUrl: imageBase64,
         walls: [],
         isAnalyzing: true,
         isAnalyzed: false,
@@ -166,6 +167,18 @@ export function useSimulator() {
     },
     [activeRoom]
   );
+
+  const resetRoom = useCallback(() => {
+    if (!activeRoom) return;
+    setRooms((prev) =>
+      prev.map((r) =>
+        r.id === activeRoom.id
+          ? { ...r, imageUrl: r.originalImageUrl, simulations: [] }
+          : r
+      )
+    );
+    toast.info("Ambiente restaurado ao original");
+  }, [activeRoom]);
 
   const retryAnalysis = useCallback(() => {
     if (!activeRoom) return;

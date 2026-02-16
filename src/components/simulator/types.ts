@@ -11,6 +11,7 @@ export interface Room {
   id: string;
   name: string;
   imageUrl: string;
+  originalImageUrl: string;
   walls: DetectedWall[];
   isAnalyzing: boolean;
   isAnalyzed: boolean;
