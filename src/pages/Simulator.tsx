@@ -27,6 +27,7 @@ const Simulator = ({ companySlug }: { companySlug?: string }) => {
     setSelectedPaint,
     applyColor,
     removeSimulation,
+    retryAnalysis,
   } = useSimulator();
 
   const handleGeneratePDF = () => {
@@ -68,6 +69,7 @@ const Simulator = ({ companySlug }: { companySlug?: string }) => {
                 room={activeRoom}
                 selectedWallId={selectedWallId}
                 onSelectWall={selectWall}
+                onRetryAnalysis={retryAnalysis}
               />
             )}
 

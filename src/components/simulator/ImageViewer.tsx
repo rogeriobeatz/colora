@@ -1,14 +1,16 @@
 import { useRef, useState } from "react";
-import { ChevronLeft, ChevronRight, Loader2, ScanEye } from "lucide-react";
+import { ChevronLeft, ChevronRight, RefreshCw, ScanEye, AlertTriangle } from "lucide-react";
+import { Button } from "@/components/ui/button";
 import { Room, DetectedWall } from "./types";
 
 interface ImageViewerProps {
   room: Room;
   selectedWallId: string | null;
   onSelectWall: (wallId: string) => void;
+  onRetryAnalysis?: () => void;
 }
 
-const ImageViewer = ({ room, selectedWallId, onSelectWall }: ImageViewerProps) => {
+const ImageViewer = ({ room, selectedWallId, onSelectWall, onRetryAnalysis }: ImageViewerProps) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const [sliderPos, setSliderPos] = useState(50);
 
@@ -34,6 +36,20 @@ const ImageViewer = ({ room, selectedWallId, onSelectWall }: ImageViewerProps) =
             <ScanEye className="w-10 h-10 text-primary mx-auto mb-3 animate-pulse" />
             <p className="font-display font-semibold text-foreground text-sm">Analisando ambiente...</p>
             <p className="text-xs text-muted-foreground mt-1">Identificando paredes e superfícies</p>
+          </div>
+        </div>
+      )}
+
+      {/* Failed analysis overlay */}
+      {!room.isAnalyzing && !room.isAnalyzed && room.walls.length === 0 && onRetryAnalysis && (
+        <div className="absolute inset-0 z-30 rounded-2xl bg-foreground/40 backdrop-blur-sm flex flex-col items-center justify-center gap-3">
+          <div className="bg-card rounded-2xl p-6 text-center shadow-elevated animate-scale-in">
+            <AlertTriangle className="w-10 h-10 text-accent mx-auto mb-3" />
+            <p className="font-display font-semibold text-foreground text-sm">Falha na análise</p>
+            <p className="text-xs text-muted-foreground mt-1 mb-3">Não foi possível identificar as paredes</p>
+            <Button size="sm" onClick={onRetryAnalysis} className="gap-1.5">
+              <RefreshCw className="w-3.5 h-3.5" /> Tentar novamente
+            </Button>
           </div>
         </div>
       )}
