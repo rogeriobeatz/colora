@@ -12,13 +12,6 @@ interface Profile {
   avatar_url: string | null;
 }
 
-interface CatalogData {
-  id: string;
-  name: string;
-  active: boolean;
-  paints: Paint[];
-}
-
 interface StoreContextType {
   company: Company | null;
   loading: boolean;
@@ -48,17 +41,27 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     }
 
     try {
-      const { data: profile } = await supabase
+      // Usamos maybeSingle() para evitar erro 406 se o perfil não existir
+      const { data: profile, error: profileError } = await supabase
         .from('profiles')
         .select('*')
         .eq('id', user.id)
-        .single() as any;
+        .maybeSingle() as any;
+
+      if (profileError && profileError.code !== 'PGRST116') {
+        console.error("Erro ao buscar perfil:", profileError);
+      }
 
       if (profile) {
-        const { data: catalogsData } = await supabase
+        // Buscamos catálogos. Se a tabela não existir, o Supabase retornará erro, que tratamos aqui.
+        const { data: catalogsData, error: catalogsError } = await supabase
           .from('catalogs')
           .select('*, paints(*)')
           .eq('company_id', user.id) as any;
+
+        if (catalogsError) {
+          console.warn("Tabela 'catalogs' não encontrada ou erro na busca. Usando dados padrão.");
+        }
 
         const formattedCompany: Company = {
           id: profile.id,
@@ -77,9 +80,12 @@ export function StoreProvider({ children }: { children: ReactNode }) {
             : [createDefaultCatalog()]
         };
         setCompanyState(formattedCompany);
+      } else {
+        // Se não houver perfil, inicializamos com dados padrão para o dashboard não quebrar
+        setCompanyState(createDefaultCompany("Minha Loja"));
       }
     } catch (error) {
-      console.error("Error fetching company data:", error);
+      console.error("Erro crítico no StoreContext:", error);
     } finally {
       setLoading(false);
     }
@@ -92,7 +98,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         .from('profiles')
         .select('*')
         .eq('company_slug', slug)
-        .single() as any;
+        .maybeSingle() as any;
 
       if (profile) {
         const { data: catalogsData } = await supabase
