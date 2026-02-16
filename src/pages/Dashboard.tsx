@@ -12,6 +12,9 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
+import { Database } from "@/integrations/supabase/types";
+
+type Profile = Database['public']['Tables']['profiles']['Row'];
 
 const Dashboard = () => {
   const { user, loading: authLoading, signOut } = useAuth();
@@ -21,7 +24,7 @@ const Dashboard = () => {
     importPaintsCSV, exportPaintsCSV, initCompany,
   } = useStore();
 
-  const [userProfile, setUserProfile] = useState<any>(null);
+  const [userProfile, setUserProfile] = useState<Profile | null>(null);
   const [selectedCatalogId, setSelectedCatalogId] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState("");
   const [newCatalogName, setNewCatalogName] = useState("");
@@ -49,13 +52,13 @@ const Dashboard = () => {
         if (error) throw error;
 
         if (data) {
-          setUserProfile(data);
+          setUserProfile(data as Profile);
           if (!company || company.id !== user.id) {
             initCompany(data.company_name || "Minha Loja");
             updateCompany({ 
               id: user.id, 
-              name: data.company_name, 
-              slug: data.company_slug,
+              name: data.company_name || "Minha Loja", 
+              slug: data.company_slug || "minha-loja",
               primaryColor: data.primary_color || "#1a8a6a",
               secondaryColor: data.secondary_color || "#e87040"
             });
