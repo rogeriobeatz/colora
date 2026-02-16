@@ -6,7 +6,6 @@ const corsHeaders = {
 };
 
 serve(async (req) => {
-  // Handle CORS
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
   }
@@ -23,54 +22,47 @@ serve(async (req) => {
 
     const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
     if (!LOVABLE_API_KEY) {
-      console.error("[analyze-room] LOVABLE_API_KEY not configured");
       throw new Error("LOVABLE_API_KEY is not configured");
     }
 
-    // Format image base64
     const formattedImage = imageBase64.startsWith("data:")
       ? imageBase64
       : `data:image/jpeg;base64,${imageBase64}`;
 
-    // --- OTIMIZAÇÃO DO PROMPT PARA INTERNO E EXTERNO ---
-    const systemPrompt = `You are an expert Architectural & Spatial Analysis AI.
+    // --- PROMPT TRADUZIDO E ADAPTADO ---
+    const systemPrompt = `Você é uma IA especialista em Arquitetura e Análise Espacial.
 
-Your task is to analyze a photo of a space (Interior, Exterior, or Commercial) and identify ALL visibly paintable surfaces.
+Sua tarefa é analisar uma foto de um ambiente (Interno, Externo ou Comercial) e identificar TODAS as superfícies visíveis que podem ser pintadas.
 
-### SCOPE OF ANALYSIS:
-- **Interiors:** Walls, Ceilings.
-- **Exteriors:** Facades, Exterior Walls, Garden Walls, Fences, Pavements/Floors.
+### REGRAS DE IDENTIFICAÇÃO:
+1. **Visibilidade:** Liste APENAS superfícies claramente visíveis. NÃO liste paredes obstruídas ou fora de ângulo.
+2. **Nomenclatura Semântica (IMPORTANTE):** Dê nomes descritivos em **PORTUGUÊS (PT-BR)** baseados no contexto.
+   - *Interno:* "Parede atrás da TV", "Parede do Sofá", "Teto do Quarto", "Parede da Janela", "Parede Lateral Esquerda".
+   - *Externo:* "Fachada Principal", "Muro Lateral", "Piso da Garagem", "Muro do Jardim", "Parede da Varanda".
+3. **Pintável:** Ignore vidros, pedras brutas, madeira envernizada ou áreas que tipicamente não se pinta.
+4. **Tipo de Superfície:** Classifique como 'wall' (parede), 'ceiling' (teto) ou 'floor' (piso).
 
-### IDENTIFICATION RULES:
-1. **Visibility:** ONLY list surfaces clearly visible. Do NOT list obstructed surfaces.
-2. **Semantic Naming (Crucial):** Name the surface based on context.
-   - *Interior:* "Wall behind TV", "Kitchen Wall", "Bedroom Ceiling".
-   - *Exterior:* "Main Facade", "Garage Wall", "Side Fence", "Driveway Floor", "Upper Balcony Wall".
-3. **Paintability:** Ignore glass, windows, raw stone, or areas that typically aren't painted.
-4. **Surface Type:** Classify as 'wall', 'ceiling', or 'floor'.
+### FORMATO DE SAÍDA (JSON Estrito):
+Retorne apenas um objeto JSON com um array "surfaces". Sem markdown.
 
-### OUTPUT FORMAT (Strict JSON):
-Return a JSON object with a "surfaces" array.
-
-Example JSON:
+Exemplo de JSON:
 {
   "surfaces": [
     {
       "id": "s1",
-      "label": "Main Facade Wall",
+      "label": "Parede atrás do Sofá",
       "type": "wall",
-      "description": "The front exterior wall with the house number."
+      "description": "A parede principal no fundo, atrás do sofá cinza."
     },
     {
       "id": "s2",
-      "label": "Garage Ceiling",
+      "label": "Teto",
       "type": "ceiling",
-      "description": "The visible ceiling inside the open garage."
+      "description": "A área branca do teto visível acima."
     }
   ]
 }`;
 
-    // Chamada para a API (Gemini via Lovable)
     const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
       method: "POST",
       headers: {
@@ -78,14 +70,14 @@ Example JSON:
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        model: "google/gemini-2.5-flash", // Excelente escolha, rápido e bom com visão
+        model: "google/gemini-2.5-flash", 
         messages: [
           { role: "system", content: systemPrompt },
           {
             role: "user",
             content: [
               { type: "image_url", image_url: { url: formattedImage } },
-              { type: "text", text: "Analyze this image and identify paintable surfaces with semantic names. Return JSON only." }
+              { type: "text", text: "Analise esta imagem e identifique as superfícies pintáveis com nomes em Português. Retorne apenas JSON." }
             ],
           },
         ],
@@ -96,61 +88,49 @@ Example JSON:
 
     if (!response.ok) {
       const errorText = await response.text();
-      console.error("[analyze-room] API Gateway Error:", response.status, errorText);
-      
-      if (response.status === 429) throw new Error("Rate limit exceeded.");
-      if (response.status === 402) throw new Error("AI credits exhausted.");
+      console.error("[analyze-room] API Error:", response.status, errorText);
       throw new Error(`AI API Error: ${response.status}`);
     }
 
     const data = await response.json();
     const content = data.choices?.[0]?.message?.content || "";
 
-    console.log("[analyze-room] AI Response:", content.substring(0, 500));
+    console.log("[analyze-room] Resposta IA:", content.substring(0, 500));
 
-    // --- PARSER DE JSON ROBUSTO ---
+    // Parser JSON Robusto
     let detectedSurfaces = [];
     try {
-      // Tenta limpar Markdown (```json ... ```)
       const jsonMatch = content.match(/```(?:json)?\s*([\s\S]*?)```/) || [null, content];
       let jsonStr = jsonMatch[1]?.trim() || content;
       
-      // Busca o primeiro { e o último } para evitar texto extra
       const firstBrace = jsonStr.indexOf('{');
       const lastBrace = jsonStr.lastIndexOf('}');
-      
       if (firstBrace !== -1 && lastBrace !== -1) {
         jsonStr = jsonStr.substring(firstBrace, lastBrace + 1);
       }
 
       const parsed = JSON.parse(jsonStr);
-      
-      // Normaliza qualquer formato que a IA devolver
       const rawList = parsed.surfaces || parsed.walls || parsed.superficies || [];
       
       if (Array.isArray(rawList)) {
         detectedSurfaces = rawList.map((s: any, index: number) => ({
           id: s.id || `surface_${index}_${Date.now()}`,
-          label: s.label || s.name || s.nome || `Surface ${index + 1}`,
+          label: s.label || s.name || s.nome || `Superfície ${index + 1}`,
           description: s.description || s.descricao || "",
-          type: (s.type || "wall").toLowerCase() // 'wall', 'ceiling', 'floor'
+          type: (s.type || "wall").toLowerCase()
         }));
       }
-
     } catch (parseError) {
-      console.error("[analyze-room] JSON Parse Error:", parseError);
-      throw new Error("Não foi possível processar a resposta da IA.");
+      console.error("JSON Parse Error:", parseError);
+      throw new Error("Erro ao processar resposta da IA");
     }
 
-    // Filtra itens vazios
+    // Filtra vazios
     const validSurfaces = detectedSurfaces.filter((w: any) => w.label && w.label.length > 0);
 
-    console.log(`[analyze-room] Identified ${validSurfaces.length} surfaces`);
-
-    // Resposta de Sucesso
     return new Response(
       JSON.stringify({ 
-        walls: validSurfaces, // Mantive a chave 'walls' para compatibilidade com seu frontend, mas contém tudo
+        walls: validSurfaces, 
         sucesso: true,
         total: validSurfaces.length
       }),
@@ -158,10 +138,10 @@ Example JSON:
     );
 
   } catch (error) {
-    console.error("[analyze-room] Fatal error:", error);
+    console.error("Fatal error:", error);
     return new Response(
       JSON.stringify({ 
-        error: error instanceof Error ? error.message : "Unknown error",
+        error: error instanceof Error ? error.message : "Erro desconhecido",
         sucesso: false
       }),
       { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
