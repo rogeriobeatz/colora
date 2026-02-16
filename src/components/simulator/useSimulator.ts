@@ -25,7 +25,7 @@ export function useSimulator() {
         id,
         name: `Ambiente ${roomCounter++}`,
         imageUrl: imageBase64,
-        originalImageUrl: imageBase64, // Guardamos a original aqui
+        originalImageUrl: imageBase64,
         walls: [],
         isAnalyzing: true,
         isAnalyzed: false,
@@ -38,12 +38,14 @@ export function useSimulator() {
         const { data, error } = await supabase.functions.invoke("analyze-room", {
           body: { imageBase64 },
         });
+        
         if (error) throw error;
 
-        const detectedWalls: DetectedWall[] = (data.walls || []).map((w: any) => ({
-          id: w.id || genId(),
-          label: w.label,
-          polygon: w.polygon,
+        // Garantir que os dados das paredes venham no formato correto
+        const detectedWalls: DetectedWall[] = (data.walls || []).map((w: any, idx: number) => ({
+          id: w.id || `wall_${idx}_${Date.now()}`,
+          label: w.label || `Parede ${idx + 1}`,
+          polygon: w.polygon || [],
         }));
 
         setRooms((prev) =>
@@ -51,10 +53,16 @@ export function useSimulator() {
             r.id === id ? { ...r, walls: detectedWalls, isAnalyzing: false, isAnalyzed: true } : r
           )
         );
-        toast.success(`${detectedWalls.length} superfícies detectadas!`);
+        
+        if (detectedWalls.length > 0) {
+          toast.success(`${detectedWalls.length} superfícies identificadas!`);
+        } else {
+          toast.error("Nenhuma parede identificada. Tente outra foto.");
+        }
       } catch (err: any) {
+        console.error("Erro na análise:", err);
         setRooms((prev) => prev.map((r) => r.id === id ? { ...r, isAnalyzing: false } : r));
-        toast.error("Erro na análise");
+        toast.error("Não foi possível analisar a imagem. Verifique sua conexão.");
       }
     };
     reader.readAsDataURL(file);
@@ -75,6 +83,7 @@ export function useSimulator() {
           wallLabel: wall.label,
         },
       });
+      
       if (error) throw error;
 
       const simulation: WallSimulation = {
@@ -96,9 +105,10 @@ export function useSimulator() {
             : r
         )
       );
-      toast.success("Cor aplicada!");
+      toast.success("Cor aplicada com realismo!");
     } catch (err: any) {
-      toast.error("Erro ao pintar");
+      console.error("Erro ao pintar:", err);
+      toast.error("Erro ao processar a pintura com IA.");
     } finally {
       setIsPainting(false);
     }
@@ -110,20 +120,40 @@ export function useSimulator() {
       prev.map((r) => {
         if (r.id !== activeRoom.id) return r;
         const newSims = r.simulations.filter((s) => s.id !== simId);
-        // Se removeu a última simulação, volta para a imagem original
         return { 
           ...r, 
           simulations: newSims,
-          imageUrl: newSims.length === 0 ? (r as any).originalImageUrl : r.imageUrl 
+          imageUrl: newSims.length === 0 ? r.originalImageUrl : r.imageUrl 
         };
       })
     );
   }, [activeRoom]);
 
+  const retryAnalysis = useCallback(() => {
+    if (!activeRoom) return;
+    // Simplesmente removemos e adicionamos novamente para disparar a análise
+    const file = dataURLtoFile(activeRoom.originalImageUrl, "room.jpg");
+    setRooms(prev => prev.filter(r => r.id !== activeRoom.id));
+    addRoom(file);
+  }, [activeRoom, addRoom]);
+
   return {
     rooms, activeRoom, activeRoomId, selectedWallId, selectedPaint, isPainting,
     totalSimulations: rooms.reduce((acc, r) => acc + r.simulations.length, 0),
     addRoom, selectRoom: setActiveRoomId, selectWall: setSelectedWallId,
-    setSelectedPaint, applyColor, removeSimulation, retryAnalysis: () => {}
+    setSelectedPaint, applyColor, removeSimulation, retryAnalysis
   };
+}
+
+// Helper para converter base64 de volta para File se necessário
+function dataURLtoFile(dataurl: string, filename: string) {
+  const arr = dataurl.split(',');
+  const mime = arr[0].match(/:(.*?);/)![1];
+  const bstr = atob(arr[1]);
+  let n = bstr.length;
+  const u8arr = new Uint8Array(n);
+  while(n--){
+      u8arr[n] = bstr.charCodeAt(n);
+  }
+  return new File([u8arr], filename, {type:mime});
 }

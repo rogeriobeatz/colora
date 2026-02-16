@@ -1,28 +1,56 @@
 import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
-import { ArrowLeft, FileDown } from "lucide-react";
+import { ArrowLeft, FileDown, Palette } from "lucide-react";
+import { Company } from "@/data/defaultColors";
 
 interface SimulatorHeaderProps {
+  company?: Company | null;
   companySlug?: string;
   hasSimulations: boolean;
   onGeneratePDF: () => void;
 }
 
-const SimulatorHeader = ({ companySlug, hasSimulations, onGeneratePDF }: SimulatorHeaderProps) => (
+const SimulatorHeader = ({ company, companySlug, hasSimulations, onGeneratePDF }: SimulatorHeaderProps) => (
   <header className="sticky top-0 z-50 bg-background/80 backdrop-blur-lg border-b border-border">
-    <div className="container mx-auto flex items-center justify-between h-14 px-4">
+    <div className="container mx-auto flex items-center justify-between h-16 px-4">
       <div className="flex items-center gap-3">
         <Button variant="ghost" size="sm" asChild>
           <Link to={companySlug ? `/empresa/${companySlug}` : "/dashboard"} className="gap-1.5">
             <ArrowLeft className="w-3.5 h-3.5" /> Voltar
           </Link>
         </Button>
-        <div className="h-6 w-px bg-border" />
-        <span className="font-display font-semibold text-foreground text-sm">Simulador de Ambientes</span>
+        <div className="h-6 w-px bg-border mx-1" />
+        
+        <div className="flex items-center gap-2.5">
+          <div 
+            className="w-8 h-8 rounded-lg flex items-center justify-center overflow-hidden"
+            style={{ backgroundColor: company?.logo ? 'transparent' : (company?.primaryColor || 'hsl(var(--primary))') }}
+          >
+            {company?.logo ? (
+              <img src={company.logo} alt={company.name} className="w-full h-full object-contain" />
+            ) : (
+              <Palette className="w-4 h-4 text-white" />
+            )}
+          </div>
+          <div className="flex flex-col">
+            <span className="font-display font-bold text-foreground text-sm leading-none">
+              {company?.name || "Simulador"}
+            </span>
+            <span className="text-[10px] text-muted-foreground font-medium uppercase tracking-wider">
+              Simulador de Ambientes
+            </span>
+          </div>
+        </div>
       </div>
+      
       <div className="flex items-center gap-2">
         {hasSimulations && (
-          <Button variant="outline" size="sm" onClick={onGeneratePDF} className="gap-1.5">
+          <Button 
+            variant="outline" 
+            size="sm" 
+            onClick={onGeneratePDF} 
+            className="gap-1.5 border-primary/20 hover:bg-primary/5 text-primary"
+          >
             <FileDown className="w-3.5 h-3.5" /> Gerar PDF
           </Button>
         )}
