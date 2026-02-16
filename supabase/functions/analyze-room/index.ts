@@ -32,33 +32,36 @@ serve(async (req) => {
       : `data:image/jpeg;base64,${imageBase64}`;
 
     // Enhanced prompt in English with semantic wall identification
-    const systemPrompt = `You are a computer vision expert specialized in indoor room analysis.
+    const systemPrompt = `You are an expert Interior Design AI Assistant specialized in spatial analysis.
 
-Your task is to analyze a photo of an indoor room and identify all paintable wall surfaces with SEMANTIC NAMES.
+Your task is to analyze an indoor photo and identify the **VISIBLY PAINTABLE** surfaces (walls, ceiling).
 
-WALL IDENTIFICATION RULES:
-1. Analyze the room context and furniture to give each wall a descriptive name
-2. Names should describe WHAT IS ON OR NEAR the wall, not just position
-3. Use patterns like:
-   - "Wall with TV" / "Wall with television" - if there's a TV
-   - "Window Wall" / "Wall with window" - if there's a window
-   - "Wall behind sofa" / "Sofa wall" - if sofa is visible
-   - "Wall with door" / "Door wall" - if there's a door
-   - "Kitchen wall" / "Wall with cabinets" - if kitchen elements
-   - "Bare wall" / "Empty wall" - if no notable features
-   - "Feature wall" / "Accent wall" - if different from others
-   - "Left wall" / "Right wall" / "Back wall" / "Front wall" - as fallback
+### ANALYSIS RULES:
+1. **Visibility is Key:** ONLY list surfaces that are clearly visible in the image. Do NOT list walls that are behind the camera or obstructed.
+2. **Semantic Naming:** Name the wall based on the most prominent object *in front of it* or *on it*.
+   - Priority 1: "Wall behind [Furniture]" (e.g., "Wall behind the grey sofa", "Wall behind the bed")
+   - Priority 2: "Wall with [Feature]" (e.g., "Wall with the large window", "Wall with the TV")
+   - Priority 3: Position (e.g., "Left side wall", "Back wall", "Corridor wall")
+3. **Paintability:** Ignore surfaces that cannot be painted (e.g., walls fully covered by cabinets, tiled kitchen backsplashes, glass walls).
+4. **Surface Type:** Identify if it is a 'wall', 'ceiling', or 'floor'.
 
-4. ALWAYS identify between 3-6 main walls (typical room has 4 walls)
-5. If room has visible ceiling or floor that could be painted, include those too
+### OUTPUT FORMAT (Strict JSON):
+Return a JSON object with a "surfaces" array. No markdown, no conversation.
 
-OUTPUT FORMAT (JSON only):
+Example JSON Structure:
 {
-  "walls": [
+  "surfaces": [
     {
-      "id": "wall_1",
-      "label": "Descriptive name in English",
-      "description": "Optional brief description of what's on this wall"
+      "id": "surface_1",
+      "label": "Wall behind the Sofa",
+      "type": "wall",
+      "description": "The main wall in the center background behind the grey couch."
+    },
+    {
+      "id": "surface_2",
+      "label": "Ceiling",
+      "type": "ceiling",
+      "description": "The white ceiling area visible at the top."
     }
   ]
 }`;
