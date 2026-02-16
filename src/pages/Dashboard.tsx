@@ -28,10 +28,9 @@ const Dashboard = () => {
   const navigate = useNavigate();
   const {
     company, updateCompany, addCatalog, updateCatalog, deleteCatalog,
-    importPaintsCSV, exportPaintsCSV, initCompany,
+    importPaintsCSV, exportPaintsCSV, initCompany, refreshData
   } = useStore();
 
-  const [userProfile, setUserProfile] = useState<Profile | null>(null);
   const [selectedCatalogId, setSelectedCatalogId] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState("");
   const [newCatalogName, setNewCatalogName] = useState("");
@@ -49,43 +48,8 @@ const Dashboard = () => {
   useEffect(() => {
     const loadProfile = async () => {
       if (!user) return;
-      
-      try {
-        const { data, error } = await (supabase.from('profiles') as any)
-          .select('*')
-          .eq('id', user.id)
-          .single();
-        
-        if (data) {
-          const profile = data as Profile;
-          setUserProfile(profile);
-          initCompany(profile.company_name || "Minha Loja");
-          updateCompany({ 
-            id: user.id, 
-            name: profile.company_name || "Minha Loja", 
-            slug: profile.company_slug || "minha-loja",
-            primaryColor: profile.primary_color || "#1a8a6a",
-            secondaryColor: profile.secondary_color || "#e87040",
-            logo: profile.avatar_url || undefined
-          });
-        } else {
-          const meta = user.user_metadata;
-          const fallbackName = meta?.company_name || "Minha Loja";
-          initCompany(fallbackName);
-          updateCompany({
-            id: user.id,
-            name: fallbackName,
-            slug: meta?.company_slug || "minha-loja",
-            primaryColor: "#1a8a6a",
-            secondaryColor: "#e87040"
-          });
-        }
-      } catch (err) {
-        console.error("Erro ao carregar perfil:", err);
-        initCompany("Minha Loja");
-      } finally {
-        setIsInitialLoading(false);
-      }
+      await refreshData();
+      setIsInitialLoading(false);
     };
 
     loadProfile();
@@ -175,28 +139,29 @@ const Dashboard = () => {
   };
 
   const handleExportCSV = () => {
-    if (!selectedCatalogId) return;
-    const csv = exportPaintsCSV(selectedCatalogId);
+    const catalogId = selectedCatalogId || company.catalogs[0]?.id;
+    if (!catalogId) return;
+    const csv = exportPaintsCSV(catalogId);
     const blob = new Blob([csv], { type: "text/csv" });
     const url = window.URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.setAttribute("hidden", "");
     a.setAttribute("href", url);
-    a.setAttribute("download", `catalogo-${selectedCatalogId}.csv`);
+    a.setAttribute("download", `catalogo-${catalogId}.csv`);
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
   };
 
-  const activeCatalog = company.catalogs.find((c) => c.id === (selectedCatalogId || company.catalogs[0].id)) || company.catalogs[0];
+  const activeCatalog = company.catalogs.find((c) => c.id === (selectedCatalogId || company.catalogs[0]?.id)) || company.catalogs[0];
   
-  const filteredPaints = activeCatalog.paints.filter(
+  const filteredPaints = activeCatalog?.paints.filter(
     (p) =>
       p.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
       p.code.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  ) || [];
 
-  const categories = [...new Set(activeCatalog.paints.map((p) => p.category))];
+  const categories = activeCatalog ? [...new Set(activeCatalog.paints.map((p) => p.category))] : [];
 
   return (
     <div className="min-h-screen bg-background">
@@ -255,14 +220,14 @@ const Dashboard = () => {
                     <button
                       key={cat.id}
                       className={`w-full p-4 rounded-xl border text-left transition-all group relative ${
-                        activeCatalog.id === cat.id 
+                        activeCatalog?.id === cat.id 
                           ? "border-primary bg-primary/5 shadow-soft" 
                           : "border-border bg-card hover:border-primary/30"
                       }`}
                       onClick={() => setSelectedCatalogId(cat.id)}
                     >
                       <div className="flex items-center justify-between mb-1">
-                        <span className={`font-bold text-sm ${activeCatalog.id === cat.id ? "text-primary" : "text-foreground"}`}>
+                        <span className={`font-bold text-sm ${activeCatalog?.id === cat.id ? "text-primary" : "text-foreground"}`}>
                           {cat.name}
                         </span>
                         <div className="flex items-center gap-1">
@@ -317,7 +282,7 @@ const Dashboard = () => {
                 <div className="bg-card rounded-2xl border border-border p-6 shadow-soft">
                   <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
                     <div>
-                      <h2 className="text-xl font-display font-bold text-foreground">{activeCatalog.name}</h2>
+                      <h2 className="text-xl font-display font-bold text-foreground">{activeCatalog?.name || "Selecione um catálogo"}</h2>
                       <p className="text-sm text-muted-foreground">Gerencie as cores disponíveis para seus clientes.</p>
                     </div>
                     <div className="flex items-center gap-2">

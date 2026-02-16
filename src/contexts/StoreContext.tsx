@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from "react";
-import { Company, Catalog, Paint, createDefaultCompany } from "@/data/defaultColors";
+import { Company, Catalog, Paint, createDefaultCompany, createDefaultCatalog } from "@/data/defaultColors";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 
@@ -10,6 +10,12 @@ interface StoreContextType {
   updateCompany: (updates: Partial<Company>) => void;
   fetchCompanyBySlug: (slug: string) => Promise<void>;
   refreshData: () => Promise<void>;
+  initCompany: (name: string) => void;
+  addCatalog: (catalog: Catalog) => void;
+  updateCatalog: (id: string, updates: Partial<Catalog>) => void;
+  deleteCatalog: (id: string) => void;
+  importPaintsCSV: (catalogId: string, csvText: string) => void;
+  exportPaintsCSV: (catalogId: string) => string;
 }
 
 const StoreContext = createContext<StoreContextType | undefined>(undefined);
@@ -40,12 +46,14 @@ export function StoreProvider({ children }: { children: ReactNode }) {
           primaryColor: profile.primary_color || "#1a8a6a",
           secondaryColor: profile.secondary_color || "#e87040",
           logo: profile.avatar_url || undefined,
-          catalogs: (catalogsData || []).map(cat => ({
-            id: cat.id,
-            name: cat.name,
-            active: cat.active,
-            paints: cat.paints || []
-          }))
+          catalogs: catalogsData && catalogsData.length > 0 
+            ? catalogsData.map(cat => ({
+                id: cat.id,
+                name: cat.name,
+                active: cat.active,
+                paints: cat.paints || []
+              }))
+            : [createDefaultCatalog()]
         };
         setCompanyState(formattedCompany);
       }
@@ -94,13 +102,80 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     refreshData();
   }, []);
 
+  const initCompany = (name: string) => {
+    if (!company) {
+      setCompanyState(createDefaultCompany(name));
+    }
+  };
+
   const updateCompany = (updates: Partial<Company>) => {
     if (!company) return;
     setCompanyState({ ...company, ...updates });
   };
 
+  const addCatalog = (catalog: Catalog) => {
+    if (!company) return;
+    setCompanyState({
+      ...company,
+      catalogs: [...company.catalogs, catalog]
+    });
+  };
+
+  const updateCatalog = (id: string, updates: Partial<Catalog>) => {
+    if (!company) return;
+    setCompanyState({
+      ...company,
+      catalogs: company.catalogs.map(c => c.id === id ? { ...c, ...updates } : c)
+    });
+  };
+
+  const deleteCatalog = (id: string) => {
+    if (!company) return;
+    setCompanyState({
+      ...company,
+      catalogs: company.catalogs.filter(c => c.id !== id)
+    });
+  };
+
+  const importPaintsCSV = (catalogId: string, csvText: string) => {
+    if (!company) return;
+    // Lógica simplificada de importação para manter o estado local antes do save global
+    const lines = csvText.split("\n").slice(1);
+    const newPaints: Paint[] = lines.filter(l => l.trim()).map(line => {
+      const [name, code, hex, category] = line.split(",");
+      return {
+        id: Math.random().toString(36).substring(2, 10),
+        name: name?.trim(),
+        code: code?.trim(),
+        hex: hex?.trim(),
+        rgb: "",
+        cmyk: "",
+        category: category?.trim() || "Geral"
+      };
+    });
+
+    setCompanyState({
+      ...company,
+      catalogs: company.catalogs.map(c => 
+        c.id === catalogId ? { ...c, paints: [...c.paints, ...newPaints] } : c
+      )
+    });
+  };
+
+  const exportPaintsCSV = (catalogId: string) => {
+    const catalog = company?.catalogs.find(c => c.id === catalogId);
+    if (!catalog) return "";
+    const header = "Nome,Código,Hex,Categoria\n";
+    const rows = catalog.paints.map(p => `${p.name},${p.code},${p.hex},${p.category}`).join("\n");
+    return header + rows;
+  };
+
   return (
-    <StoreContext.Provider value={{ company, loading, setCompany: setCompanyState, updateCompany, fetchCompanyBySlug, refreshData }}>
+    <StoreContext.Provider value={{ 
+      company, loading, setCompany: setCompanyState, updateCompany, 
+      fetchCompanyBySlug, refreshData, initCompany, addCatalog,
+      updateCatalog, deleteCatalog, importPaintsCSV, exportPaintsCSV
+    }}>
       {children}
     </StoreContext.Provider>
   );
