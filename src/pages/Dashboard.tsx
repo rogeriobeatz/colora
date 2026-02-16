@@ -8,7 +8,7 @@ import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Palette, Plus, Eye, EyeOff, Search, LogOut, Loader2, Settings, LayoutDashboard, 
-  Store, FileUp, FileDown, Trash2, Image as ImageIcon, Globe, Check
+  Store, FileUp, FileDown, Trash2, Image as ImageIcon, Globe, Check, Upload
 } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
@@ -19,6 +19,7 @@ interface Profile {
   company_slug: string | null;
   primary_color: string | null;
   secondary_color: string | null;
+  avatar_url: string | null;
   updated_at: string | null;
 }
 
@@ -37,6 +38,7 @@ const Dashboard = () => {
   const [isSaving, setIsSaving] = useState(false);
   const [isInitialLoading, setIsInitialLoading] = useState(true);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const logoInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     if (!authLoading && !user) {
@@ -49,13 +51,11 @@ const Dashboard = () => {
       if (!user) return;
       
       try {
-        // Tenta buscar o perfil
         const { data, error } = await (supabase.from('profiles') as any)
           .select('*')
           .eq('id', user.id)
           .single();
         
-        // Se houver dados, inicializa com eles
         if (data) {
           const profile = data as Profile;
           setUserProfile(profile);
@@ -65,10 +65,10 @@ const Dashboard = () => {
             name: profile.company_name || "Minha Loja", 
             slug: profile.company_slug || "minha-loja",
             primaryColor: profile.primary_color || "#1a8a6a",
-            secondaryColor: profile.secondary_color || "#e87040"
+            secondaryColor: profile.secondary_color || "#e87040",
+            logo: profile.avatar_url || undefined
           });
         } else {
-          // Se não houver perfil no banco, usa os metadados do cadastro
           const meta = user.user_metadata;
           const fallbackName = meta?.company_name || "Minha Loja";
           initCompany(fallbackName);
@@ -82,7 +82,6 @@ const Dashboard = () => {
         }
       } catch (err) {
         console.error("Erro ao carregar perfil:", err);
-        // Fallback em caso de erro de rede/banco
         initCompany("Minha Loja");
       } finally {
         setIsInitialLoading(false);
@@ -103,7 +102,6 @@ const Dashboard = () => {
     );
   }
 
-  // Se ainda não tiver empresa (estado do context), mostra um botão de inicialização manual
   if (!user || !company) {
     return (
       <div className="min-h-screen flex items-center justify-center p-4">
@@ -131,6 +129,7 @@ const Dashboard = () => {
           company_slug: company.slug,
           primary_color: company.primaryColor,
           secondary_color: company.secondaryColor,
+          avatar_url: company.logo,
           updated_at: new Date().toISOString(),
         });
 
@@ -141,6 +140,24 @@ const Dashboard = () => {
     } finally {
       setIsSaving(false);
     }
+  };
+
+  const handleLogoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (file.size > 2 * 1024 * 1024) {
+      toast.error("O logotipo deve ter menos de 2MB");
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const base64 = event.target?.result as string;
+      updateCompany({ logo: base64 });
+      toast.success("Logotipo carregado!");
+    };
+    reader.readAsDataURL(file);
   };
 
   const handleImportCSV = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -188,7 +205,11 @@ const Dashboard = () => {
         <div className="container mx-auto flex items-center justify-between h-16 px-4">
           <div className="flex items-center gap-4">
             <div className="w-8 h-8 rounded-lg flex items-center justify-center" style={{ backgroundColor: company.primaryColor }}>
-              <Palette className="w-4 h-4 text-white" />
+              {company.logo ? (
+                <img src={company.logo} alt="Logo" className="w-full h-full object-contain rounded-lg" />
+              ) : (
+                <Palette className="w-4 h-4 text-white" />
+              )}
             </div>
             <span className="font-display text-xl font-bold text-foreground">{company.name}</span>
           </div>
@@ -391,7 +412,15 @@ const Dashboard = () => {
                     <div className="space-y-2">
                       <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Cor Primária</Label>
                       <div className="flex gap-2">
-                        <div className="w-12 h-12 rounded-lg border border-border shrink-0" style={{ backgroundColor: company.primaryColor }} />
+                        <div className="relative w-12 h-12 shrink-0">
+                          <input 
+                            type="color" 
+                            value={company.primaryColor} 
+                            onChange={(e) => updateCompany({ primaryColor: e.target.value })}
+                            className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                          />
+                          <div className="w-full h-full rounded-lg border border-border" style={{ backgroundColor: company.primaryColor }} />
+                        </div>
                         <Input 
                           value={company.primaryColor} 
                           onChange={(e) => updateCompany({ primaryColor: e.target.value })} 
@@ -402,7 +431,15 @@ const Dashboard = () => {
                     <div className="space-y-2">
                       <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Cor Secundária</Label>
                       <div className="flex gap-2">
-                        <div className="w-12 h-12 rounded-lg border border-border shrink-0" style={{ backgroundColor: company.secondaryColor }} />
+                        <div className="relative w-12 h-12 shrink-0">
+                          <input 
+                            type="color" 
+                            value={company.secondaryColor} 
+                            onChange={(e) => updateCompany({ secondaryColor: e.target.value })}
+                            className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                          />
+                          <div className="w-full h-full rounded-lg border border-border" style={{ backgroundColor: company.secondaryColor }} />
+                        </div>
                         <Input 
                           value={company.secondaryColor} 
                           onChange={(e) => updateCompany({ secondaryColor: e.target.value })} 
@@ -414,9 +451,30 @@ const Dashboard = () => {
 
                   <div className="space-y-2">
                     <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Logotipo</Label>
-                    <div className="border-2 border-dashed border-border rounded-xl p-8 text-center hover:bg-muted/50 transition-colors cursor-pointer">
-                      <ImageIcon className="w-8 h-8 text-muted-foreground mx-auto mb-2" />
-                      <p className="text-xs text-muted-foreground">Clique para fazer upload do logo (PNG ou SVG)</p>
+                    <input 
+                      type="file" 
+                      ref={logoInputRef} 
+                      className="hidden" 
+                      accept="image/png,image/jpeg,image/svg+xml" 
+                      onChange={handleLogoUpload} 
+                    />
+                    <div 
+                      className="border-2 border-dashed border-border rounded-xl p-8 text-center hover:bg-muted/50 transition-colors cursor-pointer group"
+                      onClick={() => logoInputRef.current?.click()}
+                    >
+                      {company.logo ? (
+                        <div className="relative w-24 h-24 mx-auto">
+                          <img src={company.logo} alt="Preview" className="w-full h-full object-contain" />
+                          <div className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity rounded-lg">
+                            <Upload className="w-6 h-6 text-white" />
+                          </div>
+                        </div>
+                      ) : (
+                        <>
+                          <ImageIcon className="w-8 h-8 text-muted-foreground mx-auto mb-2" />
+                          <p className="text-xs text-muted-foreground">Clique para fazer upload do logo (PNG ou SVG)</p>
+                        </>
+                      )}
                     </div>
                   </div>
 
@@ -435,7 +493,11 @@ const Dashboard = () => {
                   <div className="p-4 border-b border-border flex items-center justify-between bg-white">
                     <div className="flex items-center gap-2">
                       <div className="w-6 h-6 rounded flex items-center justify-center" style={{ backgroundColor: company.primaryColor }}>
-                        <Palette className="w-3 h-3 text-white" />
+                        {company.logo ? (
+                          <img src={company.logo} alt="Logo" className="w-full h-full object-contain" />
+                        ) : (
+                          <Palette className="w-3 h-3 text-white" />
+                        )}
                       </div>
                       <span className="text-sm font-bold">{company.name}</span>
                     </div>
