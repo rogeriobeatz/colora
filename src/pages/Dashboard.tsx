@@ -49,29 +49,41 @@ const Dashboard = () => {
       if (!user) return;
       
       try {
+        // Tenta buscar o perfil
         const { data, error } = await (supabase.from('profiles') as any)
           .select('*')
           .eq('id', user.id)
           .single();
         
-        if (error) throw error;
-
+        // Se houver dados, inicializa com eles
         if (data) {
           const profile = data as Profile;
           setUserProfile(profile);
-          if (!company || company.id !== user.id) {
-            initCompany(profile.company_name || "Minha Loja");
-            updateCompany({ 
-              id: user.id, 
-              name: profile.company_name || "Minha Loja", 
-              slug: profile.company_slug || "minha-loja",
-              primaryColor: profile.primary_color || "#1a8a6a",
-              secondaryColor: profile.secondary_color || "#e87040"
-            });
-          }
+          initCompany(profile.company_name || "Minha Loja");
+          updateCompany({ 
+            id: user.id, 
+            name: profile.company_name || "Minha Loja", 
+            slug: profile.company_slug || "minha-loja",
+            primaryColor: profile.primary_color || "#1a8a6a",
+            secondaryColor: profile.secondary_color || "#e87040"
+          });
+        } else {
+          // Se não houver perfil no banco, usa os metadados do cadastro
+          const meta = user.user_metadata;
+          const fallbackName = meta?.company_name || "Minha Loja";
+          initCompany(fallbackName);
+          updateCompany({
+            id: user.id,
+            name: fallbackName,
+            slug: meta?.company_slug || "minha-loja",
+            primaryColor: "#1a8a6a",
+            secondaryColor: "#e87040"
+          });
         }
       } catch (err) {
         console.error("Erro ao carregar perfil:", err);
+        // Fallback em caso de erro de rede/banco
+        initCompany("Minha Loja");
       } finally {
         setIsInitialLoading(false);
       }
@@ -91,7 +103,17 @@ const Dashboard = () => {
     );
   }
 
-  if (!user || !company) return null;
+  // Se ainda não tiver empresa (estado do context), mostra um botão de inicialização manual
+  if (!user || !company) {
+    return (
+      <div className="min-h-screen flex items-center justify-center p-4">
+        <div className="text-center space-y-4">
+          <p className="text-muted-foreground">Não conseguimos carregar os dados da sua loja.</p>
+          <Button onClick={() => window.location.reload()}>Tentar Novamente</Button>
+        </div>
+      </div>
+    );
+  }
 
   const handleSignOut = async () => {
     await signOut();
