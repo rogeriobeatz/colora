@@ -12,9 +12,15 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
-import { Database } from "@/integrations/supabase/types";
 
-type Profile = Database['public']['Tables']['profiles']['Row'];
+interface Profile {
+  id: string;
+  company_name: string | null;
+  company_slug: string | null;
+  primary_color: string | null;
+  secondary_color: string | null;
+  updated_at: string | null;
+}
 
 const Dashboard = () => {
   const { user, loading: authLoading, signOut } = useAuth();
@@ -43,8 +49,7 @@ const Dashboard = () => {
       if (!user) return;
       
       try {
-        const { data, error } = await supabase
-          .from('profiles')
+        const { data, error } = await (supabase.from('profiles') as any)
           .select('*')
           .eq('id', user.id)
           .single();
@@ -52,15 +57,16 @@ const Dashboard = () => {
         if (error) throw error;
 
         if (data) {
-          setUserProfile(data as Profile);
+          const profile = data as Profile;
+          setUserProfile(profile);
           if (!company || company.id !== user.id) {
-            initCompany(data.company_name || "Minha Loja");
+            initCompany(profile.company_name || "Minha Loja");
             updateCompany({ 
               id: user.id, 
-              name: data.company_name || "Minha Loja", 
-              slug: data.company_slug || "minha-loja",
-              primaryColor: data.primary_color || "#1a8a6a",
-              secondaryColor: data.secondary_color || "#e87040"
+              name: profile.company_name || "Minha Loja", 
+              slug: profile.company_slug || "minha-loja",
+              primaryColor: profile.primary_color || "#1a8a6a",
+              secondaryColor: profile.secondary_color || "#e87040"
             });
           }
         }
@@ -96,8 +102,7 @@ const Dashboard = () => {
   const handleSaveBranding = async () => {
     setIsSaving(true);
     try {
-      const { error } = await supabase
-        .from('profiles')
+      const { error } = await (supabase.from('profiles') as any)
         .upsert({
           id: user.id,
           company_name: company.name,
