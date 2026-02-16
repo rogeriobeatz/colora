@@ -15,21 +15,22 @@ const ImageViewer = ({ room, selectedWallId, onSelectWall, onRetryAnalysis, prim
   const containerRef = useRef<HTMLDivElement>(null);
   const [sliderPos, setSliderPos] = useState(50);
   const [isDragging, setIsDragging] = useState(false);
-  const [imageSize, setImageSize] = useState({ width: 0, height: 0 });
+  const [containerWidth, setContainerWidth] = useState(0);
 
   const hasSimulations = room.simulations.length > 0;
 
-  // Update image size when rendered
+  // Update container width when rendered
   useEffect(() => {
-    const img = containerRef.current?.querySelector('img');
-    if (img) {
-      const updateSize = () => {
-        setImageSize({ width: img.offsetWidth, height: img.offsetHeight });
-      };
-      updateSize();
-      img.addEventListener('load', updateSize);
-      return () => img.removeEventListener('load', updateSize);
-    }
+    const updateWidth = () => {
+      if (containerRef.current) {
+        setContainerWidth(containerRef.current.offsetWidth);
+      }
+    };
+    updateWidth();
+    
+    // Update on resize
+    window.addEventListener('resize', updateWidth);
+    return () => window.removeEventListener('resize', updateWidth);
   }, [room.imageUrl]);
 
   const handleSlider = (clientX: number) => {
@@ -111,14 +112,14 @@ const ImageViewer = ({ room, selectedWallId, onSelectWall, onRetryAnalysis, prim
         ref={containerRef}
         className={`relative rounded-2xl overflow-hidden bg-muted border border-border select-none shadow-soft ${
           hasSimulations ? "cursor-ew-resize" : ""
-        } ${isDragging ? "select-none" : ""}`}
+        }`}
         onMouseDown={handleMouseDown}
         onMouseMove={handleMouseMove}
         onMouseUp={handleMouseUp}
         onMouseLeave={handleMouseUp}
         onTouchMove={handleTouchMove}
       >
-        {/* Processed image (after painting) */}
+        {/* Bottom layer: Processed image (after painting) - ALWAYS visible */}
         <img 
           src={room.imageUrl} 
           alt="Room" 
@@ -126,44 +127,47 @@ const ImageViewer = ({ room, selectedWallId, onSelectWall, onRetryAnalysis, prim
           draggable={false}
         />
 
-        {/* Before/After Slider */}
+        {/* Top layer: Original image - clipped by slider */}
         {hasSimulations && (
-          <>
-            {/* Original image (left side) */}
-            <div
-              className="absolute inset-0 overflow-hidden pointer-events-none"
-              style={{ width: `${sliderPos}%` }}
-            >
-              <img
-                src={room.originalImageUrl}
-                alt="Original"
-                className="absolute top-0 left-0 w-full h-full object-cover"
-                style={{ 
-                  width: containerRef.current?.offsetWidth || '100%',
-                  maxWidth: 'none'
-                }}
-                draggable={false}
-              />
-            </div>
-
-            {/* Slider line */}
-            <div
-              className="absolute top-0 bottom-0 z-10"
+          <div
+            className="absolute inset-0 overflow-hidden"
+            style={{ width: `${sliderPos}%` }}
+          >
+            <img
+              src={room.originalImageUrl}
+              alt="Original"
+              className="absolute top-0 left-0 h-full w-auto max-w-none"
               style={{ 
-                left: `${sliderPos}%`,
-                transform: 'translateX(-50%)'
+                width: containerWidth > 0 ? `${containerWidth}px` : '100vw',
+                maxWidth: 'none'
               }}
-            >
-              <div className="absolute top-0 bottom-0 w-0.5 bg-white shadow-lg" />
-              <div className="absolute top-1/2 -translate-y-1/2 -translate-x-1/2 w-12 h-12 rounded-full bg-white shadow-elevated flex items-center justify-center border-2 border-primary">
-                <div className="flex gap-0.5">
-                  <ChevronLeft className="w-5 h-5 text-foreground" />
-                  <ChevronRight className="w-5 h-5 text-foreground" />
-                </div>
+              draggable={false}
+            />
+          </div>
+        )}
+
+        {/* Slider line - only show when there are simulations */}
+        {hasSimulations && (
+          <div
+            className="absolute top-0 bottom-0 z-10"
+            style={{ 
+              left: `${sliderPos}%`,
+              transform: 'translateX(-50%)'
+            }}
+          >
+            <div className="absolute top-0 bottom-0 w-0.5 bg-white shadow-lg" />
+            <div className="absolute top-1/2 -translate-y-1/2 -translate-x-1/2 w-12 h-12 rounded-full bg-white shadow-elevated flex items-center justify-center border-2 border-primary">
+              <div className="flex gap-0.5">
+                <ChevronLeft className="w-5 h-5 text-foreground" />
+                <ChevronRight className="w-5 h-5 text-foreground" />
               </div>
             </div>
+          </div>
+        )}
 
-            {/* Before/After labels */}
+        {/* Before/After labels - only show when there are simulations */}
+        {hasSimulations && (
+          <>
             <div className="absolute top-4 left-4 bg-black/60 text-white text-xs font-bold px-3 py-1.5 rounded-full backdrop-blur-sm z-10">
               Before
             </div>

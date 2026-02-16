@@ -6,6 +6,13 @@ export interface DetectedWall {
   description?: string;
 }
 
+export interface Session {
+  id: string;
+  name: string;
+  createdAt: Date;
+  rooms: Room[];
+}
+
 export interface Room {
   id: string;
   name: string;
