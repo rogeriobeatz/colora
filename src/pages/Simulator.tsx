@@ -53,6 +53,8 @@ const Simulator = ({ companySlug }: { companySlug?: string }) => {
     <div className="min-h-screen bg-background">
       <SimulatorHeader
         companySlug={companySlug}
+        companyName={company.name}
+        companyLogo={company.logo}
         hasSimulations={totalSimulations > 0}
         onGeneratePDF={handleGeneratePDF}
       />
