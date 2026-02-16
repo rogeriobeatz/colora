@@ -17,10 +17,10 @@ const Landing = () => {
           </Link>
           <div className="flex items-center gap-3">
             <Button variant="ghost" asChild>
-              <Link to="/dashboard">Área da Loja</Link>
+              <Link to="/login">Área da Loja</Link>
             </Button>
             <Button asChild>
-              <Link to="/dashboard">Criar Conta</Link>
+              <Link to="/login">Criar Conta</Link>
             </Button>
           </div>
         </div>
@@ -46,12 +46,12 @@ const Landing = () => {
               </p>
               <div className="flex flex-wrap gap-3 pt-2">
                 <Button size="lg" asChild className="gap-2">
-                  <Link to="/dashboard">
+                  <Link to="/login">
                     Criar Conta <ArrowRight className="w-4 h-4" />
                   </Link>
                 </Button>
                 <Button size="lg" variant="outline" asChild>
-                  <Link to="/dashboard">Área da Loja</Link>
+                  <Link to="/login">Área da Loja</Link>
                 </Button>
               </div>
             </div>
@@ -162,7 +162,7 @@ const Landing = () => {
               ))}
             </ul>
             <Button className="w-full" size="lg" asChild>
-              <Link to="/dashboard">Começar Agora</Link>
+              <Link to="/login">Começar Agora</Link>
             </Button>
           </div>
         </div>
