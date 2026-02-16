@@ -204,11 +204,11 @@ const Dashboard = () => {
       <header className="sticky top-0 z-50 bg-background/80 backdrop-blur-lg border-b border-border">
         <div className="container mx-auto flex items-center justify-between h-16 px-4">
           <div className="flex items-center gap-4">
-            <div className="w-8 h-8 rounded-lg flex items-center justify-center bg-white border border-border overflow-hidden">
+            <div className="w-8 h-8 rounded-lg flex items-center justify-center" style={{ backgroundColor: company.primaryColor }}>
               {company.logo ? (
-                <img src={company.logo} alt="Logo" className="w-full h-full object-contain" />
+                <img src={company.logo} alt="Logo" className="w-full h-full object-contain rounded-lg" />
               ) : (
-                <Palette className="w-4 h-4 text-primary" />
+                <Palette className="w-4 h-4 text-white" />
               )}
             </div>
             <span className="font-display text-xl font-bold text-foreground">{company.name}</span>
@@ -459,7 +459,7 @@ const Dashboard = () => {
                       onChange={handleLogoUpload} 
                     />
                     <div 
-                      className="border-2 border-dashed border-border rounded-xl p-8 text-center hover:bg-muted/50 transition-colors cursor-pointer group bg-white"
+                      className="border-2 border-dashed border-border rounded-xl p-8 text-center hover:bg-muted/50 transition-colors cursor-pointer group"
                       onClick={() => logoInputRef.current?.click()}
                     >
                       {company.logo ? (
@@ -492,11 +492,11 @@ const Dashboard = () => {
                   <div className="h-1.5" style={{ background: `linear-gradient(90deg, ${company.primaryColor}, ${company.secondaryColor})` }} />
                   <div className="p-4 border-b border-border flex items-center justify-between bg-white">
                     <div className="flex items-center gap-2">
-                      <div className="w-6 h-6 rounded flex items-center justify-center bg-white border border-border overflow-hidden">
+                      <div className="w-6 h-6 rounded flex items-center justify-center" style={{ backgroundColor: company.primaryColor }}>
                         {company.logo ? (
                           <img src={company.logo} alt="Logo" className="w-full h-full object-contain" />
                         ) : (
-                          <Palette className="w-3 h-3 text-primary" />
+                          <Palette className="w-3 h-3 text-white" />
                         )}
                       </div>
                       <span className="text-sm font-bold">{company.name}</span>
