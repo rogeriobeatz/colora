@@ -2,8 +2,7 @@ import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers":
-    "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
 serve(async (req) => {
@@ -16,35 +15,54 @@ serve(async (req) => {
 
     if (!imageBase64) {
       return new Response(
-        JSON.stringify({ error: "imageBase64 is required" }),
+        JSON.stringify({ error: "imageBase64 é obrigatório" }),
         { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
 
     const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
     if (!LOVABLE_API_KEY) {
-      throw new Error("LOVABLE_API_KEY is not configured");
+      console.error("[analyze-room] LOVABLE_API_KEY não configurada");
+      throw new Error("LOVABLE_API_KEY não está configurada");
     }
 
-    // Use Gemini vision to analyze the room and identify wall regions
-    const systemPrompt = `You are a room analysis AI. Given a photo of a room, identify distinct paintable wall surfaces.
+    // Verificar e formatar a imagem base64
+    const formattedImage = imageBase64.startsWith("data:")
+      ? imageBase64
+      : `data:image/jpeg;base64,${imageBase64}`;
 
-For each wall surface you detect, return a polygon defined by percentage-based coordinates (0-100 for both x and y, where 0,0 is top-left).
+    // Prompt otimizado para detecção semântica de superfícies
+    const systemPrompt = `Você é um especialista em visão computacional para análise de ambientes internos.
 
-IMPORTANT RULES:
-- Only identify actual wall surfaces (not furniture, windows, doors, floor, or ceiling unless it's a paintable surface)
-- Each wall should have 4-8 polygon points that trace its visible outline
-- Give each wall a descriptive Portuguese label like "Parede Esquerda", "Parede Central", "Parede do Fundo", "Teto"
-- Return between 2 and 6 surfaces
-- Be precise with the polygon coordinates to match the actual wall boundaries in the image
-- Account for furniture, windows, and doors that occlude parts of walls
+Sua tarefa é analisar uma foto de um ambiente interno e identificar todas as superfícies pintáveis visíveis.
 
-Return ONLY valid JSON in this exact format, no other text:
+SUPERFÍCIES A DETECTAR:
+1. PAREDES - superfícies verticais que formam o ambiente
+2. TETO - superfície superior do ambiente
+3. CHÃO/PISO - superfície inferior do ambiente
+4. Outras superfícies pintáveis (nichos, pilares, etc)
+
+REGRAS IMPORTANTES:
+- Cada superfície deve ter um polígono que delimita sua área visível
+- Use coordenadas PERCENTUAIS (0-100) onde (0,0) é o canto superior esquerdo e (100,100) é o canto inferior direito
+- Cada polígono deve ter entre 4 e 8 pontos
+- Dê nomes descritivos em PORTUGUÊS: "Parede Esquerda", "Parede Direita", "Parede do Fundo", "Parede Frontal", "Teto", "Chão"
+- Se houver múltiplas paredes do mesmo tipo, numere: "Parede Esquerda 1", "Parede Esquerda 2"
+- Ignore móveis, janelas, portas, espelhos e objetos decorativos - apenas as superfícies arquiteturais
+- Se uma parede for parcialmente ocultada por móveis, ainda assim delimite a área completa da parede
+
+FORMATO DE RESPOSTA (JSON obrigatório):
 {
-  "walls": [
+  "superficies": [
     {
-      "label": "Parede Esquerda",
-      "polygon": [{"x": 0, "y": 15}, {"x": 30, "y": 12}, {"x": 30, "y": 85}, {"x": 0, "y": 90}]
+      "tipo": "parede|teto|piso|outro",
+      "nome": "Nome descritivo em português",
+      "poligono": [
+        {"x": 0, "y": 0},
+        {"x": 25, "y": 5},
+        {"x": 25, "y": 95},
+        {"x": 0, "y": 100}
+      ]
     }
   ]
 }`;
@@ -62,82 +80,121 @@ Return ONLY valid JSON in this exact format, no other text:
           {
             role: "user",
             content: [
-              {
-                type: "image_url",
-                image_url: {
-                  url: imageBase64.startsWith("data:")
-                    ? imageBase64
-                    : `data:image/jpeg;base64,${imageBase64}`,
-                },
-              },
-              {
-                type: "text",
-                text: "Analyze this room photo. Identify all visible paintable wall surfaces and return their polygon coordinates as JSON.",
-              },
+              { type: "image_url", image_url: { url: formattedImage } },
+              { type: "text", text: "Analise esta imagem e identifique todas as superfícies pintáveis (paredes, teto, chão). Retorne o resultado em JSON com o formato especificado." }
             ],
           },
         ],
+        temperature: 0.1,
+        max_tokens: 4096,
       }),
     });
 
     if (!response.ok) {
+      const errorText = await response.text();
+      console.error("[analyze-room] Erro na API Gateway:", response.status, errorText);
+      
       if (response.status === 429) {
         return new Response(
-          JSON.stringify({ error: "Rate limit exceeded. Please try again in a moment." }),
+          JSON.stringify({ error: "Limite de requisições excedido. Tente novamente em alguns segundos." }),
           { status: 429, headers: { ...corsHeaders, "Content-Type": "application/json" } }
         );
       }
       if (response.status === 402) {
         return new Response(
-          JSON.stringify({ error: "AI credits exhausted. Please add credits to your workspace." }),
+          JSON.stringify({ error: "Créditos de IA esgotados. Por favor, adicione créditos ao seu workspace." }),
           { status: 402, headers: { ...corsHeaders, "Content-Type": "application/json" } }
         );
       }
-      const errorText = await response.text();
-      console.error("AI Gateway error:", response.status, errorText);
-      throw new Error(`AI Gateway error: ${response.status}`);
+      
+      throw new Error(`Erro na API de IA: ${response.status}`);
     }
 
     const data = await response.json();
     const content = data.choices?.[0]?.message?.content || "";
 
-    // Parse JSON from the response (handle markdown code blocks)
-    let wallsData;
+    console.log("[analyze-room] Resposta da IA:", content.substring(0, 500));
+
+    // Extrair JSON da resposta
+    let superficies = [];
     try {
+      // Tentar encontrar JSON dentro de blocos de código markdown
       const jsonMatch = content.match(/```(?:json)?\s*([\s\S]*?)```/) || [null, content];
-      const jsonStr = jsonMatch[1].trim();
-      wallsData = JSON.parse(jsonStr);
-    } catch (parseError) {
-      console.error("Failed to parse AI response:", content);
-      // Try to find JSON object directly
-      const directMatch = content.match(/\{[\s\S]*\}/);
-      if (directMatch) {
-        wallsData = JSON.parse(directMatch[0]);
-      } else {
-        throw new Error("Could not parse wall detection response");
+      let jsonStr = jsonMatch[1]?.trim() || content;
+      
+      // Se não encontrou em código, procurar objeto JSON diretamente
+      if (!jsonStr.includes("{") || !jsonStr.includes("}")) {
+        const directMatch = content.match(/\{[\s\S]*\}/);
+        if (directMatch) {
+          jsonStr = directMatch[0];
+        }
       }
+
+      const parsed = JSON.parse(jsonStr);
+      
+      // Normalizar o formato de resposta
+      if (Array.isArray(parsed.superficies)) {
+        superficies = parsed.superficies;
+      } else if (Array.isArray(parsed.walls)) {
+        // Compatibilidade com formato antigo
+        superficies = parsed.walls.map((w: any) => ({
+          tipo: "parede",
+          nome: w.label || w.nome || "Parede",
+          poligono: w.polygon || w.poligono || [],
+        }));
+      } else if (Array.isArray(parsed.surfaces)) {
+        superficies = parsed.surfaces;
+      }
+    } catch (parseError) {
+      console.error("[analyze-room] Erro ao fazer parse do JSON:", parseError);
+      console.error("[analyze-room] Conteúdo recebido:", content.substring(0, 1000));
+      throw new Error("Não foi possível interpretar a resposta da IA");
     }
 
-    // Validate and normalize the response
-    const walls = (wallsData.walls || []).map((wall: any, index: number) => ({
-      id: `wall_${index}_${Date.now()}`,
-      label: wall.label || `Parede ${index + 1}`,
-      polygon: (wall.polygon || []).map((p: any) => ({
-        x: Math.max(0, Math.min(100, Number(p.x) || 0)),
-        y: Math.max(0, Math.min(100, Number(p.y) || 0)),
-      })),
-    }));
+    // Validar e normalizar cada superfície
+    const superficiesValidadas = superficies.map((superficie: any, index: number) => {
+      const poligono = (superficie.poligono || superficie.polygon || []).map((p: any) => ({
+        x: Math.max(0, Math.min(100, Number(p.x) || Number(p[0]) || 0)),
+        y: Math.max(0, Math.min(100, Number(p.y) || Number(p[1]) || 0)),
+      }));
 
-    console.log(`Detected ${walls.length} walls`);
+      return {
+        id: `superficie_${index}_${Date.now()}`,
+        tipo: superficie.tipo || superficie.type || "parede",
+        nome: superficie.nome || superficie.label || superficie.name || `Superfície ${index + 1}`,
+        poligono: poligono.length >= 3 ? poligono : [], // Polígonos precisam de pelo menos 3 pontos
+      };
+    }).filter((s: any) => s.poligono.length >= 3);
+
+    console.log(`[analyze-room] Detectadas ${superficiesValidadas.length} superfícies`);
+
+    if (superficiesValidadas.length === 0) {
+      return new Response(
+        JSON.stringify({ 
+          error: "Não foi possível identificar superfícies na imagem",
+          superficies: [],
+          message: "Tente usar uma foto mais clara do ambiente"
+        }),
+        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
 
     return new Response(
-      JSON.stringify({ walls }),
+      JSON.stringify({ 
+        superficies: superficiesValidadas,
+        sucesso: true,
+        total: superficiesValidadas.length
+      }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
+
   } catch (error) {
-    console.error("analyze-room error:", error);
+    console.error("[analyze-room] Erro fatal:", error);
     return new Response(
-      JSON.stringify({ error: error instanceof Error ? error.message : "Unknown error" }),
+      JSON.stringify({ 
+        error: error instanceof Error ? error.message : "Erro desconhecido ao analisar ambiente",
+        sucesso: false
+      }),
       { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   }

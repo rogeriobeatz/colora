@@ -3,7 +3,7 @@ import { Paint } from "@/data/defaultColors";
 export interface DetectedWall {
   id: string;
   label: string;
-  // Percentage-based polygon points for the wall region
+  tipo: "parede" | "teto" | "piso" | "outro";
   polygon: { x: number; y: number }[];
 }
 
@@ -11,7 +11,7 @@ export interface Room {
   id: string;
   name: string;
   imageUrl: string;
-  originalImageUrl: string; // Added to support undo/revert
+  originalImageUrl: string;
   walls: DetectedWall[];
   isAnalyzing: boolean;
   isAnalyzed: boolean;
