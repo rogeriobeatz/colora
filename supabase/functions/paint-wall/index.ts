@@ -1,4 +1,5 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -8,321 +9,135 @@ const corsHeaders = {
 const KIE_BASE_URL = "https://api.kie.ai";
 
 serve(async (req) => {
+  // Handle CORS
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
   }
 
   try {
-    const { imageBase64, paintColor, paintName, wallLabel, surfaceType } = await req.json();
+    const { imageBase64, paintColor, wallLabel } = await req.json();
 
     if (!imageBase64 || !paintColor) {
-      return new Response(
-        JSON.stringify({ error: "imageBase64 e paintColor são obrigatórios" }),
-        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
+      throw new Error("Imagem e Cor são obrigatórias");
     }
 
+    // Configurações de Ambiente
     const KIE_API_KEY = Deno.env.get("KIE_API_KEY");
-    if (!KIE_API_KEY) {
-      console.error("[paint-wall] KIE_API_KEY não configurada");
-      throw new Error("KIE_API_KEY não está configurada");
+    const SUPABASE_URL = Deno.env.get("SUPABASE_URL");
+    const SUPABASE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+
+    if (!KIE_API_KEY || !SUPABASE_URL || !SUPABASE_KEY) {
+      throw new Error("Variáveis de ambiente não configuradas (KIE ou Supabase)");
     }
 
-    // Formatar imagem base64 - garantir formato correto
-    let formattedImage = imageBase64;
-    if (!imageBase64.startsWith("data:")) {
-      formattedImage = `data:image/jpeg;base64,${imageBase64}`;
-    }
+    const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
 
-    // Determinar o tipo de superfície para o prompt
-    const nomeSuperficie = wallLabel || "wall";
-    const tipoSuperficie = (surfaceType || "parede").toLowerCase();
+    // --- PASSO 1: Upload da Imagem para o Supabase Storage ---
+    // A API do Kie exige uma URL pública, não aceita Base64 direto.
+    console.log("1. Fazendo upload da imagem...");
     
-    // Prompt otimizado para o Flux Kontext
-    const prompt = `Repaint the ${nomeSuperficie} in this indoor room with the exact color ${paintColor}. 
+    const base64Data = imageBase64.replace(/^data:image\/\w+;base64,/, "");
+    const buffer = Uint8Array.from(atob(base64Data), c => c.charCodeAt(0));
+    const fileName = `input_${Date.now()}_${Math.random().toString(36).substring(7)}.png`;
 
-IMPORTANT REQUIREMENTS:
-- Only change the color of the ${nomeSuperficie}, keep EVERYTHING else identical
-- Do NOT add, remove, or modify any furniture, objects, windows, doors, or decorations
-- Maintain the exact same lighting, shadows, and perspective
-- The new paint color should look realistic with proper lighting adaptation
-- Keep the room structure completely unchanged
-- The ${nomeSuperficie} should have a natural, professional paint finish
-- This is a real photo, make it look photorealistic`;
+    const { error: uploadError } = await supabase.storage
+      .from('images') // CERTIFIQUE-SE QUE ESTE BUCKET EXISTE E É PÚBLICO
+      .upload(fileName, buffer, { contentType: 'image/png' });
 
-    console.log("[paint-wall] Enviando requisição para Kie.AI...");
-    console.log("[paint-wall] Cor:", paintColor, "Superfície:", nomeSuperficie);
+    if (uploadError) throw new Error(`Erro no upload: ${uploadError.message}`);
 
-    // Tentar primeiro com o endpoint de geração direta (sem polling)
-    // O Flux Kontext Pro pode ter um endpoint diferente
-    const models = ["flux-kontext-pro", "flux-kontext", "flux-pro-1.1"];
-    let lastError = null;
+    const { data: { publicUrl } } = supabase.storage
+      .from('images')
+      .getPublicUrl(fileName);
 
-    for (const model of models) {
-      try {
-        console.log(`[paint-wall] Tentando com modelo: ${model}`);
-        
-        const generateResponse = await fetch(`${KIE_BASE_URL}/v1/images/generations`, {
-          method: "POST",
-          headers: {
-            Authorization: `Bearer ${KIE_API_KEY}`,
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            model: model,
-            prompt: prompt,
-            image_url: formattedImage,
-            num_images: 1,
-            size: "auto",
-            quality: "high",
-          }),
-        });
+    console.log("   Imagem acessível em:", publicUrl);
 
-        if (generateResponse.ok) {
-          const data = await generateResponse.json();
-          console.log("[paint-wall] Resposta da API:", JSON.stringify(data).substring(0, 500));
-          
-          // Verificar diferentes formatos de resposta
-          const imageUrl = data.data?.[0]?.url || 
-                          data.images?.[0]?.url || 
-                          data.image_url ||
-                          data.url;
+    // --- PASSO 2: Preparar Prompt e Payload ---
+    const superficie = wallLabel || "wall";
+    
+    // Prompt focado em Inpainting/Recolorização
+    const prompt = `Repaint ONLY the ${superficie} with the color ${paintColor}. Keep all furniture, shadows, lighting, and textures exactly the same. High quality, photorealistic, interior design photography.`;
 
-          if (imageUrl) {
-            console.log("[paint-wall] Imagem gerada com sucesso:", imageUrl);
-            return new Response(
-              JSON.stringify({ 
-                imageUrl: imageUrl, 
-                sucesso: true,
-                model: model
-              }),
-              { headers: { ...corsHeaders, "Content-Type": "application/json" } }
-            );
-          }
-        } else {
-          const errorText = await generateResponse.text();
-          console.log(`[paint-wall] Erro com modelo ${model}:`, generateResponse.status, errorText);
-          lastError = { status: generateResponse.status, message: errorText };
-        }
-      } catch (modelError) {
-        console.log(`[paint-wall] Erro ao tentar modelo ${model}:`, modelError);
-        lastError = modelError;
+    const payload = {
+      model: "flux-2/pro-image-to-image", // Modelo correto segundo sua doc
+      input: {
+        input_urls: [publicUrl], // Array com a URL gerada
+        prompt: prompt,
+        aspect_ratio: "auto",
+        resolution: "1K"
       }
-    }
+    };
 
-    // Se os endpoints diretos falharam, tentar o endpoint de task (com polling)
-    console.log("[paint-wall] Tentando endpoint de task com polling...");
+    // --- PASSO 3: Criar Tarefa no Kie.ai ---
+    console.log("2. Enviando para Kie.ai...");
     
-    const taskResponse = await fetch(`${KIE_BASE_URL}/api/v1/flux/kontext/generate`, {
+    const createRes = await fetch(`${KIE_BASE_URL}/api/v1/jobs/createTask`, {
       method: "POST",
       headers: {
-        Authorization: `Bearer ${KIE_API_KEY}`,
-        "Content-Type": "application/json",
+        "Authorization": `Bearer ${KIE_API_KEY}`,
+        "Content-Type": "application/json"
       },
-      body: JSON.stringify({
-        prompt: prompt,
-        inputImage: formattedImage,
-        model: "flux-kontext-pro",
-        quality: "high",
-      }),
+      body: JSON.stringify(payload)
     });
 
-    if (!taskResponse.ok) {
-      const errorText = await taskResponse.text();
-      console.error("[paint-wall] Erro na API Kie.AI:", taskResponse.status, errorText);
-      
-      if (taskResponse.status === 401) {
-        throw new Error("Chave de API Kie.AI inválida. Verifique a chave nas configurações.");
-      }
-      if (taskResponse.status === 402) {
-        throw new Error("Créditos do Kie.AI esgotados. Adicione créditos à sua conta.");
-      }
-      if (taskResponse.status === 429) {
-        throw new Error("Limite de requisições excedido. Aguarde e tente novamente.");
-      }
-      
-      throw new Error(`Erro da API (${taskResponse.status}): ${errorText}`);
+    if (!createRes.ok) {
+      const err = await createRes.text();
+      throw new Error(`Erro Kie Create (${createRes.status}): ${err}`);
     }
 
-    const taskData = await taskResponse.json();
-    console.log("[paint-wall] Dados da task:", JSON.stringify(taskData).substring(0, 500));
+    const createData = await createRes.json();
+    if (createData.code !== 200) throw new Error(`Erro API Kie: ${createData.msg}`);
+    
+    const taskId = createData.data.taskId;
+    console.log("   Task criada ID:", taskId);
 
-    // Verificar diferentes formatos de resposta de task
-    const taskId = taskData.task_id || 
-                   taskData.data?.task_id || 
-                   taskData.data?.taskId ||
-                   taskData.id ||
-                   taskData.taskId;
-
-    if (!taskId) {
-      console.error("[paint-wall] Nenhum taskId encontrado na resposta:", taskData);
-      // Se não há taskId mas há uma URL direta, usar ela
-      const directUrl = taskData.data?.url || 
-                       taskData.url || 
-                       taskData.image_url ||
-                       taskData.data?.[0]?.url;
-      
-      if (directUrl) {
-        return new Response(
-          JSON.stringify({ 
-            imageUrl: directUrl, 
-            sucesso: true
-          }),
-          { headers: { ...corsHeaders, "Content-Type": "application/json" } }
-        );
-      }
-      
-      throw new Error("Não foi possível iniciar a geração. Resposta inválida da API.");
-    }
-
-    console.log("[paint-wall] Task ID:", taskId);
-
-    // Polling para obter o resultado
-    const imageUrl = await pollForResult(KIE_API_KEY, taskId);
-
-    console.log("[paint-wall] Imagem gerada com sucesso:", imageUrl);
+    // --- PASSO 4: Polling (Aguardar Resultado) ---
+    console.log("3. Aguardando processamento...");
+    const finalImageUrl = await pollKieTask(taskId, KIE_API_KEY);
 
     return new Response(
-      JSON.stringify({ 
-        imageUrl: imageUrl, 
-        taskId: taskId,
-        sucesso: true
-      }),
+      JSON.stringify({ imageUrl: finalImageUrl, sucesso: true }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
 
-  } catch (error) {
-    console.error("[paint-wall] Erro fatal:", error);
+  } catch (error: any) {
+    console.error("ERRO FATAL:", error.message);
     return new Response(
-      JSON.stringify({ 
-        error: error instanceof Error ? error.message : "Erro desconhecido",
-        sucesso: false
-      }),
+      JSON.stringify({ error: error.message, sucesso: false }),
       { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   }
 });
 
-// Função de polling para esperar o resultado
-async function pollForResult(apiKey: string, taskId: string): Promise<string> {
-  const maxWait = 180000; // 3 minutos
-  const pollInterval = 5000; // 5 segundos
-  const startTime = Date.now();
+// Função auxiliar de Polling corrigida para a estrutura do Kie
+async function pollKieTask(taskId: string, apiKey: string): Promise<string> {
+  const maxAttempts = 30; // ~60 segundos
+  
+  for (let i = 0; i < maxAttempts; i++) {
+    await new Promise(r => setTimeout(r, 2000)); // Espera 2s
 
-  while (Date.now() - startTime < maxWait) {
-    await new Promise((resolve) => setTimeout(resolve, pollInterval));
+    const res = await fetch(`${KIE_BASE_URL}/api/v1/jobs/recordInfo?taskId=${taskId}`, {
+      headers: { "Authorization": `Bearer ${apiKey}` }
+    });
 
-    try {
-      // Tentar diferentes endpoints de status
-      const endpoints = [
-        `${KIE_BASE_URL}/api/v1/flux/kontext/record-info?taskId=${taskId}`,
-        `${KIE_BASE_URL}/v1/tasks/${taskId}`,
-        `${KIE_BASE_URL}/api/v1/tasks/${taskId}/status`,
-      ];
+    if (!res.ok) continue;
 
-      let statusData = null;
-      
-      for (const endpoint of endpoints) {
-        try {
-          const statusResponse = await fetch(endpoint, {
-            method: "GET",
-            headers: {
-              Authorization: `Bearer ${apiKey}`,
-            },
-          });
+    const body = await res.json();
+    const data = body.data;
 
-          if (statusResponse.ok) {
-            statusData = await statusResponse.json();
-            console.log(`[paint-wall] Status da task (${endpoint}):`, JSON.stringify(statusData).substring(0, 300));
-            break;
-          }
-        } catch (e) {
-          console.log(`[paint-wall] Endpoint não funcionou: ${endpoint}`);
-        }
+    if (data.state === "success") {
+      // O Kie retorna o resultado como STRING JSON dentro de resultJson
+      try {
+        const resultObj = JSON.parse(data.resultJson);
+        return resultObj.resultUrls[0];
+      } catch (e) {
+        throw new Error("Erro ao ler JSON de resposta do Kie");
       }
+    }
 
-      if (!statusData) {
-        console.log("[paint-wall] Nenhum endpoint de status funcionou");
-        continue;
-      }
-
-      // Normalizar os dados da task
-      const taskData = statusData.data || statusData;
-      const state = taskData.state || taskData.status || taskData.state_value;
-
-      console.log("[paint-wall] Estado atual:", state);
-
-      // Estados de falha
-      const failureStates = [3, "failed", "FAILED", "GENERATE_FAILED", "error", "ERROR"];
-      if (failureStates.includes(state)) {
-        const failMsg = taskData.failMsg || 
-                       taskData.fail_message || 
-                       taskData.error || 
-                       taskData.message ||
-                       "Motivo desconhecido";
-        throw new Error(`Falha na geração: ${failMsg}`);
-      }
-
-      // Estados de sucesso
-      const successStates = [2, "completed", "COMPLETED", "success", "SUCCESS", "done"];
-      if (successStates.includes(state)) {
-        // Tentar múltiplos campos para a URL da imagem
-        let resultUrl = null;
-
-        // 1. Campo direto
-        resultUrl = taskData.imageUrl || 
-                   taskData.image_url || 
-                   taskData.url ||
-                   taskData.output_url ||
-                   taskData.outputUrl;
-
-        // 2. Array data
-        if (!resultUrl && taskData.data) {
-          if (Array.isArray(taskData.data)) {
-            resultUrl = taskData.data[0]?.url || taskData.data[0];
-          } else if (typeof taskData.data === 'object') {
-            resultUrl = taskData.data.url || 
-                       taskData.data.image_url || 
-                       taskData.data.output_url;
-          }
-        }
-
-        // 3. Array images
-        if (!resultUrl && Array.isArray(taskData.images)) {
-          resultUrl = taskData.images[0]?.url || taskData.images[0];
-        }
-
-        // 4. Array outputs
-        if (!resultUrl && Array.isArray(taskData.outputs)) {
-          resultUrl = taskData.outputs[0]?.url || 
-                     taskData.outputs[0]?.image_url ||
-                     taskData.outputs[0];
-        }
-
-        // 5. ResultJson
-        if (!resultUrl && taskData.resultJson) {
-          try {
-            const resultJson = typeof taskData.resultJson === "string"
-              ? JSON.parse(taskData.resultJson)
-              : taskData.resultJson;
-            resultUrl = resultJson?.url || resultJson?.image_url || resultJson?.output_url;
-          } catch {}
-        }
-
-        if (resultUrl) {
-          console.log("[paint-wall] URL da imagem obtida:", resultUrl);
-          return resultUrl;
-        }
-
-        console.log("[paint-wall] Estado de sucesso mas sem URL:", JSON.stringify(taskData).substring(0, 500));
-        throw new Error("Tarefa concluída mas URL da imagem não encontrada");
-      }
-
-      console.log(`[paint-wall] Aguardando... Estado: ${state}`);
-    } catch (pollError) {
-      console.log("[paint-wall] Erro no polling:", pollError);
+    if (data.state === "fail") {
+      throw new Error(`Kie falhou: ${data.failMsg}`);
     }
   }
-
-  throw new Error("Tempo limite excedido ao gerar imagem (3 minutos)");
+  throw new Error("Timeout: A imagem demorou muito para gerar.");
 }
