@@ -8,7 +8,7 @@ import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import {
-  Palette, Building2, Plus, Trash2, Edit2, Download, Upload, Eye, EyeOff, Search, LogOut, Loader2
+  Palette, Building2, Plus, Trash2, Edit2, Download, Upload, Eye, EyeOff, Search, LogOut, Loader2, User
 } from "lucide-react";
 import { Catalog, Paint } from "@/data/defaultColors";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
@@ -23,7 +23,7 @@ const Dashboard = () => {
     addPaint, updatePaint, deletePaint, importPaintsCSV, exportPaintsCSV, initCompany,
   } = useStore();
 
-  const [companyName, setCompanyName] = useState("");
+  const [userProfile, setUserProfile] = useState<any>(null);
   const [selectedCatalog, setSelectedCatalog] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState("");
   const [editingPaint, setEditingPaint] = useState<Paint | null>(null);
@@ -38,7 +38,6 @@ const Dashboard = () => {
     }
   }, [user, authLoading, navigate]);
 
-  // Load profile from Supabase if logged in
   useEffect(() => {
     const loadProfile = async () => {
       if (user) {
@@ -49,11 +48,9 @@ const Dashboard = () => {
           .single();
         
         if (data && !error) {
-          // If we have a profile, update the store
-          // Note: In a real app, we'd sync the whole company object with Supabase
-          // For now, we'll just ensure the company name and slug match
+          setUserProfile(data);
           if (!company || company.id !== user.id) {
-            initCompany(data.company_name || "Minha Loja");
+            initCompany(data.company_name || (data.user_type === 'company' ? "Minha Loja" : "Meu Espaço"));
             updateCompany({ 
               id: user.id, 
               name: data.company_name, 
@@ -78,6 +75,8 @@ const Dashboard = () => {
 
   if (!user) return null;
 
+  const isCompany = userProfile?.user_type === 'company';
+
   const handleSignOut = async () => {
     await signOut();
     toast.success("Sessão encerrada");
@@ -100,7 +99,7 @@ const Dashboard = () => {
         });
 
       if (error) throw error;
-      toast.success("Dados salvos no servidor!");
+      toast.success("Dados salvos!");
     } catch (error: any) {
       toast.error("Erro ao salvar: " + error.message);
     } finally {
@@ -135,38 +134,6 @@ const Dashboard = () => {
     setPaintForm({ name: "", code: "", hex: "#000000", rgb: "", cmyk: "", category: "" });
   };
 
-  const handleExport = () => {
-    if (!activeCatalog) return;
-    const csv = exportPaintsCSV(activeCatalog.id);
-    const blob = new Blob([csv], { type: "text/csv" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `${activeCatalog.name}.csv`;
-    a.click();
-    URL.revokeObjectURL(url);
-    toast.success("CSV exportado!");
-  };
-
-  const handleImport = () => {
-    if (!activeCatalog) return;
-    const input = document.createElement("input");
-    input.type = "file";
-    input.accept = ".csv";
-    input.onchange = (e) => {
-      const file = (e.target as HTMLInputElement).files?.[0];
-      if (file) {
-        const reader = new FileReader();
-        reader.onload = (ev) => {
-          importPaintsCSV(activeCatalog.id, ev.target?.result as string);
-          toast.success("Tintas importadas!");
-        };
-        reader.readAsText(file);
-      }
-    };
-    input.click();
-  };
-
   return (
     <div className="min-h-screen bg-background">
       {/* Header */}
@@ -180,20 +147,24 @@ const Dashboard = () => {
               <span className="font-display text-lg font-bold text-foreground">Colora</span>
             </Link>
             <span className="text-muted-foreground">/</span>
-            <span className="text-sm font-medium text-foreground">{company?.name || "Dashboard"}</span>
+            <span className="text-sm font-medium text-foreground">
+              {isCompany ? "Painel da Loja" : "Meu Espaço"}
+            </span>
           </div>
           <div className="flex items-center gap-2">
-            <Button variant="outline" size="sm" asChild>
-              <Link to={company ? `/empresa/${company.slug}` : "#"} className="gap-1.5">
-                <Eye className="w-3.5 h-3.5" /> White-label
-              </Link>
-            </Button>
+            {isCompany && (
+              <Button variant="outline" size="sm" asChild>
+                <Link to={`/empresa/${company?.slug}`} className="gap-1.5">
+                  <Eye className="w-3.5 h-3.5" /> Ver Loja
+                </Link>
+              </Button>
+            )}
             <Button size="sm" asChild>
               <Link to="/simulator" className="gap-1.5">
                 <Palette className="w-3.5 h-3.5" /> Simulador
               </Link>
             </Button>
-            <Button variant="ghost" size="icon" onClick={handleSignOut} title="Sair">
+            <Button variant="ghost" size="icon" onClick={handleSignOut}>
               <LogOut className="w-4 h-4 text-muted-foreground" />
             </Button>
           </div>
@@ -201,96 +172,46 @@ const Dashboard = () => {
       </header>
 
       <div className="container mx-auto px-4 py-6 max-w-6xl">
+        <div className="mb-8">
+          <h1 className="text-2xl font-display font-bold text-foreground">
+            Olá, {userProfile?.company_name || "usuário"}!
+          </h1>
+          <p className="text-muted-foreground">
+            {isCompany 
+              ? "Gerencie seus catálogos de tintas e configurações da loja." 
+              : "Explore cores e salve suas combinações favoritas."}
+          </p>
+        </div>
+
         <Tabs defaultValue="catalogs">
           <TabsList className="mb-6">
-            <TabsTrigger value="company">Empresa</TabsTrigger>
-            <TabsTrigger value="catalogs">Catálogos</TabsTrigger>
+            <TabsTrigger value="catalogs">Cores e Catálogos</TabsTrigger>
+            <TabsTrigger value="profile">Configurações</TabsTrigger>
           </TabsList>
 
-          {/* Company Tab */}
-          <TabsContent value="company">
-            <div className="bg-card rounded-xl border border-border p-6 max-w-lg">
-              <h2 className="text-lg font-display font-semibold text-foreground mb-4">Dados da Empresa</h2>
-              {company && (
-                <div className="space-y-4">
-                  <div>
-                    <Label>Nome</Label>
-                    <Input value={company.name} onChange={(e) => updateCompany({ name: e.target.value })} />
-                  </div>
-                  <div>
-                    <Label>Slug (URL)</Label>
-                    <Input value={company.slug} onChange={(e) => updateCompany({ slug: e.target.value })} />
-                    <p className="text-xs text-muted-foreground mt-1">
-                      Acesse em: /empresa/{company.slug}
-                    </p>
-                  </div>
-                  <div className="grid grid-cols-2 gap-4">
-                    <div>
-                      <Label>Cor Primária</Label>
-                      <div className="flex gap-2 items-center">
-                        <input
-                          type="color"
-                          value={company.primaryColor}
-                          onChange={(e) => updateCompany({ primaryColor: e.target.value })}
-                          className="w-10 h-10 rounded-lg border border-border cursor-pointer"
-                        />
-                        <Input value={company.primaryColor} onChange={(e) => updateCompany({ primaryColor: e.target.value })} />
-                      </div>
-                    </div>
-                    <div>
-                      <Label>Cor Secundária</Label>
-                      <div className="flex gap-2 items-center">
-                        <input
-                          type="color"
-                          value={company.secondaryColor}
-                          onChange={(e) => updateCompany({ secondaryColor: e.target.value })}
-                          className="w-10 h-10 rounded-lg border border-border cursor-pointer"
-                        />
-                        <Input value={company.secondaryColor} onChange={(e) => updateCompany({ secondaryColor: e.target.value })} />
-                      </div>
-                    </div>
-                  </div>
-                  <Button onClick={handleSaveProfile} disabled={isSaving}>
-                    {isSaving ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}
-                    Salvar Alterações
-                  </Button>
-                </div>
-              )}
-            </div>
-          </TabsContent>
-
-          {/* Catalogs Tab */}
           <TabsContent value="catalogs">
             <div className="grid lg:grid-cols-[280px_1fr] gap-6">
               {/* Catalog Sidebar */}
               <div className="space-y-3">
-                <div className="flex items-center gap-2">
-                  <Input
-                    placeholder="Novo catálogo..."
-                    value={newCatalogName}
-                    onChange={(e) => setNewCatalogName(e.target.value)}
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter" && newCatalogName.trim()) {
-                        addCatalog({ id: Math.random().toString(36).substring(2, 10), name: newCatalogName.trim(), active: true, paints: [] });
-                        setNewCatalogName("");
-                        toast.success("Catálogo criado!");
-                      }
-                    }}
-                  />
-                  <Button
-                    size="icon"
-                    variant="outline"
-                    onClick={() => {
+                {isCompany && (
+                  <div className="flex items-center gap-2 mb-4">
+                    <Input
+                      placeholder="Novo catálogo..."
+                      value={newCatalogName}
+                      onChange={(e) => setNewCatalogName(e.target.value)}
+                    />
+                    <Button size="icon" variant="outline" onClick={() => {
                       if (newCatalogName.trim()) {
                         addCatalog({ id: Math.random().toString(36).substring(2, 10), name: newCatalogName.trim(), active: true, paints: [] });
                         setNewCatalogName("");
                         toast.success("Catálogo criado!");
                       }
-                    }}
-                  >
-                    <Plus className="w-4 h-4" />
-                  </Button>
-                </div>
+                    }}>
+                      <Plus className="w-4 h-4" />
+                    </Button>
+                  </div>
+                )}
+                
                 {company?.catalogs.map((cat) => (
                   <div
                     key={cat.id}
@@ -301,27 +222,15 @@ const Dashboard = () => {
                   >
                     <div className="flex items-center justify-between">
                       <span className="font-medium text-sm text-foreground">{cat.name}</span>
-                      <div className="flex items-center gap-1">
-                        <button
-                          onClick={(e) => { e.stopPropagation(); updateCatalog(cat.id, { active: !cat.active }); }}
-                          className="p-1 rounded hover:bg-muted"
-                        >
-                          {cat.active ? <Eye className="w-3.5 h-3.5 text-primary" /> : <EyeOff className="w-3.5 h-3.5 text-muted-foreground" />}
-                        </button>
-                        <button
-                          onClick={(e) => { e.stopPropagation(); deleteCatalog(cat.id); toast.success("Catálogo removido!"); }}
-                          className="p-1 rounded hover:bg-destructive/10"
-                        >
-                          <Trash2 className="w-3.5 h-3.5 text-muted-foreground hover:text-destructive" />
-                        </button>
-                      </div>
+                      {isCompany && (
+                        <div className="flex items-center gap-1">
+                          <button onClick={(e) => { e.stopPropagation(); updateCatalog(cat.id, { active: !cat.active }); }}>
+                            {cat.active ? <Eye className="w-3.5 h-3.5 text-primary" /> : <EyeOff className="w-3.5 h-3.5 text-muted-foreground" />}
+                          </button>
+                        </div>
+                      )}
                     </div>
-                    <div className="flex items-center gap-2 mt-1">
-                      <Badge variant={cat.active ? "default" : "secondary"} className="text-[10px] px-1.5 py-0">
-                        {cat.active ? "Ativo" : "Inativo"}
-                      </Badge>
-                      <span className="text-xs text-muted-foreground">{cat.paints.length} cores</span>
-                    </div>
+                    <span className="text-xs text-muted-foreground">{cat.paints.length} cores</span>
                   </div>
                 ))}
               </div>
@@ -333,124 +242,63 @@ const Dashboard = () => {
                     <div className="relative flex-1 max-w-xs">
                       <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
                       <Input
-                        placeholder="Buscar tinta..."
+                        placeholder="Buscar cor..."
                         value={searchTerm}
                         onChange={(e) => setSearchTerm(e.target.value)}
                         className="pl-9"
                       />
                     </div>
-                    <div className="flex items-center gap-2">
-                      <Button variant="outline" size="sm" onClick={handleImport} className="gap-1.5">
-                        <Upload className="w-3.5 h-3.5" /> Importar
-                      </Button>
-                      <Button variant="outline" size="sm" onClick={handleExport} className="gap-1.5">
-                        <Download className="w-3.5 h-3.5" /> Exportar
-                      </Button>
-                      <Dialog open={showPaintDialog} onOpenChange={setShowPaintDialog}>
-                        <DialogTrigger asChild>
-                          <Button size="sm" className="gap-1.5" onClick={() => {
-                            setEditingPaint(null);
-                            setPaintForm({ name: "", code: "", hex: "#000000", rgb: "", cmyk: "", category: "" });
-                          }}>
-                            <Plus className="w-3.5 h-3.5" /> Nova Tinta
-                          </Button>
-                        </DialogTrigger>
-                        <DialogContent>
-                          <DialogHeader>
-                            <DialogTitle>{editingPaint ? "Editar Tinta" : "Nova Tinta"}</DialogTitle>
-                          </DialogHeader>
-                          <div className="space-y-3 mt-2">
-                            <div className="grid grid-cols-2 gap-3">
-                              <div>
-                                <Label>Nome</Label>
-                                <Input value={paintForm.name} onChange={(e) => setPaintForm({ ...paintForm, name: e.target.value })} />
-                              </div>
-                              <div>
-                                <Label>Código</Label>
-                                <Input value={paintForm.code} onChange={(e) => setPaintForm({ ...paintForm, code: e.target.value })} />
-                              </div>
-                            </div>
-                            <div className="grid grid-cols-2 gap-3">
-                              <div>
-                                <Label>HEX</Label>
-                                <div className="flex gap-2">
-                                  <input
-                                    type="color"
-                                    value={paintForm.hex}
-                                    onChange={(e) => setPaintForm({ ...paintForm, hex: e.target.value })}
-                                    className="w-10 h-10 rounded border border-border cursor-pointer"
-                                  />
-                                  <Input value={paintForm.hex} onChange={(e) => setPaintForm({ ...paintForm, hex: e.target.value })} />
-                                </div>
-                              </div>
-                              <div>
-                                <Label>Categoria</Label>
-                                <Input value={paintForm.category} onChange={(e) => setPaintForm({ ...paintForm, category: e.target.value })} />
-                              </div>
-                            </div>
-                            <div className="grid grid-cols-2 gap-3">
-                              <div>
-                                <Label>RGB</Label>
-                                <Input value={paintForm.rgb} onChange={(e) => setPaintForm({ ...paintForm, rgb: e.target.value })} placeholder="255, 255, 255" />
-                              </div>
-                              <div>
-                                <Label>CMYK</Label>
-                                <Input value={paintForm.cmyk} onChange={(e) => setPaintForm({ ...paintForm, cmyk: e.target.value })} placeholder="0, 0, 0, 0" />
-                              </div>
-                            </div>
-                            <Button onClick={handleSavePaint} className="w-full" disabled={!paintForm.name || !paintForm.hex}>
-                              {editingPaint ? "Salvar" : "Adicionar"}
-                            </Button>
-                          </div>
-                        </DialogContent>
-                      </Dialog>
-                    </div>
+                    {isCompany && (
+                      <div className="flex items-center gap-2">
+                        <Button variant="outline" size="sm" onClick={() => setShowPaintDialog(true)}>
+                          <Plus className="w-3.5 h-3.5 mr-1" /> Nova Tinta
+                        </Button>
+                      </div>
+                    )}
                   </div>
 
-                  {/* Category groups */}
-                  {categories.map((cat) => {
-                    const catPaints = filteredPaints.filter((p) => p.category === cat);
-                    if (catPaints.length === 0) return null;
-                    return (
-                      <div key={cat} className="mb-6">
-                        <h3 className="text-sm font-semibold text-muted-foreground mb-3 uppercase tracking-wider">{cat}</h3>
-                        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3">
-                          {catPaints.map((paint) => (
-                            <div
-                              key={paint.id}
-                              className="group bg-card rounded-xl border border-border overflow-hidden hover:shadow-soft transition-all"
-                            >
-                              <div className="h-16 w-full" style={{ backgroundColor: paint.hex }} />
-                              <div className="p-2.5">
-                                <p className="text-xs font-semibold text-foreground truncate">{paint.name}</p>
-                                <p className="text-[10px] text-muted-foreground">{paint.code} · {paint.hex}</p>
-                                <div className="flex gap-1 mt-1.5 opacity-0 group-hover:opacity-100 transition-opacity">
-                                  <button
-                                    className="p-1 rounded hover:bg-muted"
-                                    onClick={() => {
-                                      setEditingPaint(paint);
-                                      setPaintForm(paint);
-                                      setShowPaintDialog(true);
-                                    }}
-                                  >
-                                    <Edit2 className="w-3 h-3 text-muted-foreground" />
-                                  </button>
-                                  <button
-                                    className="p-1 rounded hover:bg-destructive/10"
-                                    onClick={() => { deletePaint(activeCatalog.id, paint.id); toast.success("Tinta removida!"); }}
-                                  >
-                                    <Trash2 className="w-3 h-3 text-muted-foreground" />
-                                  </button>
-                                </div>
-                              </div>
+                  {categories.map((cat) => (
+                    <div key={cat} className="mb-6">
+                      <h3 className="text-sm font-semibold text-muted-foreground mb-3 uppercase tracking-wider">{cat}</h3>
+                      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3">
+                        {filteredPaints.filter(p => p.category === cat).map((paint) => (
+                          <div key={paint.id} className="group bg-card rounded-xl border border-border overflow-hidden hover:shadow-soft transition-all">
+                            <div className="h-16 w-full" style={{ backgroundColor: paint.hex }} />
+                            <div className="p-2.5">
+                              <p className="text-xs font-semibold text-foreground truncate">{paint.name}</p>
+                              <p className="text-[10px] text-muted-foreground">{paint.code}</p>
                             </div>
-                          ))}
-                        </div>
+                          </div>
+                        ))}
                       </div>
-                    );
-                  })}
+                    </div>
+                  ))}
                 </div>
               )}
+            </div>
+          </TabsContent>
+
+          <TabsContent value="profile">
+            <div className="bg-card rounded-xl border border-border p-6 max-w-lg">
+              <h2 className="text-lg font-display font-semibold text-foreground mb-4">
+                {isCompany ? "Dados da Loja" : "Meu Perfil"}
+              </h2>
+              <div className="space-y-4">
+                <div>
+                  <Label>{isCompany ? "Nome da Loja" : "Meu Nome"}</Label>
+                  <Input value={company?.name} onChange={(e) => updateCompany({ name: e.target.value })} />
+                </div>
+                {isCompany && (
+                  <div>
+                    <Label>Slug da Loja (URL)</Label>
+                    <Input value={company?.slug} onChange={(e) => updateCompany({ slug: e.target.value })} />
+                  </div>
+                )}
+                <Button onClick={handleSaveProfile} disabled={isSaving}>
+                  {isSaving && <Loader2 className="w-4 h-4 animate-spin mr-2" />}
+                  Salvar Alterações
+                </Button>
+              </div>
             </div>
           </TabsContent>
         </Tabs>
