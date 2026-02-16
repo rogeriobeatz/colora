@@ -3,6 +3,22 @@ import { Company, Catalog, Paint, createDefaultCompany, createDefaultCatalog } f
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 
+interface Profile {
+  id: string;
+  company_name: string | null;
+  company_slug: string | null;
+  primary_color: string | null;
+  secondary_color: string | null;
+  avatar_url: string | null;
+}
+
+interface CatalogData {
+  id: string;
+  name: string;
+  active: boolean;
+  paints: Paint[];
+}
+
 interface StoreContextType {
   company: Company | null;
   loading: boolean;
@@ -32,12 +48,17 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     }
 
     try {
-      const { data: profile } = await supabase.from('profiles').select('*').eq('id', user.id).single();
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('id', user.id)
+        .single() as any;
+
       if (profile) {
         const { data: catalogsData } = await supabase
           .from('catalogs')
           .select('*, paints(*)')
-          .eq('company_id', user.id);
+          .eq('company_id', user.id) as any;
 
         const formattedCompany: Company = {
           id: profile.id,
@@ -47,7 +68,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
           secondaryColor: profile.secondary_color || "#e87040",
           logo: profile.avatar_url || undefined,
           catalogs: catalogsData && catalogsData.length > 0 
-            ? catalogsData.map(cat => ({
+            ? catalogsData.map((cat: any) => ({
                 id: cat.id,
                 name: cat.name,
                 active: cat.active,
@@ -67,13 +88,18 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const fetchCompanyBySlug = async (slug: string) => {
     setLoading(true);
     try {
-      const { data: profile } = await supabase.from('profiles').select('*').eq('company_slug', slug).single();
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('company_slug', slug)
+        .single() as any;
+
       if (profile) {
         const { data: catalogsData } = await supabase
           .from('catalogs')
           .select('*, paints(*)')
           .eq('company_id', profile.id)
-          .eq('active', true);
+          .eq('active', true) as any;
 
         const formattedCompany: Company = {
           id: profile.id,
@@ -82,7 +108,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
           primaryColor: profile.primary_color || "#1a8a6a",
           secondaryColor: profile.secondary_color || "#e87040",
           logo: profile.avatar_url || undefined,
-          catalogs: (catalogsData || []).map(cat => ({
+          catalogs: (catalogsData || []).map((cat: any) => ({
             id: cat.id,
             name: cat.name,
             active: cat.active,
@@ -139,15 +165,14 @@ export function StoreProvider({ children }: { children: ReactNode }) {
 
   const importPaintsCSV = (catalogId: string, csvText: string) => {
     if (!company) return;
-    // Lógica simplificada de importação para manter o estado local antes do save global
     const lines = csvText.split("\n").slice(1);
     const newPaints: Paint[] = lines.filter(l => l.trim()).map(line => {
       const [name, code, hex, category] = line.split(",");
       return {
         id: Math.random().toString(36).substring(2, 10),
-        name: name?.trim(),
-        code: code?.trim(),
-        hex: hex?.trim(),
+        name: name?.trim() || "Sem nome",
+        code: code?.trim() || "",
+        hex: hex?.trim() || "#000000",
         rgb: "",
         cmyk: "",
         category: category?.trim() || "Geral"

@@ -11,6 +11,7 @@ export interface Room {
   id: string;
   name: string;
   imageUrl: string;
+  originalImageUrl: string; // Added to support undo/revert
   walls: DetectedWall[];
   isAnalyzing: boolean;
   isAnalyzed: boolean;
