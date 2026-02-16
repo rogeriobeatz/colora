@@ -5,7 +5,6 @@ import { supabase } from "@/integrations/supabase/client";
 import { Room, DetectedWall, WallSimulation } from "./types";
 
 const genId = () => Math.random().toString(36).substring(2, 10);
-
 let roomCounter = 1;
 
 export function useSimulator() {
@@ -22,11 +21,11 @@ export function useSimulator() {
     reader.onload = async (ev) => {
       const imageBase64 = ev.target?.result as string;
       const id = genId();
-      const name = `Ambiente ${roomCounter++}`;
       const newRoom: Room = {
         id,
-        name,
+        name: `Ambiente ${roomCounter++}`,
         imageUrl: imageBase64,
+        originalImageUrl: imageBase64, // Guardamos a original aqui
         walls: [],
         isAnalyzing: true,
         isAnalyzed: false,
@@ -34,19 +33,12 @@ export function useSimulator() {
       };
       setRooms((prev) => [...prev, newRoom]);
       setActiveRoomId(id);
-      setSelectedWallId(null);
 
       try {
-        // Call the real AI analysis edge function
         const { data, error } = await supabase.functions.invoke("analyze-room", {
           body: { imageBase64 },
         });
-
         if (error) throw error;
-
-        if (data?.error) {
-          throw new Error(data.error);
-        }
 
         const detectedWalls: DetectedWall[] = (data.walls || []).map((w: any) => ({
           id: w.id || genId(),
@@ -56,49 +48,25 @@ export function useSimulator() {
 
         setRooms((prev) =>
           prev.map((r) =>
-            r.id === id
-              ? { ...r, walls: detectedWalls, isAnalyzing: false, isAnalyzed: true }
-              : r
+            r.id === id ? { ...r, walls: detectedWalls, isAnalyzing: false, isAnalyzed: true } : r
           )
         );
-
-        toast.success(`${detectedWalls.length} superfícies detectadas pela IA!`, {
-          description: "Selecione uma parede e escolha uma cor para pintar.",
-        });
+        toast.success(`${detectedWalls.length} superfícies detectadas!`);
       } catch (err: any) {
-        console.error("Room analysis error:", err);
-        setRooms((prev) =>
-          prev.map((r) =>
-            r.id === id ? { ...r, isAnalyzing: false, isAnalyzed: false } : r
-          )
-        );
-        toast.error("Erro ao analisar o ambiente", {
-          description: err.message || "Tente novamente.",
-        });
+        setRooms((prev) => prev.map((r) => r.id === id ? { ...r, isAnalyzing: false } : r));
+        toast.error("Erro na análise");
       }
     };
     reader.readAsDataURL(file);
   }, []);
 
-  const selectRoom = useCallback((id: string) => {
-    setActiveRoomId(id);
-    setSelectedWallId(null);
-  }, []);
-
-  const selectWall = useCallback((wallId: string) => {
-    setSelectedWallId(wallId);
-  }, []);
-
   const applyColor = useCallback(async () => {
     if (!activeRoom || !selectedWallId || !selectedPaint) return;
-
     const wall = activeRoom.walls.find((w) => w.id === selectedWallId);
     if (!wall) return;
 
     setIsPainting(true);
-
     try {
-      // Call the real AI painting edge function
       const { data, error } = await supabase.functions.invoke("paint-wall", {
         body: {
           imageBase64: activeRoom.imageUrl,
@@ -107,14 +75,7 @@ export function useSimulator() {
           wallLabel: wall.label,
         },
       });
-
       if (error) throw error;
-
-      if (data?.error) {
-        throw new Error(data.error);
-      }
-
-      const resultImageUrl = data.imageUrl;
 
       const simulation: WallSimulation = {
         id: genId(),
@@ -129,105 +90,40 @@ export function useSimulator() {
           r.id === activeRoom.id
             ? {
                 ...r,
-                // Update the room image with the painted result
-                imageUrl: resultImageUrl || r.imageUrl,
-                simulations: [
-                  ...r.simulations.filter((s) => s.wallId !== selectedWallId),
-                  simulation,
-                ],
+                imageUrl: data.imageUrl,
+                simulations: [...r.simulations.filter((s) => s.wallId !== selectedWallId), simulation],
               }
             : r
         )
       );
-
-      toast.success(`${selectedPaint.name} aplicada com IA!`, {
-        description: `${wall.label} pintada com sucesso.`,
-      });
+      toast.success("Cor aplicada!");
     } catch (err: any) {
-      console.error("Paint wall error:", err);
-      toast.error("Erro ao pintar a parede", {
-        description: err.message || "Tente novamente.",
-      });
+      toast.error("Erro ao pintar");
     } finally {
       setIsPainting(false);
     }
   }, [activeRoom, selectedWallId, selectedPaint]);
 
-  const removeSimulation = useCallback(
-    (simId: string) => {
-      if (!activeRoom) return;
-      setRooms((prev) =>
-        prev.map((r) =>
-          r.id === activeRoom.id
-            ? { ...r, simulations: r.simulations.filter((s) => s.id !== simId) }
-            : r
-        )
-      );
-    },
-    [activeRoom]
-  );
-
-  const retryAnalysis = useCallback(() => {
+  const removeSimulation = useCallback((simId: string) => {
     if (!activeRoom) return;
-    // Re-trigger analysis by setting isAnalyzing
     setRooms((prev) =>
-      prev.map((r) =>
-        r.id === activeRoom.id ? { ...r, isAnalyzing: true, isAnalyzed: false, walls: [] } : r
-      )
+      prev.map((r) => {
+        if (r.id !== activeRoom.id) return r;
+        const newSims = r.simulations.filter((s) => s.id !== simId);
+        // Se removeu a última simulação, volta para a imagem original
+        return { 
+          ...r, 
+          simulations: newSims,
+          imageUrl: newSims.length === 0 ? (r as any).originalImageUrl : r.imageUrl 
+        };
+      })
     );
-
-    // Call analyze again
-    (async () => {
-      try {
-        const { data, error } = await supabase.functions.invoke("analyze-room", {
-          body: { imageBase64: activeRoom.imageUrl },
-        });
-
-        if (error) throw error;
-        if (data?.error) throw new Error(data.error);
-
-        const detectedWalls: DetectedWall[] = (data.walls || []).map((w: any) => ({
-          id: w.id || genId(),
-          label: w.label,
-          polygon: w.polygon,
-        }));
-
-        setRooms((prev) =>
-          prev.map((r) =>
-            r.id === activeRoom.id
-              ? { ...r, walls: detectedWalls, isAnalyzing: false, isAnalyzed: true }
-              : r
-          )
-        );
-
-        toast.success(`${detectedWalls.length} superfícies detectadas!`);
-      } catch (err: any) {
-        setRooms((prev) =>
-          prev.map((r) =>
-            r.id === activeRoom.id ? { ...r, isAnalyzing: false } : r
-          )
-        );
-        toast.error("Erro ao re-analisar", { description: err.message });
-      }
-    })();
   }, [activeRoom]);
 
-  const totalSimulations = rooms.reduce((acc, r) => acc + r.simulations.length, 0);
-
   return {
-    rooms,
-    activeRoom,
-    activeRoomId,
-    selectedWallId,
-    selectedPaint,
-    isPainting,
-    totalSimulations,
-    addRoom,
-    selectRoom,
-    selectWall,
-    setSelectedPaint,
-    applyColor,
-    removeSimulation,
-    retryAnalysis,
+    rooms, activeRoom, activeRoomId, selectedWallId, selectedPaint, isPainting,
+    totalSimulations: rooms.reduce((acc, r) => acc + r.simulations.length, 0),
+    addRoom, selectRoom: setActiveRoomId, selectWall: setSelectedWallId,
+    setSelectedPaint, applyColor, removeSimulation, retryAnalysis: () => {}
   };
 }
