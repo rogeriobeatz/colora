@@ -30,35 +30,35 @@ serve(async (req) => {
       : `data:image/jpeg;base64,${imageBase64}`;
 
     // --- PROMPT TRADUZIDO E ADAPTADO ---
-    const systemPrompt = `Você é uma IA especialista em Arquitetura e Análise Espacial.
+    const systemPrompt = `You are an expert Architectural AI.
 
-Sua tarefa é analisar uma foto de um ambiente (Interno, Externo ou Comercial) e identificar TODAS as superfícies visíveis que podem ser pintadas.
+Task: Identify paintable surfaces in the image.
 
-### REGRAS DE IDENTIFICAÇÃO:
-1. **Visibilidade:** Liste APENAS superfícies claramente visíveis. NÃO liste paredes obstruídas ou fora de ângulo.
-2. **Nomenclatura Semântica (IMPORTANTE):** Dê nomes descritivos em **PORTUGUÊS (PT-BR)** baseados no contexto.
-   - *Interno:* "Parede atrás da TV", "Parede do Sofá", "Teto do Quarto", "Parede da Janela", "Parede Lateral Esquerda".
-   - *Externo:* "Fachada Principal", "Muro Lateral", "Piso da Garagem", "Muro do Jardim", "Parede da Varanda".
-3. **Pintável:** Ignore vidros, pedras brutas, madeira envernizada ou áreas que tipicamente não se pinta.
-4. **Tipo de Superfície:** Classifique como 'wall' (parede), 'ceiling' (teto) ou 'floor' (piso).
+### OUTPUT RULES:
+1. Identify surfaces visible in the image.
+2. Provide names in TWO languages:
+   - **label_pt**: Portuguese name for the User Interface (e.g., "Parede da TV").
+   - **label_en**: English semantic name for the Image Generation AI (e.g., "TV Wall").
+3. **label_en** MUST be descriptive and material-aware to avoid confusion.
+   - WRONG: "Wall 1"
+   - RIGHT: "White Drywall next to the Wooden Panel"
 
-### FORMATO DE SAÍDA (JSON Estrito):
-Retorne apenas um objeto JSON com um array "surfaces". Sem markdown.
-
-Exemplo de JSON:
+### JSON OUTPUT FORMAT:
 {
   "surfaces": [
     {
       "id": "s1",
-      "label": "Parede atrás do Sofá",
+      "label_pt": "Parede da Janela",
+      "label_en": "Window Wall", 
       "type": "wall",
-      "description": "A parede principal no fundo, atrás do sofá cinza."
+      "description": "Parede lateral branca ao lado da cortina."
     },
     {
       "id": "s2",
-      "label": "Teto",
-      "type": "ceiling",
-      "description": "A área branca do teto visível acima."
+      "label_pt": "Painel da TV",
+      "label_en": "Wooden Slat Wall", 
+      "type": "wall",
+      "description": "Painel de madeira ripada."
     }
   ]
 }`;
