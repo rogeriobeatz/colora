@@ -113,12 +113,13 @@ Task: Identify paintable surfaces in the image.
       const rawList = parsed.surfaces || parsed.walls || parsed.superficies || [];
       
       if (Array.isArray(rawList)) {
-        detectedSurfaces = rawList.map((s: any, index: number) => ({
-          id: s.id || `surface_${index}_${Date.now()}`,
-          label: s.label || s.name || s.nome || `Superfície ${index + 1}`,
-          description: s.description || s.descricao || "",
-          type: (s.type || "wall").toLowerCase()
-        }));
+detectedSurfaces = rawList.map((s: any, index: number) => ({
+        id: s.id || `surface_${index}`,
+        label: s.label_pt || s.label || s.nome || "Parede", // Português (Para o Botão do Front)
+        english_label: s.label_en || s.name_en || "Wall",   // Inglês (Para o Backend do Kie)
+        description: s.description || "",
+        type: (s.type || "wall").toLowerCase()
+      }));
       }
     } catch (parseError) {
       console.error("JSON Parse Error:", parseError);
