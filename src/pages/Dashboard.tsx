@@ -8,8 +8,8 @@ import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Palette, Plus, Eye, EyeOff, Search, LogOut, Loader2, Settings, LayoutDashboard, 
-  Store, FileUp, FileDown, Trash2, Image as ImageIcon, Globe, Check, Upload,
-  Pencil, X, MoreVertical
+  FileUp, FileDown, Trash2, Image as ImageIcon, Check, Upload,
+  Pencil, X
 } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
@@ -271,11 +271,6 @@ const Dashboard = () => {
             <span className="font-display text-xl font-bold text-foreground">{company.name}</span>
           </div>
           <div className="flex items-center gap-2">
-            <Button variant="outline" size="sm" asChild className="hidden md:flex">
-              <Link to={`/empresa/${company.slug}`} target="_blank" className="gap-1.5">
-                <Globe className="w-3.5 h-3.5" /> Ver Simulador Público
-              </Link>
-            </Button>
             <Button size="sm" asChild style={{ backgroundColor: company.primaryColor }}>
               <Link to="/simulator" className="gap-1.5">
                 <Palette className="w-3.5 h-3.5" /> Abrir Simulador
@@ -481,20 +476,6 @@ const Dashboard = () => {
                     />
                   </div>
 
-                  <div className="space-y-2">
-                    <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Link do Simulador</Label>
-                    <div className="flex items-center gap-2">
-                      <div className="px-3 h-12 rounded-lg bg-muted flex items-center text-xs font-medium text-muted-foreground border border-border">
-                        colora.app/empresa/
-                      </div>
-                      <Input 
-                        value={company.slug} 
-                        onChange={(e) => updateCompany({ slug: e.target.value })} 
-                        className="h-12"
-                      />
-                    </div>
-                  </div>
-
                   <div className="grid grid-cols-2 gap-4">
                     <div className="space-y-2">
                       <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Cor Primária</Label>
@@ -574,7 +555,7 @@ const Dashboard = () => {
 
               {/* Preview Card */}
               <div className="space-y-4">
-                <h3 className="text-xs font-bold text-muted-foreground uppercase tracking-widest">Prévia do White-label</h3>
+                <h3 className="text-xs font-bold text-muted-foreground uppercase tracking-widest">Prévia</h3>
                 <div className="bg-background rounded-3xl border border-border shadow-elevated overflow-hidden">
                   <div className="h-1.5" style={{ background: `linear-gradient(90deg, ${company.primaryColor}, ${company.secondaryColor})` }} />
                   <div className="p-4 border-b border-border flex items-center justify-between bg-white">
@@ -591,7 +572,6 @@ const Dashboard = () => {
                       </div>
                       <span className="text-sm font-bold">{company.name}</span>
                     </div>
-                    <div className="w-20 h-6 rounded bg-muted animate-pulse" />
                   </div>
                   <div className="p-6 space-y-4">
                     <div className="aspect-video rounded-xl bg-muted flex items-center justify-center">
@@ -606,11 +586,6 @@ const Dashboard = () => {
                       <div className="h-10 rounded-lg border border-border" />
                     </div>
                   </div>
-                </div>
-                <div className="p-4 rounded-2xl bg-primary/5 border border-primary/10">
-                  <p className="text-xs text-primary font-medium leading-relaxed">
-                    <strong>Dica:</strong> O link público permite que seus clientes usem o simulador sem precisar de login, vendo apenas as cores que você ativar.
-                  </p>
                 </div>
               </div>
             </div>
