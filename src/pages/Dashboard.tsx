@@ -8,10 +8,13 @@ import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Palette, Plus, Eye, EyeOff, Search, LogOut, Loader2, Settings, LayoutDashboard, 
-  Store, FileUp, FileDown, Trash2, Image as ImageIcon, Globe, Check, Upload
+  Store, FileUp, FileDown, Trash2, Image as ImageIcon, Globe, Check, Upload,
+  Pencil, X, MoreVertical
 } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
+import PaintDialog from "@/components/simulator/PaintDialog";
+import { Paint } from "@/data/defaultColors";
 
 const Dashboard = () => {
   const { user, loading: authLoading, signOut } = useAuth();
@@ -28,6 +31,11 @@ const Dashboard = () => {
   const [isInitialLoading, setIsInitialLoading] = useState(true);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const logoInputRef = useRef<HTMLInputElement>(null);
+
+  // Estados para o CRUD de cores
+  const [paintDialogOpen, setPaintDialogOpen] = useState(false);
+  const [editingPaint, setEditingPaint] = useState<Paint | null>(null);
+  const [isSavingPaint, setIsSavingPaint] = useState(false);
 
   useEffect(() => {
     if (!authLoading && !user) {
@@ -143,6 +151,97 @@ const Dashboard = () => {
     document.body.removeChild(a);
   };
 
+  // Funções CRUD para cores
+  const handleAddPaint = () => {
+    setEditingPaint(null);
+    setPaintDialogOpen(true);
+  };
+
+  const handleEditPaint = (paint: Paint) => {
+    setEditingPaint(paint);
+    setPaintDialogOpen(true);
+  };
+
+  const handleSavePaint = (paintData: Omit<Paint, "id" | "rgb" | "cmyk">) => {
+    const catalogId = selectedCatalogId || company.catalogs[0]?.id;
+    if (!catalogId || !company) return;
+
+    setIsSavingPaint(true);
+
+    // Função auxiliar para converter hex para rgb e cmyk
+    const hexToRgb = (hex: string): string => {
+      const r = parseInt(hex.slice(1, 3), 16);
+      const g = parseInt(hex.slice(3, 5), 16);
+      const b = parseInt(hex.slice(5, 7), 16);
+      return `${r}, ${g}, ${b}`;
+    };
+
+    const hexToCmyk = (hex: string): string => {
+      const r = parseInt(hex.slice(1, 3), 16) / 255;
+      const g = parseInt(hex.slice(3, 5), 16) / 255;
+      const b = parseInt(hex.slice(5, 7), 16) / 255;
+      const k = 1 - Math.max(r, g, b);
+      if (k === 1) return "0, 0, 0, 100";
+      const c = Math.round(((1 - r - k) / (1 - k)) * 100);
+      const m = Math.round(((1 - g - k) / (1 - k)) * 100);
+      const y = Math.round(((1 - b - k) / (1 - k)) * 100);
+      return `${c}, ${m}, ${y}, ${Math.round(k * 100)}`;
+    };
+
+    const newPaint: Paint = {
+      id: editingPaint?.id || Math.random().toString(36).substring(2, 10),
+      name: paintData.name,
+      code: paintData.code,
+      hex: paintData.hex,
+      rgb: hexToRgb(paintData.hex),
+      cmyk: hexToCmyk(paintData.hex),
+      category: paintData.category
+    };
+
+    // Atualizar o catálogo com a nova cor
+    const updatedCatalogs = company.catalogs.map(cat => {
+      if (cat.id === catalogId) {
+        if (editingPaint) {
+          // Editando cor existente
+          return {
+            ...cat,
+            paints: cat.paints.map(p => p.id === editingPaint.id ? newPaint : p)
+          };
+        } else {
+          // Adicionando nova cor
+          return {
+            ...cat,
+            paints: [...cat.paints, newPaint]
+          };
+        }
+      }
+      return cat;
+    });
+
+    updateCompany({ catalogs: updatedCatalogs });
+    setIsSavingPaint(false);
+    setPaintDialogOpen(false);
+    toast.success(editingPaint ? "Cor atualizada com sucesso!" : "Cor adicionada com sucesso!");
+  };
+
+  const handleDeletePaint = (paintId: string) => {
+    const catalogId = selectedCatalogId || company.catalogs[0]?.id;
+    if (!catalogId || !company) return;
+
+    const updatedCatalogs = company.catalogs.map(cat => {
+      if (cat.id === catalogId) {
+        return {
+          ...cat,
+          paints: cat.paints.filter(p => p.id !== paintId)
+        };
+      }
+      return cat;
+    });
+
+    updateCompany({ catalogs: updatedCatalogs });
+    toast.success("Cor excluída com sucesso!");
+  };
+
   const activeCatalog = company.catalogs.find((c) => c.id === (selectedCatalogId || company.catalogs[0]?.id)) || company.catalogs[0];
   
   const filteredPaints = activeCatalog?.paints.filter(
@@ -226,15 +325,16 @@ const Dashboard = () => {
                         <div className="flex items-center gap-1">
                           <button 
                             onClick={(e) => { e.stopPropagation(); updateCatalog(cat.id, { active: !cat.active }); }}
-                            className="p-1 hover:bg-primary/10 rounded"
-                            title={cat.active ? "Visível no simulador" : "Oculto no simulador"}
+                            className={`p-1.5 rounded-md transition-colors ${cat.active ? 'bg-green-100 text-green-600' : 'bg-gray-100 text-gray-400'}`}
+                            title={cat.active ? "Catálogo ativo (visível no simulador)" : "Catálogo inativo (oculto no simulador)"}
                           >
-                            {cat.active ? <Eye className="w-3.5 h-3.5 text-primary" /> : <EyeOff className="w-3.5 h-3.5 text-muted-foreground" />}
+                            {cat.active ? <Eye className="w-3.5 h-3.5" /> : <EyeOff className="w-3.5 h-3.5" />}
                           </button>
                           {index !== 0 && (
                             <button 
                               onClick={(e) => { e.stopPropagation(); deleteCatalog(cat.id); }}
-                              className="p-1 hover:bg-destructive/10 rounded text-destructive opacity-0 group-hover:opacity-100 transition-opacity"
+                              className="p-1.5 rounded-md hover:bg-destructive/10 text-destructive opacity-0 group-hover:opacity-100 transition-opacity"
+                              title="Excluir catálogo"
                             >
                               <Trash2 className="w-3.5 h-3.5" />
                             </button>
@@ -244,6 +344,8 @@ const Dashboard = () => {
                       <span className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">
                         {cat.paints.length} cores · {index === 0 ? "Catálogo Base" : "Personalizado"}
                       </span>
+                      {/* Indicador de status */}
+                      <div className={`absolute top-2 right-2 w-2 h-2 rounded-full ${cat.active ? 'bg-green-500' : 'bg-gray-300'}`} />
                     </button>
                   ))}
                 </div>
@@ -285,6 +387,9 @@ const Dashboard = () => {
                       <Button variant="outline" size="sm" className="gap-1.5" onClick={handleExportCSV}>
                         <FileDown className="w-3.5 h-3.5" /> Exportar
                       </Button>
+                      <Button size="sm" className="gap-1.5" onClick={handleAddPaint} style={{ backgroundColor: company.primaryColor }}>
+                        <Plus className="w-3.5 h-3.5" /> Nova Cor
+                      </Button>
                       <input type="file" ref={fileInputRef} className="hidden" accept=".csv" onChange={handleImportCSV} />
                     </div>
                   </div>
@@ -309,11 +414,28 @@ const Dashboard = () => {
                           </div>
                           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 xl:grid-cols-5 gap-4">
                             {filteredPaints.filter(p => p.category === cat).map((paint) => (
-                              <div key={paint.id} className="group bg-background rounded-xl border border-border overflow-hidden hover:shadow-soft transition-all">
+                              <div key={paint.id} className="group bg-background rounded-xl border border-border overflow-hidden hover:shadow-soft transition-all relative">
                                 <div className="h-16 w-full" style={{ backgroundColor: paint.hex }} />
                                 <div className="p-2.5">
                                   <p className="text-[11px] font-bold text-foreground truncate">{paint.name}</p>
                                   <p className="text-[9px] font-medium text-muted-foreground">{paint.code}</p>
+                                </div>
+                                {/* Botões de ação ao hover */}
+                                <div className="absolute top-1 right-1 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                  <button
+                                    onClick={() => handleEditPaint(paint)}
+                                    className="w-6 h-6 rounded-md bg-white/90 shadow-sm flex items-center justify-center hover:bg-white transition-colors"
+                                    title="Editar cor"
+                                  >
+                                    <Pencil className="w-3 h-3 text-gray-600" />
+                                  </button>
+                                  <button
+                                    onClick={() => handleDeletePaint(paint.id)}
+                                    className="w-6 h-6 rounded-md bg-white/90 shadow-sm flex items-center justify-center hover:bg-red-50 transition-colors"
+                                    title="Excluir cor"
+                                  >
+                                    <X className="w-3 h-3 text-red-500" />
+                                  </button>
                                 </div>
                               </div>
                             ))}
@@ -324,7 +446,14 @@ const Dashboard = () => {
                       <div className="py-20 text-center border-2 border-dashed border-border rounded-3xl">
                         <Palette className="w-10 h-10 text-muted-foreground mx-auto mb-3 opacity-20" />
                         <p className="text-muted-foreground font-medium">Este catálogo está vazio.</p>
-                        <p className="text-xs text-muted-foreground mt-1">Importe um arquivo CSV para adicionar cores em massa.</p>
+                        <p className="text-xs text-muted-foreground mt-1">Importe um arquivo CSV ou adicione cores manualmente.</p>
+                        <Button 
+                          className="mt-4 gap-2" 
+                          onClick={handleAddPaint}
+                          style={{ backgroundColor: company.primaryColor }}
+                        >
+                          <Plus className="w-4 h-4" /> Adicionar Primeira Cor
+                        </Button>
                       </div>
                     )}
                   </div>
@@ -488,6 +617,15 @@ const Dashboard = () => {
           </TabsContent>
         </Tabs>
       </div>
+
+      {/* Dialog para adicionar/editar cores */}
+      <PaintDialog
+        open={paintDialogOpen}
+        onOpenChange={setPaintDialogOpen}
+        paint={editingPaint}
+        onSave={handleSavePaint}
+        isSaving={isSavingPaint}
+      />
     </div>
   );
 };
