@@ -123,7 +123,15 @@ const ImageViewer = ({
         <img
           src={displayAfterUrl}
           alt="Ambiente"
-          className="absolute inset-0 w-full h-full object-contain"
+          className="absolute inset-0 w-full h-full object-cover"
+          draggable={false}
+        />
+
+        {/* Before (top) — sets aspect ratio from original */}
+        <img
+          src={displayBeforeUrl}
+          alt="Original"
+          className="absolute inset-0 w-full h-full object-cover"
           draggable={false}
           onLoad={(e) => {
             const img = e.currentTarget;
@@ -131,20 +139,8 @@ const ImageViewer = ({
               setAspectRatio(img.naturalWidth / img.naturalHeight);
             }
           }}
+          style={hasSimulations ? { clipPath: `inset(0 ${100 - sliderPos}% 0 0)` } : { display: "none" }}
         />
-
-        {/* Before (top) */}
-        {hasSimulations && (
-          <img
-            src={displayBeforeUrl}
-            alt="Original"
-            className="absolute inset-0 w-full h-full object-contain"
-            draggable={false}
-            style={{
-              clipPath: `inset(0 ${100 - sliderPos}% 0 0)`,
-            }}
-          />
-        )}
 
         {/* Slider */}
         {hasSimulations && (
