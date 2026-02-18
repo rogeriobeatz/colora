@@ -98,7 +98,8 @@ Task: Identify paintable surfaces in the image.
     console.log("[analyze-room] Resposta IA:", content.substring(0, 500));
 
     // Parser JSON Robusto
-    let detectedSurfaces = [];
+    type Surface = { id: string; label: string; english_label: string; description: string; type: string };
+    let detectedSurfaces: Surface[] = [];
     try {
       const jsonMatch = content.match(/```(?:json)?\s*([\s\S]*?)```/) || [null, content];
       let jsonStr = jsonMatch[1]?.trim() || content;
@@ -113,13 +114,13 @@ Task: Identify paintable surfaces in the image.
       const rawList = parsed.surfaces || parsed.walls || parsed.superficies || [];
       
       if (Array.isArray(rawList)) {
-detectedSurfaces = rawList.map((s: any, index: number) => ({
-        id: s.id || `surface_${index}`,
-        label: s.label_pt || s.label || s.nome || "Parede", // Português (Para o Botão do Front)
-        english_label: s.label_en || s.name_en || "Wall",   // Inglês (Para o Backend do Kie)
-        description: s.description || "",
-        type: (s.type || "wall").toLowerCase()
-      }));
+        detectedSurfaces = rawList.map((s: any, index: number) => ({
+          id: s.id || `surface_${index}`,
+          label: s.label_pt || s.label || s.nome || "Parede",
+          english_label: s.label_en || s.name_en || "Wall",
+          description: s.description || "",
+          type: (s.type || "wall").toLowerCase()
+        }));
       }
     } catch (parseError) {
       console.error("JSON Parse Error:", parseError);
@@ -127,7 +128,7 @@ detectedSurfaces = rawList.map((s: any, index: number) => ({
     }
 
     // Filtra vazios
-    const validSurfaces = detectedSurfaces.filter((w: any) => w.label && w.label.length > 0);
+    const validSurfaces = detectedSurfaces.filter((w) => w.label && w.label.length > 0);
 
     return new Response(
       JSON.stringify({ 

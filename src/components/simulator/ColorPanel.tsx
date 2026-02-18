@@ -132,7 +132,8 @@ const ColorPanel = ({
                         style={{ 
                           backgroundColor: paint.hex,
                           borderColor: isSelected ? paint.hex : undefined,
-                          ringColor: isSelected ? primaryColor : undefined
+                          outline: isSelected ? `2px solid ${primaryColor}` : undefined,
+                          outlineOffset: isSelected ? "2px" : undefined,
                         }}
                         onClick={() => handleSelectPaint(paint)}
                         title={`${paint.name} - ${paint.hex}`}
