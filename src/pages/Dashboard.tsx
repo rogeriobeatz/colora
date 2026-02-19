@@ -16,8 +16,9 @@ import {
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import PaintDialog from "@/components/simulator/PaintDialog";
-import { Paint, HeaderContentMode, HeaderStyleMode, FontSet } from "@/data/defaultColors";
+import { Paint, HeaderContentMode, HeaderStyleMode, FontSet, CropCoordinates } from "@/data/defaultColors";
 import { SessionListItem } from "@/components/simulator/SessionDrawer";
+import { ImageCropper } from "@/components/ImageCropper";
 
 // ─── helpers ────────────────────────────────────────────────────────────────
 
@@ -78,6 +79,10 @@ const Dashboard = () => {
   // Edição inline do nome do catálogo
   const [editingCatalogId, setEditingCatalogId] = useState<string | null>(null);
   const [editingCatalogName, setEditingCatalogName] = useState("");
+
+  // Crop de imagem
+  const [cropperOpen, setCropperOpen] = useState(false);
+  const [imageToCrop, setImageToCrop] = useState<string | null>(null);
 
   useEffect(() => {
     if (!authLoading && !user) navigate("/login");
@@ -165,8 +170,27 @@ const Dashboard = () => {
     if (!file) return;
     if (file.size > 2 * 1024 * 1024) { toast.error("Logo deve ter menos de 2MB"); return; }
     const reader = new FileReader();
-    reader.onload = (ev) => { updateCompany({ logo: ev.target?.result as string }); toast.success("Logo carregado!"); };
+    reader.onload = (ev) => {
+      setImageToCrop(ev.target?.result as string);
+      setCropperOpen(true);
+    };
     reader.readAsDataURL(file);
+    e.target.value = "";
+  };
+
+  const handleCropComplete = (croppedDataUrl: string, coordinates: CropCoordinates) => {
+    updateCompany({
+      logo: croppedDataUrl,
+      logoCrop: coordinates
+    });
+    setCropperOpen(false);
+    setImageToCrop(null);
+    toast.success("Logo ajustado!");
+  };
+
+  const handleCropCancel = () => {
+    setCropperOpen(false);
+    setImageToCrop(null);
   };
 
   const handleImportCSV = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -1056,6 +1080,14 @@ const Dashboard = () => {
         onSave={handleSavePaint}
         isSaving={isSavingPaint}
       />
+
+      {cropperOpen && imageToCrop && (
+        <ImageCropper
+          image={imageToCrop}
+          onCrop={handleCropComplete}
+          onCancel={handleCropCancel}
+        />
+      )}
     </div>
   );
 };

@@ -19,6 +19,13 @@ export type HeaderContentMode = "logo+name" | "logo" | "name";
 export type HeaderStyleMode = "glass" | "primary" | "white" | "white-accent";
 export type FontSet = "grotesk" | "rounded" | "neo";
 
+export interface CropCoordinates {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}
+
 export interface Company {
   id: string;
   name: string;
@@ -37,6 +44,9 @@ export interface Company {
   headerContent?: HeaderContentMode;
   headerStyle?: HeaderStyleMode;
   fontSet?: FontSet;
+
+  // Coordenadas de crop da imagem principal (logo)
+  logoCrop?: CropCoordinates;
 }
 
 const genId = () => Math.random().toString(36).substring(2, 10);
