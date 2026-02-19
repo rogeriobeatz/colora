@@ -11,6 +11,7 @@ import {
   saveSimulatorSession,
   setLastSessionId,
 } from "@/lib/simulator-db";
+import { preprocessImageFile } from "@/lib/image-preprocess";
 
 const genId = () => Math.random().toString(36).substring(2, 10);
 
@@ -240,76 +241,97 @@ export function useSimulator() {
     async (file: File) => {
       await ensureSession();
 
-      const reader = new FileReader();
-      reader.onload = async (ev) => {
-        const imageBase64 = ev.target?.result as string;
+      const id = genId();
+      const tempUrl = URL.createObjectURL(file);
 
-        const id = genId();
-        const newRoom: Room = {
-          id,
-          name: `Ambiente ${rooms.length + 1}`,
-          imageUrl: imageBase64,
-          originalImageUrl: imageBase64,
-          walls: [],
-          isAnalyzing: true,
-          isAnalyzed: false,
-          simulations: [],
-          activeSimulationId: null,
-        };
-
-        setRooms((prev) => [...prev, newRoom]);
-        setActiveRoomId(id);
-        setSelectedWallId(null);
-
-        try {
-          const { data, error } = await supabase.functions.invoke("analyze-room", {
-            body: { imageBase64 },
-          });
-
-          if (error) throw error;
-          if (data?.error) throw new Error(data.error);
-
-          const detectedWalls: DetectedWall[] = (data.walls || []).map((w: any, idx: number) => ({
-            id: w.id || `wall_${idx}_${Date.now()}`,
-            label: w.label || w.nome || w.name || "Parede",
-            englishLabel: w.english_label || w.label_en || w.englishLabel || w.name_en,
-            description: w.description || w.descricao || "",
-          }));
-
-          setRooms((prev) =>
-            prev.map((r) =>
-              r.id === id
-                ? {
-                    ...r,
-                    walls: detectedWalls,
-                    isAnalyzing: false,
-                    isAnalyzed: true,
-                  }
-                : r,
-            ),
-          );
-
-          if (detectedWalls.length > 0) {
-            toast.success(`${detectedWalls.length} superfícies identificadas!`, {
-              description: "Selecione uma parede para pintar",
-            });
-            setSelectedWallId(detectedWalls[0].id);
-          } else {
-            toast.warning("Nenhuma parede detectada", {
-              description: "Tente usar uma foto mais nítida e com boa iluminação",
-            });
-          }
-        } catch (err: any) {
-          setRooms((prev) =>
-            prev.map((r) => (r.id === id ? { ...r, isAnalyzing: false, isAnalyzed: false } : r)),
-          );
-
-          const errorMessage = err?.message || "Não foi possível analisar a imagem";
-          toast.error("Erro na análise", { description: errorMessage });
-        }
+      const newRoom: Room = {
+        id,
+        name: `Ambiente ${rooms.length + 1}`,
+        imageUrl: tempUrl,
+        originalImageUrl: tempUrl,
+        walls: [],
+        isAnalyzing: true,
+        isAnalyzed: false,
+        simulations: [],
+        activeSimulationId: null,
       };
 
-      reader.readAsDataURL(file);
+      setRooms((prev) => [...prev, newRoom]);
+      setActiveRoomId(id);
+      setSelectedWallId(null);
+
+      let imageBase64: string;
+      try {
+        // Redimensiona + comprime antes de enviar para a Edge Function (reduz custo e tempo)
+        imageBase64 = await preprocessImageFile(file, {
+          maxDimension: 1600,
+          mimeType: "image/jpeg",
+          quality: 0.82,
+          background: "#ffffff",
+        });
+      } finally {
+        URL.revokeObjectURL(tempUrl);
+      }
+
+      // Atualiza a imagem do room para a versão otimizada (a partir daqui tudo usa a versão comprimida)
+      setRooms((prev) =>
+        prev.map((r) =>
+          r.id === id
+            ? {
+                ...r,
+                imageUrl: imageBase64,
+                originalImageUrl: imageBase64,
+              }
+            : r,
+        ),
+      );
+
+      try {
+        const { data, error } = await supabase.functions.invoke("analyze-room", {
+          body: { imageBase64 },
+        });
+
+        if (error) throw error;
+        if (data?.error) throw new Error(data.error);
+
+        const detectedWalls: DetectedWall[] = (data.walls || []).map((w: any, idx: number) => ({
+          id: w.id || `wall_${idx}_${Date.now()}`,
+          label: w.label || w.nome || w.name || "Parede",
+          englishLabel: w.english_label || w.label_en || w.englishLabel || w.name_en,
+          description: w.description || w.descricao || "",
+        }));
+
+        setRooms((prev) =>
+          prev.map((r) =>
+            r.id === id
+              ? {
+                  ...r,
+                  walls: detectedWalls,
+                  isAnalyzing: false,
+                  isAnalyzed: true,
+                }
+              : r,
+          ),
+        );
+
+        if (detectedWalls.length > 0) {
+          toast.success(`${detectedWalls.length} superfícies identificadas!`, {
+            description: "Selecione uma parede para pintar",
+          });
+          setSelectedWallId(detectedWalls[0].id);
+        } else {
+          toast.warning("Nenhuma parede detectada", {
+            description: "Tente usar uma foto mais nítida e com boa iluminação",
+          });
+        }
+      } catch (err: any) {
+        setRooms((prev) =>
+          prev.map((r) => (r.id === id ? { ...r, isAnalyzing: false, isAnalyzed: false } : r)),
+        );
+
+        const errorMessage = err?.message || "Não foi possível analisar a imagem";
+        toast.error("Erro na análise", { description: errorMessage });
+      }
     },
     [ensureSession, rooms.length],
   );
