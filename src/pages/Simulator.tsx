@@ -13,6 +13,7 @@ import { useSimulator } from "@/components/simulator/useSimulator";
 import ProjectNameDialog from "@/components/simulator/ProjectNameDialog";
 import SessionDrawer from "@/components/simulator/SessionDrawer";
 import { Button } from "@/components/ui/button";
+import StoreFooter from "@/components/StoreFooter";
 
 const Simulator = ({ companySlug }: { companySlug?: string }) => {
   const { company } = useStore();
@@ -81,12 +82,7 @@ const Simulator = ({ companySlug }: { companySlug?: string }) => {
   }
 
   return (
-    <div className="min-h-screen bg-background">
-      <div
-        className="h-1.5 w-full sticky top-0 z-[60]"
-        style={{ background: `linear-gradient(90deg, ${company.primaryColor}, ${company.secondaryColor})` }}
-      />
-
+    <div className="min-h-screen bg-background flex flex-col">
       <SimulatorHeader
         company={company}
         companySlug={companySlug}
@@ -97,7 +93,7 @@ const Simulator = ({ companySlug }: { companySlug?: string }) => {
         projectName={session?.name ?? null}
       />
 
-      <div className="container mx-auto px-4 py-8 max-w-7xl">
+      <div className="container mx-auto px-4 py-8 max-w-7xl flex-1">
         {!activeRoom ? (
           <div className="animate-fade-in">
             <div className="text-center mb-8 max-w-xl mx-auto">
@@ -210,6 +206,8 @@ const Simulator = ({ companySlug }: { companySlug?: string }) => {
           </div>
         )}
       </div>
+
+      <StoreFooter company={company} />
 
       {isPainting && (
         <div className="fixed inset-0 z-[100] bg-background/90 backdrop-blur-md flex items-center justify-center">

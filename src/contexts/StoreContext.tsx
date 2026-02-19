@@ -1,5 +1,14 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from "react";
-import { Company, Catalog, Paint, createDefaultCompany, createDefaultCatalog } from "@/data/defaultColors";
+import {
+  Company,
+  Catalog,
+  Paint,
+  createDefaultCompany,
+  createDefaultCatalog,
+  HeaderContentMode,
+  HeaderStyleMode,
+  FontSet,
+} from "@/data/defaultColors";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 
@@ -10,6 +19,13 @@ interface Profile {
   primary_color: string | null;
   secondary_color: string | null;
   avatar_url: string | null;
+
+  company_phone: string | null;
+  company_website: string | null;
+  company_address: string | null;
+  header_content: string | null;
+  header_style: string | null;
+  font_set: string | null;
 }
 
 interface StoreContextType {
@@ -28,6 +44,16 @@ interface StoreContextType {
 }
 
 const StoreContext = createContext<StoreContextType | undefined>(undefined);
+
+function isHeaderContentMode(v: any): v is HeaderContentMode {
+  return v === "logo+name" || v === "logo" || v === "name";
+}
+function isHeaderStyleMode(v: any): v is HeaderStyleMode {
+  return v === "glass" || v === "primary" || v === "white" || v === "white-accent";
+}
+function isFontSet(v: any): v is FontSet {
+  return v === "grotesk" || v === "rounded" || v === "neo";
+}
 
 export function StoreProvider({ children }: { children: ReactNode }) {
   const [company, setCompanyState] = useState<Company | null>(null);
@@ -63,13 +89,15 @@ export function StoreProvider({ children }: { children: ReactNode }) {
           console.warn("Tabela 'catalogs' não encontrada ou erro na busca. Usando dados padrão.");
         }
 
+        const p = profile as Profile;
+
         const formattedCompany: Company = {
-          id: profile.id,
-          name: profile.company_name || "Minha Loja",
-          slug: profile.company_slug || "minha-loja",
-          primaryColor: profile.primary_color || "#1a8a6a",
-          secondaryColor: profile.secondary_color || "#e87040",
-          logo: profile.avatar_url || undefined,
+          id: p.id,
+          name: p.company_name || "Minha Loja",
+          slug: p.company_slug || "minha-loja",
+          primaryColor: p.primary_color || "#1a8a6a",
+          secondaryColor: p.secondary_color || "#e87040",
+          logo: p.avatar_url || undefined,
           catalogs: catalogsData && catalogsData.length > 0 
             ? catalogsData.map((cat: any) => ({
                 id: cat.id,
@@ -77,7 +105,15 @@ export function StoreProvider({ children }: { children: ReactNode }) {
                 active: cat.active,
                 paints: cat.paints || []
               }))
-            : [createDefaultCatalog()]
+            : [createDefaultCatalog()],
+
+          phone: p.company_phone || "",
+          website: p.company_website || "",
+          address: p.company_address || "",
+
+          headerContent: isHeaderContentMode(p.header_content) ? p.header_content : "logo+name",
+          headerStyle: isHeaderStyleMode(p.header_style) ? p.header_style : "glass",
+          fontSet: isFontSet(p.font_set) ? p.font_set : "grotesk",
         };
         setCompanyState(formattedCompany);
       } else {
@@ -107,19 +143,29 @@ export function StoreProvider({ children }: { children: ReactNode }) {
           .eq('company_id', profile.id)
           .eq('active', true) as any;
 
+        const p = profile as Profile;
+
         const formattedCompany: Company = {
-          id: profile.id,
-          name: profile.company_name || "",
-          slug: profile.company_slug || "",
-          primaryColor: profile.primary_color || "#1a8a6a",
-          secondaryColor: profile.secondary_color || "#e87040",
-          logo: profile.avatar_url || undefined,
+          id: p.id,
+          name: p.company_name || "",
+          slug: p.company_slug || "",
+          primaryColor: p.primary_color || "#1a8a6a",
+          secondaryColor: p.secondary_color || "#e87040",
+          logo: p.avatar_url || undefined,
           catalogs: (catalogsData || []).map((cat: any) => ({
             id: cat.id,
             name: cat.name,
             active: cat.active,
             paints: cat.paints || []
-          }))
+          })),
+
+          phone: p.company_phone || "",
+          website: p.company_website || "",
+          address: p.company_address || "",
+
+          headerContent: isHeaderContentMode(p.header_content) ? p.header_content : "logo+name",
+          headerStyle: isHeaderStyleMode(p.header_style) ? p.header_style : "glass",
+          fontSet: isFontSet(p.font_set) ? p.font_set : "grotesk",
         };
         setCompanyState(formattedCompany);
       }

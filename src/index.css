@@ -5,6 +5,8 @@
 @import url("https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap");
 @import url("https://fonts.googleapis.com/css2?family=Lora:wght@400;500;600;700&display=swap");
 @import url("https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&display=swap");
+@import url("https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700&display=swap");
+@import url("https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&display=swap");
 
 @tailwind base;
 @tailwind components;
@@ -64,9 +66,13 @@
     --chart-4: 84 18.9% 82.8%;
     --chart-5: 70 18.8% 76.9%;
     --sidebar: 248 0.3% 98.4%;
-    --font-sans: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, 'Noto Sans', sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji', 'Segoe UI Symbol', 'Noto Color Emoji';
-    --font-serif: ui-serif, Georgia, Cambria, "Times New Roman", Times, serif;
-    --font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+
+    /* Font defaults (grotesk) */
+    --font-sans: Inter;
+    --font-display: "Space Grotesk";
+    --font-serif: Lora;
+    --font-mono: "Space Mono";
+
     --shadow-2xs: 0 1px 3px 0px hsl(0 0% 0% / 0.05);
     --shadow-xs: 0 1px 3px 0px hsl(0 0% 0% / 0.05);
     --shadow-sm: 0 1px 3px 0px hsl(0 0% 0% / 0.1), 0 1px 2px -1px hsl(0 0% 0% / 0.1);
@@ -77,6 +83,21 @@
     --shadow-2xl: 0 1px 3px 0px hsl(0 0% 0% / 0.25);
     --tracking-normal: 0em;
     --spacing: 0.25rem;
+  }
+
+  :root[data-font="grotesk"] {
+    --font-sans: Inter;
+    --font-display: "Space Grotesk";
+  }
+
+  :root[data-font="rounded"] {
+    --font-sans: Montserrat;
+    --font-display: Montserrat;
+  }
+
+  :root[data-font="neo"] {
+    --font-sans: Roboto;
+    --font-display: Roboto;
   }
 
   .dark {

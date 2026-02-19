@@ -15,7 +15,7 @@ export default {
   	extend: {
   		fontFamily: {
   			sans: [
-  				'Inter',
+  				'var(--font-sans)',
   				'ui-sans-serif',
   				'system-ui',
   				'-apple-system',
@@ -28,12 +28,12 @@ export default {
   				'sans-serif'
   			],
   			display: [
-  				'Space Grotesk',
+  				'var(--font-display)',
   				'system-ui',
   				'sans-serif'
   			],
   			serif: [
-  				'Lora',
+  				'var(--font-serif)',
   				'ui-serif',
   				'Georgia',
   				'Cambria',
@@ -42,7 +42,7 @@ export default {
   				'serif'
   			],
   			mono: [
-  				'Space Mono',
+  				'var(--font-mono)',
   				'ui-monospace',
   				'SFMono-Regular',
   				'Menlo',

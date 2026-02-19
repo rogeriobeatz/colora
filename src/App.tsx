@@ -12,6 +12,7 @@ import WhiteLabel from "./pages/WhiteLabel";
 import Login from "./pages/Login";
 import NotFound from "./pages/NotFound";
 import ProtectedRoute from "./components/ProtectedRoute";
+import BrandingApplier from "@/components/BrandingApplier";
 
 const queryClient = new QueryClient();
 
@@ -20,6 +21,7 @@ const App = () => (
     <TooltipProvider>
       <AuthProvider>
         <StoreProvider>
+          <BrandingApplier />
           <Toaster />
           <Sonner />
           <BrowserRouter>

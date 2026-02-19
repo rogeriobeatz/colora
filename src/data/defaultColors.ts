@@ -15,6 +15,10 @@ export interface Catalog {
   paints: Paint[];
 }
 
+export type HeaderContentMode = "logo+name" | "logo" | "name";
+export type HeaderStyleMode = "glass" | "primary" | "white" | "white-accent";
+export type FontSet = "grotesk" | "rounded" | "neo";
+
 export interface Company {
   id: string;
   name: string;
@@ -23,6 +27,16 @@ export interface Company {
   primaryColor: string;
   secondaryColor: string;
   catalogs: Catalog[];
+
+  // Dados públicos da empresa (para rodapé/contato)
+  phone?: string;
+  website?: string;
+  address?: string;
+
+  // Preferências de aparência
+  headerContent?: HeaderContentMode;
+  headerStyle?: HeaderStyleMode;
+  fontSet?: FontSet;
 }
 
 const genId = () => Math.random().toString(36).substring(2, 10);
@@ -150,5 +164,13 @@ export function createDefaultCompany(name: string): Company {
     primaryColor: "#1a8a6a",
     secondaryColor: "#e87040",
     catalogs: [createDefaultCatalog()],
+
+    phone: "",
+    website: "",
+    address: "",
+
+    headerContent: "logo+name",
+    headerStyle: "glass",
+    fontSet: "grotesk",
   };
 }
