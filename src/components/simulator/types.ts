@@ -27,6 +27,12 @@ export interface Room {
   isAnalyzed: boolean;
   simulations: WallSimulation[];
   activeSimulationId: string | null;
+  cropCoordinates?: {
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+  };
 }
 
 export interface SimulatorSessionData {

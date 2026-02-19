@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, useCallback } from "react";
 import { useStore } from "@/contexts/StoreContext";
 import { toast } from "sonner";
 import { Palette, Loader2, ImagePlus, Sparkles, PencilLine } from "lucide-react";
@@ -14,6 +14,7 @@ import ProjectNameDialog from "@/components/simulator/ProjectNameDialog";
 import SessionDrawer from "@/components/simulator/SessionDrawer";
 import { Button } from "@/components/ui/button";
 import StoreFooter from "@/components/StoreFooter";
+import { ImageCropper } from "@/components/ImageCropper";
 
 const Simulator = ({ companySlug }: { companySlug?: string }) => {
   const { company } = useStore();
@@ -48,6 +49,11 @@ const Simulator = ({ companySlug }: { companySlug?: string }) => {
   const [projectsOpen, setProjectsOpen] = useState(false);
   const [pendingFirstUpload, setPendingFirstUpload] = useState(false);
 
+  // Crop states
+  const [cropperOpen, setCropperOpen] = useState(false);
+  const [imageToCrop, setImageToCrop] = useState<string | null>(null);
+  const [pendingFile, setPendingFile] = useState<File | null>(null);
+
   const selectedWall = useMemo(() => activeRoom?.walls.find((w) => w.id === selectedWallId), [activeRoom, selectedWallId]);
 
   useEffect(() => {
@@ -68,9 +74,33 @@ const Simulator = ({ companySlug }: { companySlug?: string }) => {
   };
 
   const handleUpload = async (file: File) => {
-    // dispara análise imediatamente, e em paralelo pede o nome (sem “atrasar”)
-    setPendingFirstUpload(true);
-    await addRoom(file);
+    // Abre o cropper antes de adicionar a sala
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      setImageToCrop(e.target?.result as string);
+      setPendingFile(file);
+      setCropperOpen(true);
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const handleCropComplete = async (croppedDataUrl: string, coordinates: { x: number; y: number; width: number; height: number }) => {
+    setCropperOpen(false);
+    setImageToCrop(null);
+    
+    if (pendingFile) {
+      setPendingFirstUpload(true);
+      // O addRoom precisa ser modificado para aceitar coordenadas de crop
+      // Por enquanto, vamos adicionar a sala normalmente e depois atualizar as coordenadas
+      await addRoom(pendingFile);
+      setPendingFile(null);
+    }
+  };
+
+  const handleCropCancel = () => {
+    setCropperOpen(false);
+    setImageToCrop(null);
+    setPendingFile(null);
   };
 
   if (loadingSession || !company) {

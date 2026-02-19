@@ -15,8 +15,8 @@ serve(async (req) => {
   }
 
   try {
-    // --- CHANGE 1: Accept wallLabelEn (English Name) ---
-    const { imageBase64, paintColor, wallLabel, wallLabelEn } = await req.json();
+    // --- CHANGE 1: Accept wallLabelEn (English Name) and crop coordinates ---
+    const { imageBase64, paintColor, wallLabel, wallLabelEn, cropCoordinates } = await req.json();
 
     if (!imageBase64 || !paintColor) {
       throw new Error("Image and Color are required");
@@ -25,6 +25,19 @@ serve(async (req) => {
     // --- CHANGE 2: Define Technical Name for AI ---
     // Priority: English Label (Best) > Portuguese Label (Fallback) > "wall" (Generic)
     const technicalWallName = wallLabelEn || wallLabel || "wall";
+
+    // --- CHANGE 3: Handle crop coordinates ---
+    // cropCoordinates: { x, y, width, height } in percentages (0-100)
+    let cropInstruction = "";
+    
+    if (cropCoordinates) {
+      const { x, y, width, height } = cropCoordinates;
+      
+      // Add crop instruction to the prompt
+      cropInstruction = ` The image shows ONLY the area within the ${width.toFixed(0)}% x ${height.toFixed(0)}% crop region (centered at x:${x.toFixed(0)}%, y:${y.toFixed(0)}%). Keep this exact framing.`;
+      
+      console.log(`   Crop coordinates: x=${x}%, y=${y}%, width=${width}%, height=${height}%`);
+    }
 
     // Environment Configuration
     const KIE_API_KEY = Deno.env.get("KIE_API_KEY");
@@ -58,9 +71,9 @@ serve(async (req) => {
 
     // --- STEP 2: Prepare Prompt and Payload ---
     
-    // --- CHANGE 3: Use technicalWallName in the prompt ---
+    // --- CHANGE 4: Use technicalWallName and cropInstruction in the prompt ---
     // Using **bold** helps the model focus on the subject
-    const prompt = `Repaint ONLY the **${technicalWallName}** with the color ${paintColor}. Keep all furniture, shadows, lighting, and textures exactly the same. High quality, photorealistic, interior design photography.`;
+    const prompt = `Repaint ONLY the **${technicalWallName}** with the color ${paintColor}. Keep all furniture, shadows, lighting, and textures exactly the same. High quality, photorealistic, interior design photography.${cropInstruction}`;
 
     const payload = {
       model: "flux-2/pro-image-to-image",
