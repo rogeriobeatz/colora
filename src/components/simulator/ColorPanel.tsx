@@ -31,14 +31,14 @@ const ColorPanel = ({
 
   const activeCatalogs = catalogs.filter((c) => c.active);
   const currentCatalog = activeCatalogs.find((c) => c.id === activeCatalogId) || activeCatalogs[0];
-  
+
   const filteredPaints = useMemo(() => {
     if (!currentCatalog) return [];
     return currentCatalog.paints.filter(
       (p) =>
         p.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
         p.code.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        p.hex.toLowerCase().includes(searchTerm.toLowerCase())
+        p.hex.toLowerCase().includes(searchTerm.toLowerCase()),
     );
   }, [currentCatalog, searchTerm]);
 
@@ -50,8 +50,10 @@ const ColorPanel = ({
     onSelectPaint(paint);
   };
 
+  const brandPrimary = primaryColor;
+
   return (
-    <div 
+    <div
       className="bg-card rounded-2xl border border-border shadow-soft overflow-hidden"
       style={{ borderTop: `3px solid ${primaryColor}` }}
     >
@@ -61,9 +63,7 @@ const ColorPanel = ({
           <Palette className="w-5 h-5" style={{ color: primaryColor }} />
           Catálogo de Cores
         </h3>
-        <p className="text-xs text-muted-foreground mt-1">
-          Selecione uma cor para aplicar na superfície
-        </p>
+        <p className="text-xs text-muted-foreground mt-1">Selecione uma cor para aplicar na superfície</p>
       </div>
 
       {/* Catalog Tabs */}
@@ -74,12 +74,10 @@ const ColorPanel = ({
               <button
                 key={cat.id}
                 className={`px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition-all ${
-                  currentCatalog?.id === cat.id
-                    ? "text-white shadow-sm"
-                    : "bg-muted text-muted-foreground hover:bg-muted/80"
+                  currentCatalog?.id === cat.id ? "text-white shadow-sm" : "bg-muted text-muted-foreground hover:bg-muted/80"
                 }`}
-                style={{ 
-                  backgroundColor: currentCatalog?.id === cat.id ? primaryColor : undefined 
+                style={{
+                  backgroundColor: currentCatalog?.id === cat.id ? primaryColor : undefined,
                 }}
                 onClick={() => setActiveCatalogId(cat.id)}
               >
@@ -110,9 +108,7 @@ const ColorPanel = ({
             <div key={cat}>
               <p className="text-[10px] uppercase tracking-[0.15em] text-muted-foreground font-bold mb-2.5 px-1">
                 {cat}
-                <span className="ml-1 text-muted-foreground/60">
-                  ({filteredPaints.filter(p => p.category === cat).length})
-                </span>
+                <span className="ml-1 text-muted-foreground/60">({filteredPaints.filter((p) => p.category === cat).length})</span>
               </p>
               <div className="grid grid-cols-5 gap-2">
                 {filteredPaints
@@ -120,28 +116,38 @@ const ColorPanel = ({
                   .map((paint) => {
                     const isSelected = selectedPaint?.id === paint.id;
                     const isLight = isLightColor(paint.hex);
-                    
+
+                    // 1) Destaque sempre alinhado com a identidade da loja: usa primaryColor (se existir)
+                    const selectedBorderColor = brandPrimary || paint.hex;
+
+                    // 2) Se o primaryColor tiver pouco contraste com a cor do swatch, adiciona um “anel auxiliar”
+                    // (preto/branco) para manter a seleção visível e acessível.
+                    const ratio = brandPrimary ? contrastRatio(brandPrimary, paint.hex) : 999;
+                    const needsAssistRing = isSelected && brandPrimary ? ratio < 2.2 : false;
+                    const assistRingColor = isLight ? "rgba(0,0,0,0.75)" : "rgba(255,255,255,0.92)";
+
+                    const selectionShadow = isSelected
+                      ? needsAssistRing
+                        ? `0 0 0 2px ${assistRingColor}, 0 0 0 5px ${selectedBorderColor}`
+                        : `0 0 0 5px ${selectedBorderColor}`
+                      : undefined;
+
                     return (
                       <button
                         key={paint.id}
                         className={`group relative w-full aspect-square rounded-xl border-2 transition-all duration-200 hover:scale-105 hover:shadow-md ${
-                          isSelected
-                            ? "border-foreground scale-110 shadow-lg z-10 ring-2 ring-offset-2"
-                            : "border-border hover:border-muted-foreground"
+                          isSelected ? "scale-110 shadow-lg z-10" : "border-border hover:border-muted-foreground"
                         }`}
-                        style={{ 
+                        style={{
                           backgroundColor: paint.hex,
-                          borderColor: isSelected ? paint.hex : undefined,
-                          outline: isSelected ? `2px solid ${primaryColor}` : undefined,
-                          outlineOffset: isSelected ? "2px" : undefined,
+                          borderColor: isSelected ? selectedBorderColor : undefined,
+                          boxShadow: selectionShadow,
                         }}
                         onClick={() => handleSelectPaint(paint)}
                         title={`${paint.name} - ${paint.hex}`}
                       >
                         {isSelected && (
-                          <div className={`absolute inset-0 flex items-center justify-center ${
-                            isLight ? 'text-black' : 'text-white'
-                          }`}>
+                          <div className={`absolute inset-0 flex items-center justify-center ${isLight ? "text-black" : "text-white"}`}>
                             <Check className="w-4 h-4 font-bold" />
                           </div>
                         )}
@@ -155,7 +161,7 @@ const ColorPanel = ({
               </div>
             </div>
           ))}
-          
+
           {filteredPaints.length === 0 && (
             <div className="py-8 text-center">
               <Palette className="w-10 h-10 text-muted-foreground/30 mx-auto mb-2" />
@@ -170,21 +176,16 @@ const ColorPanel = ({
       {selectedPaint && (
         <div className="p-4 border-t border-border bg-muted/20 animate-fade-in">
           <div className="flex items-center gap-3 mb-4">
-            <div
-              className="w-14 h-14 rounded-xl border-2 border-white shadow-md flex-shrink-0"
-              style={{ backgroundColor: selectedPaint.hex }}
-            />
+            <div className="w-14 h-14 rounded-xl border-2 border-white shadow-md flex-shrink-0" style={{ backgroundColor: selectedPaint.hex }} />
             <div className="min-w-0 flex-1">
               <p className="text-sm font-bold text-foreground truncate">{selectedPaint.name}</p>
               <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
                 {selectedPaint.code} · {selectedPaint.hex}
               </p>
-              <p className="text-[10px] text-muted-foreground mt-0.5">
-                {selectedPaint.category}
-              </p>
+              <p className="text-[10px] text-muted-foreground mt-0.5">{selectedPaint.category}</p>
             </div>
           </div>
-          
+
           {selectedWallLabel && (
             <div className="flex items-center gap-2 text-xs bg-card p-2 rounded-lg border border-border mb-4">
               <span className="text-muted-foreground">Aplicar em:</span>
@@ -196,9 +197,9 @@ const ColorPanel = ({
             className="w-full h-12 font-bold text-sm shadow-sm gap-2"
             disabled={!canApply || isPainting}
             onClick={onApplyColor}
-            style={{ 
+            style={{
               backgroundColor: canApply && !isPainting ? primaryColor : undefined,
-              opacity: canApply ? 1 : 0.5
+              opacity: canApply ? 1 : 0.5,
             }}
           >
             {isPainting ? (
@@ -219,13 +220,50 @@ const ColorPanel = ({
 
 // Helper para determinar se uma cor é clara
 function isLightColor(hex: string): boolean {
-  const c = hex.substring(1);
-  const rgb = parseInt(c, 16);
+  const c = normalizeHex(hex);
+  const rgb = parseInt(c.substring(1), 16);
   const r = (rgb >> 16) & 0xff;
   const g = (rgb >> 8) & 0xff;
   const b = (rgb >> 0) & 0xff;
   const luma = 0.2126 * r + 0.7152 * g + 0.0722 * b;
   return luma > 150;
+}
+
+function normalizeHex(hex: string): string {
+  const h = (hex || "").trim();
+  if (/^#[0-9A-Fa-f]{6}$/.test(h)) return h;
+  if (/^#[0-9A-Fa-f]{3}$/.test(h)) {
+    const r = h[1];
+    const g = h[2];
+    const b = h[3];
+    return `#${r}${r}${g}${g}${b}${b}`;
+  }
+  return "#000000";
+}
+
+function hexToRgb01(hex: string) {
+  const h = normalizeHex(hex).substring(1);
+  const num = parseInt(h, 16);
+  const r = (num >> 16) & 255;
+  const g = (num >> 8) & 255;
+  const b = num & 255;
+  return { r: r / 255, g: g / 255, b: b / 255 };
+}
+
+// WCAG relative luminance
+function relLuminance(hex: string) {
+  const { r, g, b } = hexToRgb01(hex);
+  const t = (c: number) => (c <= 0.03928 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4));
+  return 0.2126 * t(r) + 0.7152 * t(g) + 0.0722 * t(b);
+}
+
+// WCAG contrast ratio
+function contrastRatio(hexA: string, hexB: string) {
+  const L1 = relLuminance(hexA);
+  const L2 = relLuminance(hexB);
+  const lighter = Math.max(L1, L2);
+  const darker = Math.min(L1, L2);
+  return (lighter + 0.05) / (darker + 0.05);
 }
 
 export default ColorPanel;
