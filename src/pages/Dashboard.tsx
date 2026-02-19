@@ -9,14 +9,14 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import {
   Palette, Plus, Eye, EyeOff, Search, LogOut, Loader2, Settings,
-  LayoutDashboard, FileUp, FileDown, Trash2, Image as ImageIcon,
+  FileUp, FileDown, Trash2, Image as ImageIcon,
   Check, Upload, Pencil, X, FolderOpen, Clock, Play, Link as LinkIcon,
-  TrendingUp, Layers, Sparkles, ExternalLink, Copy
+  TrendingUp, Layers, Sparkles, ExternalLink, Copy, Globe, Phone, MapPin
 } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import PaintDialog from "@/components/simulator/PaintDialog";
-import { Paint } from "@/data/defaultColors";
+import { Paint, HeaderContentMode, HeaderStyleMode, FontSet } from "@/data/defaultColors";
 import { SessionListItem } from "@/components/simulator/SessionDrawer";
 
 // ─── helpers ────────────────────────────────────────────────────────────────
@@ -141,6 +141,14 @@ const Dashboard = () => {
         primary_color: company.primaryColor,
         secondary_color: company.secondaryColor,
         avatar_url: company.logo,
+
+        company_phone: company.phone || null,
+        company_website: company.website || null,
+        company_address: company.address || null,
+        header_content: company.headerContent || "logo+name",
+        header_style: company.headerStyle || "glass",
+        font_set: company.fontSet || "grotesk",
+
         updated_at: new Date().toISOString(),
       });
       if (error) throw error;
@@ -261,45 +269,87 @@ const Dashboard = () => {
   const totalPaints = company.catalogs.reduce((s, c) => s + c.paints.length, 0);
   const activeCatalogs = company.catalogs.filter((c) => c.active).length;
 
+  const headerStyle = company.headerStyle || "glass";
+  const isPrimaryHeader = headerStyle === "primary";
+
   // ─── render ────────────────────────────────────────────────────────────────
 
   return (
     <div className="min-h-screen bg-background">
       {/* Header */}
-      <header className="sticky top-0 z-50 bg-background/80 backdrop-blur-lg border-b border-border">
+      <header
+        className={`sticky top-0 z-50 border-b border-border ${
+          headerStyle === "glass"
+            ? "bg-background/80 backdrop-blur-lg"
+            : headerStyle === "primary"
+              ? ""
+              : "bg-white"
+        }`}
+        style={isPrimaryHeader ? { backgroundColor: company.primaryColor } : undefined}
+      >
+        {headerStyle === "white-accent" && (
+          <div
+            className="h-1 w-full"
+            style={{ background: `linear-gradient(90deg, ${company.primaryColor}, ${company.secondaryColor})` }}
+          />
+        )}
+
         <div className="container mx-auto flex items-center justify-between h-16 px-4 max-w-7xl">
           <div className="flex items-center gap-3">
-            <div
-              className="w-8 h-8 rounded-lg flex items-center justify-center overflow-hidden shrink-0"
-              style={{ backgroundColor: company.logo ? "transparent" : company.primaryColor }}
-            >
-              {company.logo ? (
-                <img src={company.logo} alt="Logo" className="w-full h-full object-contain" />
-              ) : (
-                <Palette className="w-4 h-4 text-white" />
-              )}
-            </div>
-            <div className="leading-tight">
-              <span className="font-display text-base font-bold text-foreground block">{company.name}</span>
-              <span className="text-[10px] text-muted-foreground">Painel Administrativo</span>
-            </div>
+            {(company.headerContent === "logo+name" || company.headerContent === "logo") && (
+              <div
+                className="w-8 h-8 rounded-lg flex items-center justify-center overflow-hidden shrink-0"
+                style={{ backgroundColor: company.logo ? "transparent" : isPrimaryHeader ? "rgba(255,255,255,0.18)" : company.primaryColor }}
+              >
+                {company.logo ? (
+                  <img src={company.logo} alt="Logo" className="w-full h-full object-contain" />
+                ) : (
+                  <Palette className="w-4 h-4 text-white" />
+                )}
+              </div>
+            )}
+
+            {(company.headerContent === "logo+name" || company.headerContent === "name" || !company.headerContent) && (
+              <div className="leading-tight">
+                <span className={`font-display text-base font-bold block ${isPrimaryHeader ? "text-white" : "text-foreground"}`}>
+                  {company.name}
+                </span>
+                <span className={`text-[10px] ${isPrimaryHeader ? "text-white/75" : "text-muted-foreground"}`}>
+                  Painel Administrativo
+                </span>
+              </div>
+            )}
           </div>
+
           <div className="flex items-center gap-2">
             <Button
               variant="outline"
               size="sm"
-              className="gap-1.5 hidden sm:flex"
+              className={`gap-1.5 hidden sm:flex ${isPrimaryHeader ? "border-white/20 text-white hover:bg-white/10" : ""}`}
               onClick={copyPublicLink}
             >
               <LinkIcon className="w-3.5 h-3.5" /> Link Público
             </Button>
-            <Button size="sm" asChild style={{ backgroundColor: company.primaryColor }}>
+
+            <Button
+              size="sm"
+              asChild
+              style={isPrimaryHeader ? { backgroundColor: "rgba(255,255,255,0.18)" } : { backgroundColor: company.primaryColor }}
+              className={isPrimaryHeader ? "text-white hover:bg-white/25" : ""}
+            >
               <Link to="/simulator" className="gap-1.5">
                 <Sparkles className="w-3.5 h-3.5" /> Simulador
               </Link>
             </Button>
-            <Button variant="ghost" size="icon" onClick={handleSignOut} title="Sair">
-              <LogOut className="w-4 h-4 text-muted-foreground" />
+
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={handleSignOut}
+              title="Sair"
+              className={isPrimaryHeader ? "text-white hover:bg-white/10" : ""}
+            >
+              <LogOut className={`w-4 h-4 ${isPrimaryHeader ? "text-white" : "text-muted-foreground"}`} />
             </Button>
           </div>
         </div>
@@ -321,7 +371,6 @@ const Dashboard = () => {
 
           {/* ── ABA: VISÃO GERAL ──────────────────────────────────────────── */}
           <TabsContent value="overview" className="animate-fade-in space-y-8">
-
             {/* KPIs */}
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
               {[
@@ -369,7 +418,6 @@ const Dashboard = () => {
 
             {/* Sessões recentes + Link público */}
             <div className="grid lg:grid-cols-[1fr_320px] gap-6">
-
               {/* Sessões recentes */}
               <div className="bg-card rounded-2xl border border-border p-6 shadow-soft space-y-4">
                 <div className="flex items-center justify-between">
@@ -472,7 +520,6 @@ const Dashboard = () => {
           {/* ── ABA: CATÁLOGOS ────────────────────────────────────────────── */}
           <TabsContent value="catalogs" className="animate-fade-in space-y-6">
             <div className="grid lg:grid-cols-[280px_1fr] gap-8">
-
               {/* Sidebar: lista de catálogos */}
               <div className="space-y-4">
                 <h3 className="text-xs font-bold text-muted-foreground uppercase tracking-widest flex items-center gap-2">
@@ -727,10 +774,17 @@ const Dashboard = () => {
 
                   {/* Cores */}
                   <div className="grid grid-cols-2 gap-4">
-                    {[
-                      { label: "Cor Primária", key: "primaryColor" as const, value: company.primaryColor },
-                      { label: "Cor Secundária", key: "secondaryColor" as const, value: company.secondaryColor },
-                    ].map(({ label, key, value }) => (
+                    {[{
+                      label: "Cor Primária",
+                      key: "primaryColor" as const,
+                      value: company.primaryColor,
+                      desc: "Usada em botões, links e destaque"
+                    }, {
+                      label: "Cor Secundária",
+                      key: "secondaryColor" as const,
+                      value: company.secondaryColor,
+                      desc: "Usada em detalhes e gradientes"
+                    }].map(({ label, key, value, desc }) => (
                       <div key={key} className="space-y-2">
                         <Label className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">{label}</Label>
                         <div className="flex gap-2">
@@ -749,6 +803,7 @@ const Dashboard = () => {
                             className="h-11 font-mono text-sm uppercase"
                           />
                         </div>
+                        <p className="text-[10px] text-muted-foreground">{desc}</p>
                       </div>
                     ))}
                   </div>
@@ -782,6 +837,140 @@ const Dashboard = () => {
                     )}
                   </div>
 
+                  {/* Dados da Empresa */}
+                  <div className="space-y-4 pt-4 border-t border-border">
+                    <h3 className="text-sm font-bold text-foreground flex items-center gap-2">
+                      <MapPin className="w-4 h-4" /> Dados de Contato
+                    </h3>
+                    <p className="text-xs text-muted-foreground">Esses dados aparecem no rodapé do simulador público.</p>
+                    
+                    <div className="grid sm:grid-cols-2 gap-4">
+                      <div className="space-y-2">
+                        <Label className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Telefone</Label>
+                        <div className="relative">
+                          <Phone className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                          <Input
+                            value={company.phone || ""}
+                            onChange={(e) => updateCompany({ phone: e.target.value })}
+                            placeholder="(11) 99999-9999"
+                            className="h-11 pl-10"
+                          />
+                        </div>
+                      </div>
+                      <div className="space-y-2">
+                        <Label className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Website</Label>
+                        <div className="relative">
+                          <Globe className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                          <Input
+                            value={company.website || ""}
+                            onChange={(e) => updateCompany({ website: e.target.value })}
+                            placeholder="www.sualoja.com.br"
+                            className="h-11 pl-10"
+                          />
+                        </div>
+                      </div>
+                    </div>
+                    
+                    <div className="space-y-2">
+                      <Label className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Endereço</Label>
+                      <Input
+                        value={company.address || ""}
+                        onChange={(e) => updateCompany({ address: e.target.value })}
+                        placeholder="Rua Example, 123 - Cidade/UF"
+                        className="h-11"
+                      />
+                    </div>
+                  </div>
+
+                  {/* Estilo do Cabeçalho */}
+                  <div className="space-y-4 pt-4 border-t border-border">
+                    <h3 className="text-sm font-bold text-foreground flex items-center gap-2">
+                      <Settings className="w-4 h-4" /> Estilo do Cabeçalho
+                    </h3>
+                    
+                    {/* Modelo do cabeçalho */}
+                    <div className="space-y-2">
+                      <Label className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Modelo da Barra Superior</Label>
+                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                        {([
+                          { value: "glass", label: "Transparente", desc: "Fundo translúcido" },
+                          { value: "primary", label: "Cor Sólida", desc: "Fundo na cor primária" },
+                          { value: "white", label: "Branco", desc: "Fundo branco" },
+                          { value: "white-accent", label: "Colorido", desc: "Barra colorida embaixo" },
+                        ] as { value: HeaderStyleMode; label: string; desc: string }[]).map((opt) => (
+                          <button
+                            key={opt.value}
+                            onClick={() => updateCompany({ headerStyle: opt.value })}
+                            className={`p-3 rounded-xl border-2 text-left transition-all ${
+                              company.headerStyle === opt.value
+                                ? "border-primary bg-primary/5"
+                                : "border-border hover:border-primary/30"
+                            }`}
+                          >
+                            <p className="text-xs font-bold text-foreground">{opt.label}</p>
+                            <p className="text-[9px] text-muted-foreground mt-0.5">{opt.desc}</p>
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* Conteúdo do cabeçalho */}
+                    <div className="space-y-2">
+                      <Label className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Conteúdo do Cabeçalho</Label>
+                      <div className="grid grid-cols-3 gap-2">
+                        {([
+                          { value: "logo+name", label: "Logo + Nome", icon: "🔤" },
+                          { value: "logo", label: "Só Logo", icon: "🖼️" },
+                          { value: "name", label: "Só Nome", icon: "📝" },
+                        ] as { value: HeaderContentMode; label: string; icon: string }[]).map((opt) => (
+                          <button
+                            key={opt.value}
+                            onClick={() => updateCompany({ headerContent: opt.value })}
+                            className={`p-3 rounded-xl border-2 text-center transition-all ${
+                              company.headerContent === opt.value
+                                ? "border-primary bg-primary/5"
+                                : "border-border hover:border-primary/30"
+                            }`}
+                          >
+                            <span className="text-lg">{opt.icon}</span>
+                            <p className="text-xs font-bold text-foreground mt-1">{opt.label}</p>
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Tipografia */}
+                  <div className="space-y-4 pt-4 border-t border-border">
+                    <h3 className="text-sm font-bold text-foreground flex items-center gap-2">
+                      <span className="text-lg">🔤</span> Tipografia
+                    </h3>
+                    
+                    <div className="space-y-2">
+                      <Label className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Conjunto de Fontes</Label>
+                      <div className="grid grid-cols-3 gap-2">
+                        {([
+                          { value: "grotesk", label: "Grotesk", sample: "Space Grotesk", desc: "Moderna e técnica" },
+                          { value: "rounded", label: "Arredondada", sample: "Montserrat", desc: "Amigável e suave" },
+                          { value: "neo", label: "Neo-Grotesca", sample: "Roboto", desc: "Clássica e neutra" },
+                        ] as { value: FontSet; label: string; sample: string; desc: string }[]).map((opt) => (
+                          <button
+                            key={opt.value}
+                            onClick={() => updateCompany({ fontSet: opt.value })}
+                            className={`p-3 rounded-xl border-2 text-left transition-all ${
+                              company.fontSet === opt.value
+                                ? "border-primary bg-primary/5"
+                                : "border-border hover:border-primary/30"
+                            }`}
+                          >
+                            <p className="text-xs font-bold text-foreground">{opt.label}</p>
+                            <p className="text-[9px] text-muted-foreground mt-0.5">{opt.desc}</p>
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+
                   <Button onClick={handleSaveBranding} disabled={isSaving} className="w-full h-11" style={{ backgroundColor: company.primaryColor }}>
                     {isSaving ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Check className="w-4 h-4 mr-2" />}
                     Salvar Alterações
@@ -795,16 +984,36 @@ const Dashboard = () => {
 
                 {/* Simulador mock */}
                 <div className="bg-background rounded-2xl border border-border shadow-elevated overflow-hidden">
-                  <div className="h-1.5" style={{ background: `linear-gradient(90deg, ${company.primaryColor}, ${company.secondaryColor})` }} />
-                  <div className="p-3 border-b border-border flex items-center justify-between bg-card">
-                    <div className="flex items-center gap-2">
-                      <div className="w-6 h-6 rounded flex items-center justify-center overflow-hidden" style={{ backgroundColor: company.logo ? "transparent" : company.primaryColor }}>
-                        {company.logo ? <img src={company.logo} alt="Logo" className="w-full h-full object-contain" /> : <Palette className="w-3 h-3 text-white" />}
+                  {/* Header preview */}
+                  <div
+                    className={`h-12 flex items-center gap-2 px-3 ${
+                      headerStyle === "glass" ? "bg-background/80 backdrop-blur-lg" :
+                      headerStyle === "primary" ? "" : "bg-white"
+                    }`}
+                    style={isPrimaryHeader ? { backgroundColor: company.primaryColor } : undefined}
+                  >
+                    {headerStyle === "white-accent" && (
+                      <div className="absolute top-0 left-0 right-0 h-1" style={{ background: `linear-gradient(90deg, ${company.primaryColor}, ${company.secondaryColor})` }} />
+                    )}
+                    {(company.headerContent === "logo+name" || company.headerContent === "logo") && (
+                      <div
+                        className="w-6 h-6 rounded flex items-center justify-center"
+                        style={{ backgroundColor: company.logo ? "transparent" : isPrimaryHeader ? "rgba(255,255,255,0.18)" : company.primaryColor }}
+                      >
+                        {company.logo ? (
+                          <img src={company.logo} alt="Logo" className="w-full h-full object-contain" />
+                        ) : (
+                          <Palette className="w-3 h-3 text-white" />
+                        )}
                       </div>
-                      <span className="text-xs font-bold text-foreground">{company.name}</span>
-                    </div>
-                    <div className="w-2 h-2 rounded-full bg-emerald-500" title="Ativo" />
+                    )}
+                    {(company.headerContent === "logo+name" || company.headerContent === "name") && (
+                      <span className={`text-sm font-bold ${isPrimaryHeader ? "text-white" : "text-foreground"}`}>
+                        {company.name}
+                      </span>
+                    )}
                   </div>
+
                   <div className="p-4 space-y-3">
                     <div className="aspect-video rounded-lg bg-muted flex items-center justify-center text-xs text-muted-foreground">
                       <ImageIcon className="w-6 h-6 opacity-20" />
