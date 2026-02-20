@@ -1,237 +1,146 @@
-import { useState, useRef, useEffect, useCallback } from "react";
-import { Button } from "@/components/ui/button";
-import { Check, X } from "lucide-react";
+import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
-interface CropCoordinates {
-  x: number; // percentual 0-100
-  y: number; // percentual 0-100
-  width: number; // percentual 0-100
-  height: number; // percentual 0-100
-}
+const corsHeaders = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+};
 
-interface ImageCropperProps {
-  image: string;
-  onCrop: (croppedDataUrl: string, coordinates: CropCoordinates) => void;
-  onCancel: () => void;
-}
+const KIE_BASE_URL = "https://api.kie.ai";
 
-export function ImageCropper({ image, onCrop, onCancel }: ImageCropperProps) {
-  const containerRef = useRef<HTMLDivElement>(null);
-  const [imageDimensions, setImageDimensions] = useState({ width: 0, height: 0 });
-  const [isDragging, setIsDragging] = useState(false);
-  const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
+serve(async (req) => {
+  // Handle CORS
+  if (req.method === "OPTIONS") {
+    return new Response(null, { headers: corsHeaders });
+  }
 
-  const [crop, setCrop] = useState<CropCoordinates>({
-    x: 0,
-    y: 0,
-    width: 50,
-    height: 50,
-  });
+  try {
+    // --- CHANGE 1: Accept wallLabelEn (English Name) ---
+    const { imageBase64, paintColor, wallLabel, wallLabelEn } = await req.json();
 
-  // orientação baseada na imagem original
-  const isLandscape = imageDimensions.width >= imageDimensions.height;
-
-  // carrega dimensões reais da imagem
-  useEffect(() => {
-    const img = new Image();
-    img.onload = () => {
-      setImageDimensions({ width: img.width, height: img.height });
-    };
-    img.src = image;
-  }, [image]);
-
-  // define o crop inicial: MAIOR retângulo possível com 16:9 ou 4:3
-  useEffect(() => {
-    const { width: imgW, height: imgH } = imageDimensions;
-    if (imgW === 0 || imgH === 0) return;
-
-    // proporção alvo da máscara
-    const targetAR = isLandscape ? 16 / 9 : 4 / 3;
-
-    let cropWidthPx: number;
-    let cropHeightPx: number;
-
-    // tenta usar a largura inteira da imagem
-    const tentativeHeight = imgW / targetAR;
-
-    if (tentativeHeight <= imgH) {
-      // limitada pela largura
-      cropWidthPx = imgW;
-      cropHeightPx = tentativeHeight;
-    } else {
-      // limitada pela altura
-      cropHeightPx = imgH;
-      cropWidthPx = imgH * targetAR;
+    if (!imageBase64 || !paintColor) {
+      throw new Error("Image and Color are required");
     }
 
-    // converte para %
-    const cropWidthPercent = (cropWidthPx / imgW) * 100;
-    const cropHeightPercent = (cropHeightPx / imgH) * 100;
+    // --- CHANGE 2: Define Technical Name for AI ---
+    // Priority: English Label (Best) > Portuguese Label (Fallback) > "wall" (Generic)
+    const technicalWallName = wallLabelEn || wallLabel || "wall";
 
-    const cropX = (100 - cropWidthPercent) / 2;
-    const cropY = (100 - cropHeightPercent) / 2;
+    // Environment Configuration
+    const KIE_API_KEY = Deno.env.get("KIE_API_KEY");
+    const SUPABASE_URL = Deno.env.get("SUPABASE_URL");
+    const SUPABASE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
 
-    setCrop({
-      x: cropX,
-      y: cropY,
-      width: cropWidthPercent,
-      height: cropHeightPercent,
-    });
-  }, [imageDimensions, isLandscape]);
+    if (!KIE_API_KEY || !SUPABASE_URL || !SUPABASE_KEY) {
+      throw new Error("Environment variables not configured (KIE or Supabase)");
+    }
 
-  const handleMouseDown = useCallback((e: React.MouseEvent) => {
-    e.preventDefault();
-    setIsDragging(true);
-    setDragStart({ x: e.clientX, y: e.clientY });
-  }, []);
+    const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
 
-  const handleMouseMove = useCallback(
-    (e: React.MouseEvent) => {
-      if (!isDragging || !containerRef.current) return;
+    // --- STEP 1: Upload Image to Supabase Storage ---
+    console.log(`1. Uploading image to process: ${technicalWallName} (${paintColor})...`);
+    
+    const base64Data = imageBase64.replace(/^data:image\/\w+;base64,/, "");
+    const buffer = Uint8Array.from(atob(base64Data), c => c.charCodeAt(0));
+    const fileName = `input_${Date.now()}_${Math.random().toString(36).substring(7)}.png`;
 
-      const container = containerRef.current.getBoundingClientRect();
-      const deltaX = ((e.clientX - dragStart.x) / container.width) * 100;
-      const deltaY = ((e.clientY - dragStart.y) / container.height) * 100;
+    const { error: uploadError } = await supabase.storage
+      .from('images') // ENSURE THIS BUCKET EXISTS AND IS PUBLIC
+      .upload(fileName, buffer, { contentType: 'image/png' });
 
-      setCrop((prev) => {
-        let newX = prev.x + deltaX;
-        let newY = prev.y + deltaY;
+    if (uploadError) throw new Error(`Upload error: ${uploadError.message}`);
 
-        newX = Math.max(0, Math.min(100 - prev.width, newX));
-        newY = Math.max(0, Math.min(100 - prev.height, newY));
+    const { data: { publicUrl } } = supabase.storage
+      .from('images')
+      .getPublicUrl(fileName);
 
-        return { ...prev, x: newX, y: newY };
-      });
+    console.log("   Image accessible at:", publicUrl);
 
-      setDragStart({ x: e.clientX, y: e.clientY });
-    },
-    [isDragging, dragStart]
-  );
+    // --- STEP 2: Prepare Prompt and Payload ---
+    
+    // --- CHANGE 3: Use technicalWallName in the prompt ---
+    // Using **bold** helps the model focus on the subject
+    const prompt = `Repaint ONLY the **${technicalWallName}** with the color ${paintColor}. Keep all furniture, shadows, lighting, and textures exactly the same. High quality, photorealistic, interior design photography.`;
 
-  const handleMouseUp = useCallback(() => {
-    setIsDragging(false);
-  }, []);
-
-  const handleApply = useCallback(() => {
-    const img = new Image();
-    img.onload = () => {
-      const canvas = document.createElement("canvas");
-      const ctx = canvas.getContext("2d");
-      if (!ctx) return;
-
-      const sourceX = (crop.x / 100) * img.width;
-      const sourceY = (crop.y / 100) * img.height;
-      const sourceWidth = (crop.width / 100) * img.width;
-      const sourceHeight = (crop.height / 100) * img.height;
-
-      const outputWidth = 1200;
-      const outputHeight = isLandscape
-        ? Math.round((outputWidth / 16) * 9)
-        : Math.round((outputWidth / 4) * 3);
-
-      canvas.width = outputWidth;
-      canvas.height = outputHeight;
-
-      ctx.drawImage(
-        img,
-        sourceX,
-        sourceY,
-        sourceWidth,
-        sourceHeight,
-        0,
-        0,
-        outputWidth,
-        outputHeight
-      );
-
-      const croppedDataUrl = canvas.toDataURL("image/jpeg", 0.9);
-      onCrop(croppedDataUrl, crop);
+    const payload = {
+      model: "flux-2/pro-image-to-image",
+      input: {
+        input_urls: [publicUrl],
+        prompt: prompt,
+        aspect_ratio: "auto",
+        resolution: "1K"
+      }
     };
-    img.src = image;
-  }, [image, crop, isLandscape, onCrop]);
 
-  // overlay
-  const cropLeft = crop.x;
-  const cropTop = crop.y;
+    // --- STEP 3: Create Task in Kie.ai ---
+    console.log("2. Sending to Kie.ai with prompt:", prompt);
+    
+    const createRes = await fetch(`${KIE_BASE_URL}/api/v1/jobs/createTask`, {
+      method: "POST",
+      headers: {
+        "Authorization": `Bearer ${KIE_API_KEY}`,
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify(payload)
+    });
 
-  return (
-    <div className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-4">
-      <div className="bg-background rounded-lg shadow-xl max-w-4xl w-full max-h-[90vh] overflow-hidden flex flex-col">
-        <div className="flex items-center justify-between p-4 border-b">
-          <div>
-            <h3 className="text-lg font-semibold">Ajustar Imagem</h3>
-            <p className="text-sm text-muted-foreground">
-              Proporção: {isLandscape ? "16:9 (Landscape)" : "4:3 (Portrait)"}
-            </p>
-          </div>
-          <div className="flex gap-2">
-            <Button variant="outline" size="sm" onClick={onCancel}>
-              <X className="w-4 h-4 mr-1" /> Cancelar
-            </Button>
-            <Button size="sm" onClick={handleApply}>
-              <Check className="w-4 h-4 mr-1" /> Aplicar
-            </Button>
-          </div>
-        </div>
+    if (!createRes.ok) {
+      const err = await createRes.text();
+      throw new Error(`Kie Create Error (${createRes.status}): ${err}`);
+    }
 
-        <div className="flex-1 p-4 overflow-hidden flex items-center justify-center">
-          <div
-            ref={containerRef}
-            className="relative max-w-full max-h-[60vh] select-none"
-            onMouseMove={handleMouseMove}
-            onMouseUp={handleMouseUp}
-            onMouseLeave={handleMouseUp}
-          >
-            <img
-              src={image}
-              alt="To crop"
-              className="max-w-full max-h-[60vh] object-contain pointer-events-none"
-              draggable={false}
-            />
+    const createData = await createRes.json();
+    if (createData.code !== 200) throw new Error(`Kie API Error: ${createData.msg}`);
+    
+    const taskId = createData.data.taskId;
+    console.log("   Task created ID:", taskId);
 
-            {/* overlay escuro com "buraco" */}
-            <svg className="absolute inset-0 w-full h-full pointer-events-none">
-              <defs>
-                <mask id="cropMask">
-                  <rect width="100%" height="100%" fill="white" />
-                  <rect
-                    x={`${cropLeft}%`}
-                    y={`${cropTop}%`}
-                    width={`${crop.width}%`}
-                    height={`${crop.height}%`}
-                    fill="black"
-                    rx="4"
-                  />
-                </mask>
-              </defs>
-              <rect
-                width="100%"
-                height="100%"
-                fill="rgba(0,0,0,0.6)"
-                mask="url(#cropMask)"
-              />
-            </svg>
+    // --- STEP 4: Polling (Wait for Result) ---
+    console.log("3. Waiting for processing...");
+    const finalImageUrl = await pollKieTask(taskId, KIE_API_KEY);
 
-            {/* box de crop (somente arrasto) */}
-            <div
-              className="absolute border-2 border-white shadow-lg cursor-move"
-              style={{
-                left: `${crop.x}%`,
-                top: `${crop.y}%`,
-                width: `${crop.width}%`,
-                height: `${crop.height}%`,
-              }}
-              onMouseDown={handleMouseDown}
-            >
-              {/* marcadores nos cantos, só estéticos */}
-              <div className="absolute -top-1 -left-1 w-3 h-3 bg-white rounded-full shadow" />
-              <div className="absolute -top-1 -right-1 w-3 h-3 bg-white rounded-full shadow" />
-              <div className="absolute -bottom-1 -left-1 w-3 h-3 bg-white rounded-full shadow" />
-              <div className="absolute -bottom-1 -right-1 w-3 h-3 bg-white rounded-full shadow" />
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
+    return new Response(
+      JSON.stringify({ imageUrl: finalImageUrl, sucesso: true }),
+      { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+    );
+
+  } catch (error: any) {
+    console.error("FATAL ERROR:", error.message);
+    return new Response(
+      JSON.stringify({ error: error.message, sucesso: false }),
+      { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+    );
+  }
+});
+
+// Helper Polling Function
+async function pollKieTask(taskId: string, apiKey: string): Promise<string> {
+  const maxAttempts = 30; // ~60 seconds
+  
+  for (let i = 0; i < maxAttempts; i++) {
+    await new Promise(r => setTimeout(r, 2000)); // Wait 2s
+
+    const res = await fetch(`${KIE_BASE_URL}/api/v1/jobs/recordInfo?taskId=${taskId}`, {
+      headers: { "Authorization": `Bearer ${apiKey}` }
+    });
+
+    if (!res.ok) continue;
+
+    const body = await res.json();
+    const data = body.data;
+
+    if (data.state === "success") {
+      try {
+        const resultObj = JSON.parse(data.resultJson);
+        return resultObj.resultUrls[0];
+      } catch (e) {
+        throw new Error("Error parsing Kie JSON response");
+      }
+    }
+
+    if (data.state === "fail") {
+      throw new Error(`Kie failed: ${data.failMsg}`);
+    }
+  }
+  throw new Error("Timeout: Image generation took too long.");
 }
