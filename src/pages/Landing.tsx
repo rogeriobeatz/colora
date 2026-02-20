@@ -3,6 +3,7 @@ import { Upload, Palette, Eye, Layers, Sparkles, Monitor, ArrowRight, Check } fr
 import { Button } from "@/components/ui/button";
 import heroRoom from "@/assets/hero-room.jpg";
 
+
 const Landing = () => {
   return (
     <div className="min-h-screen bg-background">
