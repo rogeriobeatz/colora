@@ -90,9 +90,8 @@ const Simulator = ({ companySlug }: { companySlug?: string }) => {
     
     if (pendingFile) {
       setPendingFirstUpload(true);
-      // O addRoom precisa ser modificado para aceitar coordenadas de crop
-      // Por enquanto, vamos adicionar a sala normalmente e depois atualizar as coordenadas
-      await addRoom(pendingFile);
+      // Passa as coordenadas de crop para o addRoom
+      await addRoom(pendingFile, coordinates);
       setPendingFile(null);
     }
   };
@@ -292,6 +291,14 @@ const Simulator = ({ companySlug }: { companySlug?: string }) => {
           setProjectsOpen(false);
         }}
       />
+
+      {cropperOpen && imageToCrop && (
+        <ImageCropper
+          image={imageToCrop}
+          onCrop={handleCropComplete}
+          onCancel={handleCropCancel}
+        />
+      )}
     </div>
   );
 };

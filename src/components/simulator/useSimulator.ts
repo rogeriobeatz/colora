@@ -238,7 +238,7 @@ export function useSimulator() {
   }, [session, persist]);
 
   const addRoom = useCallback(
-    async (file: File) => {
+    async (file: File, cropCoordinates?: { x: number; y: number; width: number; height: number }) => {
       await ensureSession();
 
       const id = genId();
@@ -254,6 +254,7 @@ export function useSimulator() {
         isAnalyzed: false,
         simulations: [],
         activeSimulationId: null,
+        cropCoordinates,
       };
 
       setRooms((prev) => [...prev, newRoom]);
@@ -359,6 +360,7 @@ export function useSimulator() {
           wallLabel: wall.label,
           wallLabelEn: wall.englishLabel,
           surfaceType: "wall",
+          cropCoordinates: activeRoom.cropCoordinates,
         },
       });
 
