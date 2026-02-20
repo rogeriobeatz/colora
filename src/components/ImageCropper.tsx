@@ -15,7 +15,8 @@ interface ImageCropperProps {
   onCancel: () => void;
 }
 
-type AspectMode = "16-9" | "4-3";
+type AspectMode = "16-9" | "2-3";
+const [aspectMode, setAspectMode] = useState<AspectMode>("16-9");
 
 export function ImageCropper({ image, onCrop, onCancel }: ImageCropperProps) {
   const containerRef = useRef<HTMLDivElement>(null);
