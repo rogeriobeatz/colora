@@ -10,7 +10,7 @@ const Landing = () => {
     <div className="min-h-screen bg-background">
       {/* Nav */}
       <nav className="fixed top-0 left-0 right-0 z-50 bg-background/80 backdrop-blur-lg border-b border-border">
-        <div className="container  flex items-center justify-between h-16 px-4">
+        <div className="container flex items-center justify-between">
           <Link to="/" className="flex items-center gap-2">
                       <div className="w-8 h-8 rounded-lg gradient-primary flex items-center justify-center">
               <Palette className="w-4 h-4 text-primary-foreground" />
