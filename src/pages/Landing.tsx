@@ -2,7 +2,7 @@ import { Link } from "react-router-dom";
 import { Upload, Palette, Eye, Layers, Sparkles, Monitor, ArrowRight, Check } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import heroRoom from "@/assets/hero-room.jpg";
-import logoSvg from "./public/colora-logo.svg"
+import logoSvg from "./public/colora-logo.svg";
 
 
 const Landing = () => {
