@@ -180,11 +180,12 @@ const targetAspect = aspectMode === "16-9" ? 16 / 9 : 2 / 3;
   const handleApply = useCallback(() => {
     const img = new Image();
     img.onload = () => {
-      const outputWidth = 1200;
-      const outputHeight =
-        aspectMode === "16-9"
-          ? Math.round((outputWidth * 9) / 16)
-          : Math.round((outputWidth * 3) / 4);
+const outputWidth = 1200;
+const outputHeight =
+  aspectMode === "16-9"
+    ? Math.round((outputWidth * 9) / 16)
+    : Math.round((outputWidth * 3) / 2); // 2:3 => h = w * 3/2
+
 
       const canvas = document.createElement("canvas");
       const ctx = canvas.getContext("2d");
