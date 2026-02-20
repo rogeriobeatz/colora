@@ -15,7 +15,7 @@ serve(async (req) => {
   }
 
   try {
-    const { imageBase64, paintColor, wallLabel, wallLabelEn } = await req.json();
+    const { imageBase64, paintColor, wallLabel, wallLabelEn, cropCoordinates } = await req.json();
 
     if (!imageBase64 || !paintColor) {
       throw new Error("Image and Color are required");
@@ -35,11 +35,55 @@ serve(async (req) => {
 
     const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
 
-    // STEP 1: Upload cropped image to Supabase
+    // STEP 0: Apply crop if coordinates are provided
+    let processedImageBase64 = imageBase64;
+    
+    if (cropCoordinates) {
+      console.log("Applying crop coordinates:", cropCoordinates);
+      
+      // Decode base64 to get image dimensions
+      const base64Data = imageBase64.replace(/^data:image\/[^;]+;base64,/, "");
+      const binaryString = atob(base64Data);
+      const bytes = new Uint8Array(binaryString.length);
+      for (let i = 0; i < binaryString.length; i++) {
+        bytes[i] = binaryString.charCodeAt(i);
+      }
+      
+      // Create image to get dimensions
+      const img = new Image();
+      await new Promise((resolve) => {
+        img.onload = resolve;
+        img.src = `data:image/jpeg;base64,${base64Data}`;
+      });
+
+      const { width: origW, height: origH } = img;
+      
+      // Calculate crop region (cropCoordinates are in percentages: 0-100)
+      const cropX = (cropCoordinates.x / 100) * origW;
+      const cropY = (cropCoordinates.y / 100) * origH;
+      const cropW = (cropCoordinates.width / 100) * origW;
+      const cropH = (cropCoordinates.height / 100) * origH;
+
+      console.log(`Cropping: ${cropW}x${cropH} at (${cropX}, ${cropY}) from ${origW}x${origH}`);
+
+      // Create canvas to crop
+      const canvas = document.createElement("canvas");
+      canvas.width = cropW;
+      canvas.height = cropH;
+      const ctx = canvas.getContext("2d");
+      if (!ctx) throw new Error("Failed to create canvas context");
+
+      ctx.drawImage(img, cropX, cropY, cropW, cropH, 0, 0, cropW, cropH);
+      
+      processedImageBase64 = canvas.toDataURL("image/jpeg", 0.92);
+      console.log("Crop applied successfully");
+    }
+
+    // STEP 1: Upload processed image to Supabase
     console.log(`Uploading: ${technicalWallName} → ${paintColor}`);
     
-    const base64Data = imageBase64.replace(/^data:image\/[^;]+;base64,/, "");
-    const buffer = Uint8Array.from(atob(base64Data), c => c.charCodeAt(0));
+    const finalBase64Data = processedImageBase64.replace(/^data:image\/[^;]+;base64,/, "");
+    const buffer = Uint8Array.from(atob(finalBase64Data), c => c.charCodeAt(0));
     const fileName = `input_${Date.now()}_${Math.random().toString(36).substring(7)}.png`;
 
     const { error: uploadError } = await supabase.storage
@@ -54,16 +98,16 @@ serve(async (req) => {
 
     console.log("Image URL:", publicUrl);
 
-    // STEP 2: Detect aspect ratio from cropped image (16:9 or 2:3)
+    // STEP 2: Detect aspect ratio from processed image (16:9 or 2:3)
     const img = new Image();
     img.src = publicUrl;
     await new Promise(resolve => img.onload = resolve);
 
     const isLandscapeImage = img.width >= img.height;
-    const aspectRatio = isLandscapeImage ? "16:9" : "2:3";  // ✅ Suas proporções!
+    const aspectRatio = isLandscapeImage ? "16:9" : "2:3";
 
     // STEP 3: Optimized prompt + Kie payload
-const prompt = `Change ONLY the **${technicalWallName}** color to "${paintColor}". 
+    const prompt = `Change ONLY the **${technicalWallName}** color to "${paintColor}". 
 
 **KEEP EXACTLY UNCHANGED:**
 - ALL people, faces, clothing, poses
@@ -81,7 +125,7 @@ Photorealistic interior design photography, professional lighting, high resoluti
       input: {
         input_urls: [publicUrl],
         prompt: prompt,
-        aspect_ratio: aspectRatio,  // ✅ 16:9 ou 2:3 automático!
+        aspect_ratio: aspectRatio,
         resolution: "1K"
       }
     };
