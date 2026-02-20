@@ -13,7 +13,7 @@ const Landing = () => {
         <div className="container mx-auto flex items-center justify-between h-16 px-4">
           <Link to="/" className="flex items-center gap-2">
                       <div className="w-8 h-8 rounded-lg gradient-primary flex items-center justify-center">
-              <Palette className="w-4 h-4 text-primary-foreground" />
+              <Palette className="w-4 h-4 text-primary-foreground" /> oi
             </div>
 
             <img src={logoSvg} alt="Logotipo Colora" className="w-8 "/>
