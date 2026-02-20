@@ -63,9 +63,16 @@ serve(async (req) => {
     const aspectRatio = isLandscapeImage ? "16:9" : "2:3";  // ✅ Suas proporções!
 
     // STEP 3: Optimized prompt + Kie payload
-    const prompt = `Repaint ONLY the **${technicalWallName}** with the color "${paintColor}". 
-Keep furniture, shadows, lighting, textures EXACTLY the same.  
-Photorealistic interior design, high quality.`;
+const prompt = `Change ONLY the **${technicalWallName}** color to "${paintColor}". 
+
+**Keep EXACTLY THE SAME:**
+- furniture positions and shapes
+- shadows and lighting direction
+- floor, ceiling, and other walls
+- textures and materials
+- camera angle and perspective
+
+Photorealistic interior design photography, professional lighting, high resolution, perfect details.`;
 
     const payload = {
       model: "flux-2/pro-image-to-image",
