@@ -3,10 +3,10 @@ import { Button } from "@/components/ui/button";
 import { Check, X } from "lucide-react";
 
 interface CropCoordinates {
-  x: number; // percentual 0-100
-  y: number; // percentual 0-100
-  width: number; // percentual 0-100
-  height: number; // percentual 0-100
+  x: number;   // percentual 0-100 (posição da imagem dentro do frame)
+  y: number;   // percentual 0-100
+  width: number;  // sempre 100 (frame cheio)
+  height: number; // sempre 100
 }
 
 interface ImageCropperProps {
@@ -15,17 +15,35 @@ interface ImageCropperProps {
   onCancel: () => void;
 }
 
+type AspectMode = "16-9" | "4-3";
+
 export function ImageCropper({ image, onCrop, onCancel }: ImageCropperProps) {
   const containerRef = useRef<HTMLDivElement>(null);
-  const [imageDimensions, setImageDimensions] = useState({ width: 0, height: 0 });
-  const [isDragging, setIsDragging] = useState(false);
-  const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
-  
-  const [crop, setCrop] = useState<CropCoordinates>({ x: 0, y: 0, width: 50, height: 50 });
-  
-  const isLandscape = imageDimensions.width >= imageDimensions.height;
-  const aspectRatio = isLandscape ? 16 / 9 : 4 / 3;
+  const dragStartRef = useRef<{ x: number; y: number }>({ x: 0, y: 0 });
+  const lastOffsetRef = useRef<{ x: number; y: number }>({ x: 0, y: 0 });
 
+  const [imageDimensions, setImageDimensions] = useState({ width: 0, height: 0 });
+  const [containerSize, setContainerSize] = useState({ width: 0, height: 0 });
+
+  const [isDragging, setIsDragging] = useState(false);
+  const [aspectMode, setAspectMode] = useState<AspectMode>("16-9");
+
+  // frame fixo em % do container
+  const [frame, setFrame] = useState({
+    x: 5,
+    y: 5,
+    width: 90,
+    height: 90,
+  });
+
+  // estado da imagem em coordenadas do container
+  const [imageState, setImageState] = useState({
+    scale: 1,
+    offsetX: 0,
+    offsetY: 0,
+  });
+
+  // carregar dimensões reais da imagem
   useEffect(() => {
     const img = new Image();
     img.onload = () => {
@@ -34,62 +52,124 @@ export function ImageCropper({ image, onCrop, onCancel }: ImageCropperProps) {
     img.src = image;
   }, [image]);
 
+  // medir container
   useEffect(() => {
-    if (imageDimensions.width === 0) return;
-    
-    const containerWidth = 100;
-    const containerHeight = 100;
-    
-    let cropWidth: number;
-    let cropHeight: number;
-    
-    if (isLandscape) {
-      cropWidth = 80;
-      cropHeight = cropWidth / aspectRatio;
-      if (cropHeight > 80) {
-        cropHeight = 80;
-        cropWidth = cropHeight * aspectRatio;
-      }
-    } else {
-      cropHeight = 80;
-      cropWidth = cropHeight * aspectRatio;
-      if (cropWidth > 80) {
-        cropWidth = 80;
-        cropHeight = cropWidth / aspectRatio;
-      }
+    if (!containerRef.current) return;
+    const rect = containerRef.current.getBoundingClientRect();
+    setContainerSize({ width: rect.width, height: rect.height });
+  }, []);
+
+  const isLandscapeImage = imageDimensions.width >= imageDimensions.height;
+  const targetAspect =
+    aspectMode === "16-9" ? 16 / 9 : 4 / 3;
+
+  // ajustar frame e escala da imagem quando imagem, container ou aspectMode mudam
+  useEffect(() => {
+    if (!containerSize.width || !imageDimensions.width) return;
+
+    const cw = containerSize.width;
+    const ch = containerSize.height;
+
+    // margem de 5% em cada lado
+    const margin = 0.05;
+    const maxFrameWidth = cw * (1 - margin * 2);
+    const maxFrameHeight = ch * (1 - margin * 2);
+
+    let frameWidth = maxFrameWidth;
+    let frameHeight = frameWidth / targetAspect;
+
+    if (frameHeight > maxFrameHeight) {
+      frameHeight = maxFrameHeight;
+      frameWidth = frameHeight * targetAspect;
     }
-    
-    const cropX = (100 - cropWidth) / 2;
-    const cropY = (100 - cropHeight) / 2;
-    
-    setCrop({ x: cropX, y: cropY, width: cropWidth, height: cropHeight });
-  }, [imageDimensions, isLandscape, aspectRatio]);
+
+    const frameX = (cw - frameWidth) / 2;
+    const frameY = (ch - frameHeight) / 2;
+
+    setFrame({
+      x: (frameX / cw) * 100,
+      y: (frameY / ch) * 100,
+      width: (frameWidth / cw) * 100,
+      height: (frameHeight / ch) * 100,
+    });
+
+    // escala mínima para a imagem cobrir o frame
+    const iw = imageDimensions.width;
+    const ih = imageDimensions.height;
+
+    const scaleToCover = Math.max(frameWidth / iw, frameHeight / ih);
+
+    setImageState(prev => ({
+      scale: scaleToCover,
+      // centralizar imagem inicialmente
+      offsetX: 0,
+      offsetY: 0,
+    }));
+
+    lastOffsetRef.current = { x: 0, y: 0 };
+  }, [containerSize, imageDimensions, targetAspect, aspectMode]);
 
   const handleMouseDown = useCallback((e: React.MouseEvent) => {
     e.preventDefault();
     setIsDragging(true);
-    setDragStart({ x: e.clientX, y: e.clientY });
-  }, []);
+    dragStartRef.current = { x: e.clientX, y: e.clientY };
+    lastOffsetRef.current = { x: imageState.offsetX, y: imageState.offsetY };
+  }, [imageState.offsetX, imageState.offsetY]);
+
+  const clampOffsets = useCallback((
+    offsetX: number,
+    offsetY: number
+  ) => {
+    const { width: cw, height: ch } = containerSize;
+    if (!cw || !ch || !imageDimensions.width) return { offsetX, offsetY };
+
+    const framePx = {
+      x: (frame.x / 100) * cw,
+      y: (frame.y / 100) * ch,
+      width: (frame.width / 100) * cw,
+      height: (frame.height / 100) * ch,
+    };
+
+    const scaledWidth = imageDimensions.width * imageState.scale;
+    const scaledHeight = imageDimensions.height * imageState.scale;
+
+    // imagem desenhada centrada no container + offset
+    const baseX = cw / 2 - scaledWidth / 2 + offsetX;
+    const baseY = ch / 2 - scaledHeight / 2 + offsetY;
+
+    // limites: frame precisa estar sempre "dentro" da imagem
+    const minX = framePx.x + framePx.width - scaledWidth;
+    const maxX = framePx.x;
+    const minY = framePx.y + framePx.height - scaledHeight;
+    const maxY = framePx.y;
+
+    let clampedBaseX = Math.min(Math.max(baseX, minX), maxX);
+    let clampedBaseY = Math.min(Math.max(baseY, minY), maxY);
+
+    // converte de volta para offset
+    const finalOffsetX = clampedBaseX - (cw / 2 - scaledWidth / 2);
+    const finalOffsetY = clampedBaseY - (ch / 2 - scaledHeight / 2);
+
+    return { offsetX: finalOffsetX, offsetY: finalOffsetY };
+  }, [containerSize, frame, imageDimensions, imageState.scale]);
 
   const handleMouseMove = useCallback((e: React.MouseEvent) => {
-    if (!isDragging || !containerRef.current) return;
-    
-    const container = containerRef.current.getBoundingClientRect();
-    const deltaX = ((e.clientX - dragStart.x) / container.width) * 100;
-    const deltaY = ((e.clientY - dragStart.y) / container.height) * 100;
-    
-    setCrop(prev => {
-      let newX = prev.x + deltaX;
-      let newY = prev.y + deltaY;
-      
-      newX = Math.max(0, Math.min(100 - prev.width, newX));
-      newY = Math.max(0, Math.min(100 - prev.height, newY));
-      
-      return { ...prev, x: newX, y: newY };
-    });
-    
-    setDragStart({ x: e.clientX, y: e.clientY });
-  }, [isDragging, dragStart]);
+    if (!isDragging) return;
+
+    const deltaX = e.clientX - dragStartRef.current.x;
+    const deltaY = e.clientY - dragStartRef.current.y;
+
+    const nextOffsetX = lastOffsetRef.current.x + deltaX;
+    const nextOffsetY = lastOffsetRef.current.y + deltaY;
+
+    const { offsetX, offsetY } = clampOffsets(nextOffsetX, nextOffsetY);
+
+    setImageState(prev => ({
+      ...prev,
+      offsetX,
+      offsetY,
+    }));
+  }, [isDragging, clampOffsets]);
 
   const handleMouseUp = useCallback(() => {
     setIsDragging(false);
@@ -98,38 +178,75 @@ export function ImageCropper({ image, onCrop, onCancel }: ImageCropperProps) {
   const handleApply = useCallback(() => {
     const img = new Image();
     img.onload = () => {
+      const outputWidth = 1200;
+      const outputHeight =
+        aspectMode === "16-9"
+          ? Math.round(outputWidth * 9 / 16)
+          : Math.round(outputWidth * 3 / 4);
+
       const canvas = document.createElement("canvas");
       const ctx = canvas.getContext("2d");
       if (!ctx) return;
-      
-      const sourceX = (crop.x / 100) * img.width;
-      const sourceY = (crop.y / 100) * img.height;
-      const sourceWidth = (crop.width / 100) * img.width;
-      const sourceHeight = (crop.height / 100) * img.height;
-      
-      const outputWidth = 1200;
-      const outputHeight = isLandscape ? Math.round(outputWidth / 16 * 9) : Math.round(outputWidth / 4 * 3);
-      
+
       canvas.width = outputWidth;
       canvas.height = outputHeight;
-      
+
+      const { width: cw, height: ch } = containerSize;
+      if (!cw || !ch) return;
+
+      const framePx = {
+        x: (frame.x / 100) * cw,
+        y: (frame.y / 100) * ch,
+        width: (frame.width / 100) * cw,
+        height: (frame.height / 100) * ch,
+      };
+
+      const scaledWidth = img.width * imageState.scale;
+      const scaledHeight = img.height * imageState.scale;
+
+      const baseX = cw / 2 - scaledWidth / 2 + imageState.offsetX;
+      const baseY = ch / 2 - scaledHeight / 2 + imageState.offsetY;
+
+      // posição do frame dentro da imagem escalada
+      const sourceX = ((framePx.x - baseX) / scaledWidth) * img.width;
+      const sourceY = ((framePx.y - baseY) / scaledHeight) * img.height;
+      const sourceWidth = (framePx.width / scaledWidth) * img.width;
+      const sourceHeight = (framePx.height / scaledHeight) * img.height;
+
       ctx.drawImage(
         img,
-        sourceX, sourceY, sourceWidth, sourceHeight,
-        0, 0, outputWidth, outputHeight
+        sourceX,
+        sourceY,
+        sourceWidth,
+        sourceHeight,
+        0,
+        0,
+        outputWidth,
+        outputHeight
       );
-      
+
       const croppedDataUrl = canvas.toDataURL("image/jpeg", 0.9);
-      onCrop(croppedDataUrl, crop);
+
+      // coordenadas em percentual (aqui width/height sempre 100, x/y 0 pois o frame é fixo)
+      const coords: CropCoordinates = {
+        x: 0,
+        y: 0,
+        width: 100,
+        height: 100,
+      };
+
+      onCrop(croppedDataUrl, coords);
     };
     img.src = image;
-  }, [image, crop, isLandscape, onCrop]);
+  }, [image, onCrop, frame, containerSize, imageState, aspectMode]);
 
-  // Generate overlay paths
-  const cropLeft = crop.x;
-  const cropRight = crop.x + crop.width;
-  const cropTop = crop.y;
-  const cropBottom = crop.y + crop.height;
+  // valores do frame em %
+  const cropLeft = frame.x;
+  const cropTop = frame.y;
+  const cropWidth = frame.width;
+  const cropHeight = frame.height;
+
+  const maskId = useRef(`cropMask-${Math.random().toString(36).slice(2)}`);
 
   return (
     <div className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-4">
@@ -137,8 +254,30 @@ export function ImageCropper({ image, onCrop, onCancel }: ImageCropperProps) {
         <div className="flex items-center justify-between p-4 border-b">
           <div>
             <h3 className="text-lg font-semibold">Ajustar Imagem</h3>
-            <p className="text-sm text-muted-foreground">
-              Proporção: {isLandscape ? "16:9 (Landscape)" : "4:3 (Portrait)"}
+            <p className="text-sm text-muted-foreground flex items-center gap-2">
+              Proporção:
+              <button
+                type="button"
+                className={`px-2 py-0.5 rounded text-xs border ${
+                  aspectMode === "16-9"
+                    ? "bg-primary text-primary-foreground border-primary"
+                    : "border-border"
+                }`}
+                onClick={() => setAspectMode("16-9")}
+              >
+                16:9
+              </button>
+              <button
+                type="button"
+                className={`px-2 py-0.5 rounded text-xs border ${
+                  aspectMode === "4-3"
+                    ? "bg-primary text-primary-foreground border-primary"
+                    : "border-border"
+                }`}
+                onClick={() => setAspectMode("4-3")}
+              >
+                4:3
+              </button>
             </p>
           </div>
           <div className="flex gap-2">
@@ -150,57 +289,66 @@ export function ImageCropper({ image, onCrop, onCancel }: ImageCropperProps) {
             </Button>
           </div>
         </div>
-        
+
         <div className="flex-1 p-4 overflow-hidden flex items-center justify-center">
-          <div 
+          <div
             ref={containerRef}
             className="relative max-w-full max-h-[60vh] select-none"
             onMouseMove={handleMouseMove}
             onMouseUp={handleMouseUp}
             onMouseLeave={handleMouseUp}
+            onMouseDown={handleMouseDown}
+            style={{ cursor: isDragging ? "grabbing" : "grab" }}
           >
-            <img 
-              src={image} 
-              alt="To crop" 
-              className="max-w-full max-h-[60vh] object-contain pointer-events-none"
+            <img
+              src={image}
+              alt="To crop"
+              className="pointer-events-none"
               draggable={false}
+              style={{
+                position: "absolute",
+                top: "50%",
+                left: "50%",
+                transform: `translate(-50%, -50%) translate(${imageState.offsetX}px, ${imageState.offsetY}px) scale(${imageState.scale})`,
+                transformOrigin: "center center",
+                maxWidth: "none",
+                maxHeight: "none",
+              }}
             />
-            
-            {/* Dark overlay with hole */}
+
+            {/* Overlay escuro com “buraco” do frame */}
             <svg className="absolute inset-0 w-full h-full pointer-events-none">
               <defs>
-                <mask id="cropMask">
-                  <rect width="100%" height="100%" fill="white"/>
-                  <rect 
-                    x={`${cropLeft}%`} 
-                    y={`${cropTop}%`} 
-                    width={`${crop.width}%`} 
-                    height={`${crop.height}%`} 
+                <mask id={maskId.current}>
+                  <rect width="100%" height="100%" fill="white" />
+                  <rect
+                    x={`${cropLeft}%`}
+                    y={`${cropTop}%`}
+                    width={`${cropWidth}%`}
+                    height={`${cropHeight}%`}
                     fill="black"
                     rx="4"
                   />
                 </mask>
               </defs>
-              <rect 
-                width="100%" 
-                height="100%" 
-                fill="rgba(0,0,0,0.6)" 
-                mask="url(#cropMask)"
+              <rect
+                width="100%"
+                height="100%"
+                fill="rgba(0,0,0,0.6)"
+                mask={`url(#${maskId.current})`}
               />
             </svg>
-            
-            {/* Crop box border */}
-            <div 
-              className="absolute border-2 border-white shadow-lg cursor-move"
+
+            {/* Borda do frame */}
+            <div
+              className="absolute border-2 border-white shadow-lg pointer-events-none"
               style={{
-                left: `${crop.x}%`,
-                top: `${crop.y}%`,
-                width: `${crop.width}%`,
-                height: `${crop.height}%`,
+                left: `${cropLeft}%`,
+                top: `${cropTop}%`,
+                width: `${cropWidth}%`,
+                height: `${cropHeight}%`,
               }}
-              onMouseDown={handleMouseDown}
             >
-              {/* Corner indicators */}
               <div className="absolute -top-1 -left-1 w-3 h-3 bg-white rounded-full shadow" />
               <div className="absolute -top-1 -right-1 w-3 h-3 bg-white rounded-full shadow" />
               <div className="absolute -bottom-1 -left-1 w-3 h-3 bg-white rounded-full shadow" />
