@@ -14,7 +14,7 @@ const Landing = () => {
           <Link to="/" className="flex items-center gap-2">
 
 
-            <img src={logoSvg} alt="Logotipo Colora" className="w-32 "/>
+            <img src={logoSvg} alt="Logotipo Colora" className="w-32"/>
           </Link>
           <div className="flex items-center gap-3">
             <Button variant="ghost" asChild>
@@ -176,7 +176,7 @@ const Landing = () => {
             <div className="w-6 h-6 rounded-md gradient-primary flex items-center justify-center">
               <Palette className="w-3 h-3 text-primary-foreground" />
             </div>
-            <span className="font-display font-bold text-foreground">Colora</span>
+                        <img src={logoSvg} alt="Logotipo Colora" className="w-32"/>
           </div>
           <p className="text-sm text-muted-foreground">© 2026 Colora. Todos os direitos reservados.</p>
         </div>
