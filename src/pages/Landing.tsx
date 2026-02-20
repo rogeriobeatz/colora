@@ -14,7 +14,7 @@ const Landing = () => {
           <Link to="/" className="flex items-center gap-2">
 
 
-            <img src={logoSvg} alt="Logotipo Colora" className="w-8 "/>
+            <img src={logoSvg} alt="Logotipo Colora" className="w-24 "/>
           </Link>
           <div className="flex items-center gap-3">
             <Button variant="ghost" asChild>
