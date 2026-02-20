@@ -2,7 +2,6 @@ import { Link } from "react-router-dom";
 import { Upload, Palette, Eye, Layers, Sparkles, Monitor, ArrowRight, Check } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import heroRoom from "@/assets/hero-room.jpg";
-import logoSvg from "../public/colora-logo.svg";
 
 
 const Landing = () => {
@@ -16,7 +15,6 @@ const Landing = () => {
               <Palette className="w-4 h-4 text-primary-foreground" />
             </div>
             <span className="font-display text-xl font-bold text-foreground">Colora</span>
-            <img src={logoSvg }/>
           </Link>
           <div className="flex items-center gap-3">
             <Button variant="ghost" asChild>
