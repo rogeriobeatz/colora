@@ -65,14 +65,16 @@ serve(async (req) => {
     // STEP 3: Optimized prompt + Kie payload
 const prompt = `Change ONLY the **${technicalWallName}** color to "${paintColor}". 
 
-**Keep EXACTLY THE SAME:**
+**KEEP EXACTLY UNCHANGED:**
+- ALL people, faces, clothing, poses
+- animals and pets 
 - furniture positions and shapes
-- shadows and lighting direction
-- floor, ceiling, and other walls
+- shadows and lighting direction  
+- floor, ceiling, other walls
 - textures and materials
 - camera angle and perspective
 
-Photorealistic interior design photography, professional lighting, high resolution, perfect details.`;
+Photorealistic interior design photography, professional lighting, high resolution.`;
 
     const payload = {
       model: "flux-2/pro-image-to-image",
