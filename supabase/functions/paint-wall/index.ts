@@ -64,7 +64,7 @@ serve(async (req) => {
 
     // STEP 3: Optimized prompt + Kie payload
     const prompt = `Repaint ONLY the **${technicalWallName}** with the color "${paintColor}". 
-Keep furniture, shadows, lighting, textures EXACTLY the same. 
+Keep furniture, shadows, lighting, textures EXACTLY the same.  
 Photorealistic interior design, high quality.`;
 
     const payload = {
