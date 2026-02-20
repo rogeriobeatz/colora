@@ -16,7 +16,7 @@ const Landing = () => {
               <Palette className="w-4 h-4 text-primary-foreground" />
             </div>
 
-            <img src={logoSvg} alt="Logotipo Colora" className="h-5"/>
+            <img src={logoSvg} alt="Logotipo Colora" className="w-5 h-5"/>
           </Link>
           <div className="flex items-center gap-3">
             <Button variant="ghost" asChild>
