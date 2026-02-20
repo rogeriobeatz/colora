@@ -54,7 +54,7 @@
     --sidebar-ring: 257 4% 70.4%;
 
     /* Custom tokens */
-    --gradient-primary: linear-gradient(135deg, hsl(99 57% 75%), hsl(60 96% 74%));
+    --gradient-primary: linear-gradient(135deg, hsl(99 57% 75%), hsl(60 96% 74%, hsl()));
     --gradient-accent: linear-gradient(135deg, hsl(18 90% 56%), hsl(30 95% 58%));
     --gradient-hero: linear-gradient(135deg, hsl(200 20% 12%), hsl(168 72% 22%));
     --shadow-soft: 0 4px 24px -4px hsl(200 20% 12% / 0.08);
