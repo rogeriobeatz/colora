@@ -258,28 +258,29 @@ const outputHeight =
             <h3 className="text-lg font-semibold">Ajustar Imagem</h3>
             <p className="text-sm text-muted-foreground flex items-center gap-2">
               Proporção:
-              <button
-                type="button"
-                className={`px-2 py-0.5 rounded text-xs border ${
-                  aspectMode === "16-9"
-                    ? "bg-primary text-primary-foreground border-primary"
-                    : "border-border"
-                }`}
-                onClick={() => setAspectMode("16-9")}
-              >
-                16:9
-              </button>
-              <button
-                type="button"
-                className={`px-2 py-0.5 rounded text-xs border ${
-                  aspectMode === "4-3"
-                    ? "bg-primary text-primary-foreground border-primary"
-                    : "border-border"
-                }`}
-                onClick={() => setAspectMode("4-3")}
-              >
-                4:3
-              </button>
+<button
+  type="button"
+  className={`px-2 py-0.5 rounded text-xs border ${
+    aspectMode === "16-9"
+      ? "bg-primary text-primary-foreground border-primary"
+      : "border-border"
+  }`}
+  onClick={() => setAspectMode("16-9")}
+>
+  16:9
+</button>
+<button
+  type="button"
+  className={`px-2 py-0.5 rounded text-xs border ${
+    aspectMode === "2-3"
+      ? "bg-primary text-primary-foreground border-primary"
+      : "border-border"
+  }`}
+  onClick={() => setAspectMode("2-3")}
+>
+  2:3
+</button>
+
             </p>
           </div>
           <div className="flex gap-2">
