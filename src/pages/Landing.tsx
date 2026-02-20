@@ -12,7 +12,10 @@ const Landing = () => {
       <nav className="fixed top-0 left-0 right-0 z-50 bg-background/80 backdrop-blur-lg border-b border-border">
         <div className="container mx-auto flex items-center justify-between h-16 px-4">
           <Link to="/" className="flex items-center gap-2">
-
+            <div className="w-8 h-8 rounded-lg gradient-primary flex items-center justify-center">
+              <Palette className="w-4 h-4 text-primary-foreground" />
+            </div>
+            <span className="font-display text-xl font-bold text-foreground">Colora</span>
 
             <img src={logoSvg} alt="Logotipo Colora" className="w-32 gap-2"/>
           </Link>
