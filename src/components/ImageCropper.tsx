@@ -41,7 +41,7 @@ export function ImageCropper({ image, onCrop, onCancel }: ImageCropperProps) {
     offsetY: 0,
   });
 
-  const targetAspect = aspectMode === "16-9" ? 16 / 9 : 4 / 3;
+const targetAspect = aspectMode === "16-9" ? 16 / 9 : 2 / 3;
 
   // carrega dimensões reais da imagem
   useEffect(() => {
