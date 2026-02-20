@@ -174,7 +174,7 @@ const Landing = () => {
         <div className="container mx-auto flex flex-col md:flex-row items-center justify-between gap-4">
           <div className="flex items-center gap-2">
 
-                        <img src={logoSvg} alt="Logotipo Colora" className="w-18"/>
+                        <img src={logoSvg} alt="Logotipo Colora" className="w-20"/>
           </div>
           <p className="text-sm text-muted-foreground">© 2026 Colora. Todos os direitos reservados.</p>
         </div>
