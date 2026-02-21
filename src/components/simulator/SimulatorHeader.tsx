@@ -30,6 +30,7 @@ const SimulatorHeader = ({
   onSave,
   onOpenProjects,
   projectName,
+  hasUnsavedChanges,
 }: SimulatorHeaderProps) => {
   const headerStyle = company?.headerStyle ?? "glass";
   const headerContent = company?.headerContent ?? "logo+name";
