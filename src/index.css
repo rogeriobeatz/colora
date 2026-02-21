@@ -56,12 +56,9 @@
     /* Custom tokens */
     --gradient-primary: linear-gradient(90deg,
     hsl(99, 46%, 53%), 
-    hsl(60 96% 74%),
+    hsla(56, 96%, 47%, 0.973),
     hsl(17, 100%, 69%),
-    hsl(358, 89%, 59%),
-    hsl(308, 52%, 40%),
-    hsl(236, 85%, 52%),
-    hsl(130, 65%, 59%)
+    hsl(358, 89%, 59%)
     );
     --gradient-accent: linear-gradient(135deg, hsl(18 90% 56%), hsl(30 95% 58%));
     --gradient-hero: linear-gradient(135deg, hsl(200 20% 12%), hsl(168 72% 22%));
