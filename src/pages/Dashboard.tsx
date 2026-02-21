@@ -20,7 +20,7 @@ import { Paint, HeaderContentMode, HeaderStyleMode, FontSet, CropCoordinates } f
 import { SessionListItem } from "@/components/simulator/SessionDrawer";
 import { ImageCropper } from "@/components/ImageCropper";
 import logoSvg from "@/assets/colora-logo.svg";
-import logoSvg from "@/assets/colora-icon.svg";
+import logoIcon from "@/assets/colora-icon.svg";
 
 // ─── helpers ────────────────────────────────────────────────────────────────
 
@@ -112,7 +112,7 @@ const Dashboard = () => {
     return (
       <div className="min-h-screen flex flex-col items-center justify-center gap-4">
         <div className="w-12 h-12 rounded-xl gradient-primary flex items-center justify-center animate-pulse">
-          <Palette className="w-6 h-6 text-primary-foreground" />
+          <img src={logoIcon} alt="Logo" className="w-8 h-8" />
         </div>
         <p className="text-sm text-muted-foreground animate-pulse">Carregando painel...</p>
       </div>
