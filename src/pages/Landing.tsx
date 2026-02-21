@@ -46,7 +46,7 @@ const Landing = () => {
                 Experiência rápida, visual impactante e fácil operação.
               </p>
               <div className="flex flex-wrap gap-3 pt-2">
-                <Button size="lg" asChild className="gap-2 text-gradient">
+                <Button size="lg" asChild className="gap-2">
                   <Link to="/login">
                     Criar Conta <ArrowRight className="w-4 h-4" />
                   </Link>
