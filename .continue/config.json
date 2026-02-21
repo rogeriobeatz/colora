@@ -1,0 +1,11 @@
+{
+  "models": [
+    {
+      "title": "Perplexity Sonar Pro", 
+      "provider": "openai",
+      "model": "llama-3.1-sonar-large-128k-online",
+      "apiKey": "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",
+      "apiBase": "https://api.perplexity.ai"
+    }
+  ]
+}

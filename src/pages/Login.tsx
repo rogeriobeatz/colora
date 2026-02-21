@@ -238,10 +238,7 @@ const Login = () => {
     <div className="min-h-screen bg-background flex flex-col items-center justify-center p-4">
       <div className="mb-8 text-center">
         <Link to="/" className="flex items-center gap-2 justify-center mb-4">
-          <div className="w-10 h-10 rounded-xl gradient-primary flex items-center justify-center shadow-soft">
-            <Palette className="w-5 h-5 text-primary-foreground" />
-          </div>
-          <span className="font-display text-2xl font-bold text-foreground">Colora</span>
+          <img src={logoSvg} alt="Colora" className="h-12 w-auto" />
         </Link>
       </div>
 
