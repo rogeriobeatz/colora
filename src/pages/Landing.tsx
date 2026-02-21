@@ -37,9 +37,9 @@ const Landing = () => {
                 <Sparkles className="w-3.5 h-3.5" />
                 Simulação com Inteligência Artificial
               </div>
-              <h1 className="text-4xl md:text-5xl lg:text-6xl font-display font-bold leading-tight text-foreground">
+              <h1 className="text-4xl md:text-5xl lg:text-6xl font-display font-light leading-tight text-foreground">
                 Transforme Ambientes com{" "}
-                <span className="text-gradient">Cores Perfeitas</span>
+                <span className="text-gradient font-bold">Cores Perfeitas</span>
               </h1>
               <p className="text-lg text-muted-foreground max-w-lg">
                 Simulação de cores com IA para lojas de tinta impressionarem seus clientes. 
