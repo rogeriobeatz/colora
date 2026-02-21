@@ -8,6 +8,7 @@ interface SimulatorHeaderProps {
   company?: Company | null;
   companySlug?: string;
   hasSimulations: boolean;
+;
   onGeneratePDF: () => void;
   onSave: () => void;
   onOpenProjects: () => void;

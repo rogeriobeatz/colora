@@ -28,6 +28,7 @@ const Simulator = ({ companySlug }: { companySlug?: string }) => {
     selectedWallId,
     selectedPaint,
     isPainting,
+    hasUnsavedChanges,
     totalSimulations,
     addRoom,
     selectRoom,
@@ -179,7 +180,15 @@ const Simulator = ({ companySlug }: { companySlug?: string }) => {
           <div className="animate-fade-in">
             <div className="flex items-center justify-between gap-3 mb-6">
               <div className="min-w-0">
-                <p className="text-sm text-muted-foreground">Sessão</p>
+                <p className="text-sm text-muted-foreground flex items-center gap-2">
+                  Sessão
+                  {hasUnsavedChanges && (
+                    <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full bg-amber-100 text-amber-700 text-[10px] font-medium">
+                      <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse" />
+                      Não salvo
+                    </span>
+                  )}
+                </p>
                 <p className="text-lg font-display font-bold truncate">{session?.name || "Sessão sem nome"}</p>
               </div>
 

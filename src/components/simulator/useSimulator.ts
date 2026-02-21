@@ -49,6 +49,7 @@ export function useSimulator() {
   const [selectedWallId, setSelectedWallId] = useState<string | null>(null);
   const [selectedPaint, setSelectedPaint] = useState<Paint | null>(null);
   const [isPainting, setIsPainting] = useState(false);
+  const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
 
   const activeRoom = useMemo(() => rooms.find((r) => r.id === activeRoomId) || null, [rooms, activeRoomId]);
 
@@ -77,6 +78,7 @@ export function useSimulator() {
 
       await setLastSessionId(payload.id);
       setSession(payload);
+      setHasUnsavedChanges(false);
     },
     [session, rooms, activeRoomId, selectedWallId],
   );
@@ -100,8 +102,9 @@ export function useSimulator() {
       if (!session) return;
       const next = { ...session, name, updatedAt: nowIso() };
       setSession(next);
+      setHasUnsavedChanges(true);
       await persist(next);
-      toast.success("Nome do projeto atualizado", { description: name });
+      toast.success("Nome da sessão atualizado", { description: name });
     },
     [session, persist],
   );
@@ -227,23 +230,24 @@ export function useSimulator() {
     };
   }, []);
 
-  // Autosave (debounced)
+  // Notificar usuário ao sair sem salvar
   useEffect(() => {
-    if (!session) return;
-    if (loadingSession) return;
+    const hasUnsavedChanges = rooms.length > 0 || (session && session.name !== "Sessão sem nome");
 
-    if (autosaveTimer.current) window.clearTimeout(autosaveTimer.current);
+    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+      if (hasUnsavedChanges) {
+        e.preventDefault();
+        e.returnValue = "";
+        return "";
+      }
+    };
 
-    autosaveTimer.current = window.setTimeout(() => {
-      persist().catch(() => {
-        // autosave silencioso (não trava UX)
-      });
-    }, 650);
+    window.addEventListener("beforeunload", handleBeforeUnload);
 
     return () => {
-      if (autosaveTimer.current) window.clearTimeout(autosaveTimer.current);
+      window.removeEventListener("beforeunload", handleBeforeUnload);
     };
-  }, [rooms, activeRoomId, selectedWallId, session, persist, loadingSession]);
+  }, [rooms, session]);
 
   const ensureSession = useCallback(async () => {
     if (session) return session;
@@ -288,6 +292,7 @@ export function useSimulator() {
       setRooms((prev) => [...prev, newRoom]);
       setActiveRoomId(id);
       setSelectedWallId(null);
+      setHasUnsavedChanges(true);
 
       let imageBase64: string;
       try {
@@ -419,6 +424,7 @@ export function useSimulator() {
             : r,
         ),
       );
+      setHasUnsavedChanges(true);
 
       toast.success("Cor aplicada com sucesso!", {
         description: `${selectedPaint.name} em ${wall.label}`,
@@ -447,6 +453,7 @@ export function useSimulator() {
         return { ...r, activeSimulationId: simId, imageUrl: sim.imageUrl };
       }),
     );
+    setHasUnsavedChanges(true);
   }, []);
 
   const removeSimulation = useCallback(
@@ -470,10 +477,12 @@ export function useSimulator() {
           }
 
           if (!removingWasActive) {
+            setHasUnsavedChanges(true);
             return { ...r, simulations: nextSims };
           }
 
           const nextActive = nextSims[nextSims.length - 1];
+          setHasUnsavedChanges(true);
           return {
             ...r,
             simulations: nextSims,
@@ -524,6 +533,7 @@ export function useSimulator() {
     selectedWallId,
     selectedPaint,
     isPainting,
+    hasUnsavedChanges,
     totalSimulations: rooms.reduce((acc, r) => acc + r.simulations.length, 0),
 
     // actions
