@@ -8,7 +8,7 @@ interface SimulatorHeaderProps {
   company?: Company | null;
   companySlug?: string;
   hasSimulations: boolean;
-;
+  hasUnsavedChanges?: boolean;
   onGeneratePDF: () => void;
   onSave: () => void;
   onOpenProjects: () => void;
@@ -119,8 +119,15 @@ const SimulatorHeader = ({
             <FolderOpen className="w-3.5 h-3.5" /> Sessões
           </Button>
 
-          <Button variant="outline" size="sm" onClick={onSave} className={cn("gap-1.5", outlineOnPrimary)}>
-            <Save className="w-3.5 h-3.5" /> Salvar
+          <Button
+            variant={hasUnsavedChanges ? "default" : "outline"}
+            size="sm"
+            onClick={onSave}
+            className={cn("gap-1.5", outlineOnPrimary)}
+            style={hasUnsavedChanges ? { backgroundColor: company?.primaryColor } : undefined}
+          >
+            <Save className="w-3.5 h-3.5" />
+            {hasUnsavedChanges ? "Salvar *" : "Salvar"}
           </Button>
 
           {hasSimulations && (
