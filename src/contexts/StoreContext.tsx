@@ -19,6 +19,7 @@ interface Profile {
   primary_color: string | null;
   secondary_color: string | null;
   avatar_url: string | null;
+  ai_credits: number | null;
 
   company_phone: string | null;
   company_website: string | null;
@@ -36,9 +37,9 @@ interface StoreContextType {
   fetchCompanyBySlug: (slug: string) => Promise<void>;
   refreshData: () => Promise<void>;
   initCompany: (name: string) => void;
-  addCatalog: (catalog: Catalog) => void;
-  updateCatalog: (id: string, updates: Partial<Catalog>) => void;
-  deleteCatalog: (id: string) => void;
+  addCatalog: (catalog: Omit<Catalog, "id" | "paints">) => Promise<void>;
+  updateCatalog: (id: string, updates: Partial<Catalog>) => Promise<void>;
+  deleteCatalog: (id: string) => Promise<void>;
   importPaintsCSV: (catalogId: string, csvText: string) => void;
   exportPaintsCSV: (catalogId: string) => string;
 }
@@ -70,7 +71,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       // Usamos maybeSingle() para evitar erro 406 se o perfil não existir
       const { data: profile, error: profileError } = await supabase
         .from('profiles')
-        .select('*')
+        .select('*, ai_credits')
         .eq('id', user.id)
         .maybeSingle() as any;
 
@@ -98,6 +99,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
           primaryColor: p.primary_color || "#1a8a6a",
           secondaryColor: p.secondary_color || "#e87040",
           logo: p.avatar_url || undefined,
+          aiCredits: p.ai_credits ?? 0,
           catalogs: catalogsData && catalogsData.length > 0 
             ? catalogsData.map((cat: any) => ({
                 id: cat.id,
@@ -191,28 +193,83 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     setCompanyState({ ...company, ...updates });
   };
 
-  const addCatalog = (catalog: Catalog) => {
+  const addCatalog = async (catalog: Omit<Catalog, "id" | "paints">) => {
     if (!company) return;
-    setCompanyState({
-      ...company,
-      catalogs: [...company.catalogs, catalog]
-    });
+    
+    const newCatalogData = {
+      ...catalog,
+      company_id: company.id,
+      active: catalog.active ?? true,
+    };
+
+    try {
+      const { data, error } = await supabase
+        .from('catalogs')
+        .insert(newCatalogData)
+        .select()
+        .single();
+
+      if (error) throw error;
+
+      const finalCatalog: Catalog = {
+        ...data,
+        paints: [],
+      }
+
+      setCompanyState({
+        ...company,
+        catalogs: [...company.catalogs, finalCatalog],
+      });
+
+    } catch (error) {
+      console.error("Error adding catalog:", error);
+      toast.error("Não foi possível adicionar o catálogo. Tente novamente.");
+    }
   };
 
-  const updateCatalog = (id: string, updates: Partial<Catalog>) => {
+  const updateCatalog = async (id: string, updates: Partial<Catalog>) => {
     if (!company) return;
-    setCompanyState({
-      ...company,
-      catalogs: company.catalogs.map(c => c.id === id ? { ...c, ...updates } : c)
-    });
+
+    try {
+      const { error } = await supabase
+        .from('catalogs')
+        .update(updates)
+        .eq('id', id);
+
+      if (error) throw error;
+
+      setCompanyState({
+        ...company,
+        catalogs: company.catalogs.map(c => 
+          c.id === id ? { ...c, ...updates } : c
+        ),
+      });
+    } catch (error) {
+      console.error("Error updating catalog:", error);
+      toast.error("Não foi possível atualizar o catálogo. Tente novamente.");
+    }
   };
 
-  const deleteCatalog = (id: string) => {
+  const deleteCatalog = async (id: string) => {
     if (!company) return;
-    setCompanyState({
-      ...company,
-      catalogs: company.catalogs.filter(c => c.id !== id)
-    });
+
+    try {
+      const { error } = await supabase
+        .from('catalogs')
+        .delete()
+        .eq('id', id);
+
+      if (error) throw error;
+
+      setCompanyState({
+        ...company,
+        catalogs: company.catalogs.filter(c => c.id !== id),
+      });
+
+    } catch (error) {
+      console.error("Error deleting catalog:", error);
+      toast.error("Não foi possível remover o catálogo. Tente novamente.");
+    }
   };
 
   const importPaintsCSV = (catalogId: string, csvText: string) => {

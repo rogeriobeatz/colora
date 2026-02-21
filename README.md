@@ -1,73 +1,47 @@
-# Welcome to your Lovable project
+# Colora 🎨
 
-## Project info
+Plataforma white-label para simulação de pintura de ambientes com Inteligência Artificial.
 
-**URL**: https://lovable.dev/projects/REPLACE_WITH_PROJECT_ID
+## 📄 Sobre o Projeto
 
-## How can I edit this code?
+Colora é uma aplicação de software como serviço (SaaS) B2B, projetada para empresas de tintas ou design de interiores. O objetivo principal é fornecer uma ferramenta de **white-label** que essas empresas podem personalizar com sua própria marca e oferecer a seus clientes finais.
 
-There are several ways of editing your application.
+A plataforma permite que os usuários (os clientes das empresas) façam o upload de uma foto de seu ambiente e, através de Inteligência Artificial, apliquem virtualmente cores de um catálogo nas paredes, obtendo uma simulação realista do resultado final antes de qualquer compra ou trabalho de pintura.
 
-**Use Lovable**
+## ✨ Funcionalidades Principais
 
-Simply visit the [Lovable Project](https://lovable.dev/projects/REPLACE_WITH_PROJECT_ID) and start prompting.
+-   **Simulação de Pintura com IA**: Faça o upload de uma foto de um cômodo e nossa IA identifica as paredes e aplica a cor selecionada de forma realista.
+-   **Customização de Marca (White-Label)**: Clientes B2B podem configurar a aparência da aplicação com seu próprio logotipo, nome e esquema de cores.
+-   **Catálogo de Cores Interativo**: Usuários podem explorar e selecionar cores de um catálogo para testar em suas paredes.
+-   **Persistência de Sessão**: As simulações e projetos dos usuários são salvos automaticamente no navegador, permitindo que eles retomem o trabalho a qualquer momento.
 
-Changes made via Lovable will be committed automatically to this repo.
+## 🚀 Stack de Tecnologia
 
-**Use your preferred IDE**
+-   **Frontend**: React, TypeScript, Vite, Tailwind CSS, shadcn/ui
+-   **Backend**: Supabase (PostgreSQL, Auth, Edge Functions)
+-   **Linguagem das Edge Functions**: Deno (TypeScript)
+-   **Serviços de IA**: Modelos de Machine Learning hospedados na plataforma [Replicate](https://replicate.com/) para análise e pintura de imagens.
 
-If you want to work locally using your own IDE, you can clone this repo and push changes. Pushed changes will also be reflected in Lovable.
+## ⚙️ Como Executar o Projeto Localmente
 
-The only requirement is having Node.js & npm installed - [install with nvm](https://github.com/nvm-sh/nvm#installing-and-updating)
+1.  **Clone o Repositório**
+    ```sh
+    git clone <URL_DO_SEU_REPOSITORIO>
+    cd colora
+    ```
 
-Follow these steps:
+2.  **Instale as Dependências**
+    ```sh
+    npm install
+    ```
 
-```sh
-# Step 1: Clone the repository using the project's Git URL.
-git clone <YOUR_GIT_URL>
+3.  **Configure as Variáveis de Ambiente**
+    -   Crie um arquivo `.env` na raiz do projeto.
+    -   Adicione suas chaves de API do Supabase (URL e Anon Key) e outras variáveis necessárias.
 
-# Step 2: Navigate to the project directory.
-cd <YOUR_PROJECT_NAME>
+4.  **Inicie o Servidor de Desenvolvimento**
+    ```sh
+    npm run dev
+    ```
 
-# Step 3: Install the necessary dependencies.
-npm i
-
-# Step 4: Start the development server with auto-reloading and an instant preview.
-npm run dev
-```
-
-**Edit a file directly in GitHub**
-
-- Navigate to the desired file(s).
-- Click the "Edit" button (pencil icon) at the top right of the file view.
-- Make your changes and commit the changes.
-
-**Use GitHub Codespaces**
-
-- Navigate to the main page of your repository.
-- Click on the "Code" button (green button) near the top right.
-- Select the "Codespaces" tab.
-- Click on "New codespace" to launch a new Codespace environment.
-- Edit files directly within the Codespace and commit and push your changes once you're done.
-
-## What technologies are used for this project?
-
-This project is built with:
-
-- Vite
-- TypeScript
-- React
-- shadcn-ui
-- Tailwind CSS
-
-## How can I deploy this project?
-
-Simply open [Lovable](https://lovable.dev/projects/REPLACE_WITH_PROJECT_ID) and click on Share -> Publish.
-
-## Can I connect a custom domain to my Lovable project?
-
-Yes, you can!
-
-To connect a domain, navigate to Project > Settings > Domains and click Connect Domain.
-
-Read more here: [Setting up a custom domain](https://docs.lovable.dev/features/custom-domain#custom-domain)
+O servidor local estará disponível em `http://localhost:5173`.

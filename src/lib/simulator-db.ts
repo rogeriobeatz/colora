@@ -1,3 +1,6 @@
+import Dexie, { Table } from 'dexie';
+import { toast } from 'sonner';
+
 export type SimulatorSessionRecord = {
   id: string;
   name: string;
@@ -6,93 +9,63 @@ export type SimulatorSessionRecord = {
   data: unknown;
 };
 
-type MetaRecord = { key: string; value: string };
+type MetaRecord = {
+  key: 'lastSessionId';
+  value: string;
+};
 
 const DB_NAME = "colora_simulator";
-const DB_VERSION = 1;
 
-const STORE_SESSIONS = "sessions";
-const STORE_META = "meta";
+class SimulatorDB extends Dexie {
+  sessions!: Table<SimulatorSessionRecord, string>;
+  meta!: Table<MetaRecord, string>;
 
-function openDb(): Promise<IDBDatabase> {
-  return new Promise((resolve, reject) => {
-    const req = indexedDB.open(DB_NAME, DB_VERSION);
-
-    req.onupgradeneeded = () => {
-      const db = req.result;
-
-      if (!db.objectStoreNames.contains(STORE_SESSIONS)) {
-        db.createObjectStore(STORE_SESSIONS, { keyPath: "id" });
-      }
-
-      if (!db.objectStoreNames.contains(STORE_META)) {
-        db.createObjectStore(STORE_META, { keyPath: "key" });
-      }
-    };
-
-    req.onsuccess = () => resolve(req.result);
-    req.onerror = () => reject(req.error);
-  });
+  constructor() {
+    super(DB_NAME);
+    this.version(1).stores({
+      sessions: 'id, updatedAt', // index updatedAt for sorting
+      meta: 'key',
+    });
+  }
 }
 
-function txPromise<T>(request: IDBRequest<T>): Promise<T> {
-  return new Promise((resolve, reject) => {
-    request.onsuccess = () => resolve(request.result);
-    request.onerror = () => reject(request.error);
-  });
+const db = new SimulatorDB();
+
+// Wrapper to catch Dexie errors and show a toast
+async function handleDB<T>(promise: Promise<T>, errorMessage: string): Promise<T | null> {
+  try {
+    return await promise;
+  } catch (error: any) {
+    console.error(`[SimulatorDB] ${errorMessage}:`, error);
+    toast.error(errorMessage, {
+      description: error.message || 'O banco de dados local pode não estar disponível ou corrompido.',
+    });
+    return null;
+  }
 }
 
-async function withStore<T>(
-  storeName: string,
-  mode: IDBTransactionMode,
-  fn: (store: IDBObjectStore) => IDBRequest<T>,
-): Promise<T> {
-  const db = await openDb();
-  const tx = db.transaction(storeName, mode);
-  const store = tx.objectStore(storeName);
-  const res = await txPromise(fn(store));
-
-  await new Promise<void>((resolve, reject) => {
-    tx.oncomplete = () => resolve();
-    tx.onabort = () => reject(tx.error);
-    tx.onerror = () => reject(tx.error);
-  });
-
-  db.close();
-  return res;
+export async function saveSimulatorSession(record: SimulatorSessionRecord): Promise<string | null> {
+  return handleDB(db.sessions.put(record), "Erro ao salvar o projeto");
 }
 
-export async function saveSimulatorSession(record: SimulatorSessionRecord) {
-  return withStore(STORE_SESSIONS, "readwrite", (store) => store.put(record));
-}
-
-export async function getSimulatorSession(id: string): Promise<SimulatorSessionRecord | undefined> {
-  const res = await withStore<SimulatorSessionRecord | undefined>(STORE_SESSIONS, "readonly", (store) =>
-    store.get(id) as IDBRequest<SimulatorSessionRecord | undefined>,
-  );
-  return res;
+export async function getSimulatorSession(id: string): Promise<SimulatorSessionRecord | null> {
+  return handleDB(db.sessions.get(id), "Erro ao carregar o projeto");
 }
 
 export async function listSimulatorSessions(): Promise<SimulatorSessionRecord[]> {
-  const res = await withStore<SimulatorSessionRecord[]>(STORE_SESSIONS, "readonly", (store) =>
-    store.getAll() as IDBRequest<SimulatorSessionRecord[]>,
-  );
-
-  return (res || []).sort((a, b) => (a.updatedAt < b.updatedAt ? 1 : -1));
+  const result = await handleDB(db.sessions.orderBy('updatedAt').reverse().toArray(), "Erro ao listar os projetos");
+  return result || [];
 }
 
-export async function deleteSimulatorSession(id: string) {
-  return withStore(STORE_SESSIONS, "readwrite", (store) => store.delete(id));
+export async function deleteSimulatorSession(id: string): Promise<void | null> {
+  return handleDB(db.sessions.delete(id), "Erro ao excluir o projeto");
 }
 
-export async function setLastSessionId(id: string) {
-  const meta: MetaRecord = { key: "lastSessionId", value: id };
-  return withStore(STORE_META, "readwrite", (store) => store.put(meta));
+export async function setLastSessionId(id: string): Promise<string | null> {
+  return handleDB(db.meta.put({ key: 'lastSessionId', value: id }), "Erro ao salvar a sessão recente");
 }
 
 export async function getLastSessionId(): Promise<string | null> {
-  const res = await withStore<MetaRecord | undefined>(STORE_META, "readonly", (store) =>
-    store.get("lastSessionId") as IDBRequest<MetaRecord | undefined>,
-  );
+  const res = await handleDB(db.meta.get('lastSessionId'), "Erro ao buscar a sessão recente");
   return res?.value ?? null;
 }

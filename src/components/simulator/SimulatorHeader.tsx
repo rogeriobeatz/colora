@@ -1,11 +1,10 @@
 import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
-import { ArrowLeft, FileDown, Palette, Save, FolderOpen } from "lucide-react";
-import { Company } from "@/data/defaultColors";
+import { ArrowLeft, FileDown, Palette, Save, FolderOpen, Sparkles } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useStore } from "@/contexts/StoreContext";
 
 interface SimulatorHeaderProps {
-  company?: Company | null;
   companySlug?: string;
   hasSimulations: boolean;
   hasUnsavedChanges?: boolean;
@@ -23,7 +22,6 @@ function getHeaderMutedTextColor(style?: string) {
 }
 
 const SimulatorHeader = ({
-  company,
   companySlug,
   hasSimulations,
   onGeneratePDF,
@@ -32,6 +30,8 @@ const SimulatorHeader = ({
   projectName,
   hasUnsavedChanges,
 }: SimulatorHeaderProps) => {
+  const { company } = useStore(); // Use company from context
+
   const headerStyle = company?.headerStyle ?? "glass";
   const headerContent = company?.headerContent ?? "logo+name";
   const isPrimaryHeader = headerStyle === "primary";
@@ -111,6 +111,16 @@ const SimulatorHeader = ({
         </div>
 
         <div className="flex items-center gap-2">
+          <div className={cn(
+            "flex items-center gap-1.5 h-9 px-3 rounded-md border text-xs font-medium",
+            outlineOnPrimary,
+            !isPrimaryHeader && "border-border"
+          )}>
+            <Sparkles className={cn("w-3.5 h-3.5", isPrimaryHeader ? "text-white/80" : "text-amber-500")} />
+            <span className={cn(titleColor)}>{company?.aiCredits ?? 0}</span>
+            <span className={cn("hidden sm:inline-block", mutedColor)}>créditos</span>
+          </div>
+
           <Button
             variant="outline"
             size="sm"

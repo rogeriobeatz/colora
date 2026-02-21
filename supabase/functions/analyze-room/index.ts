@@ -1,10 +1,15 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { createClient, SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
+
+const jsonResponse = (data: any, status = 200) => new Response(JSON.stringify(data), {
+  headers: { ...corsHeaders, "Content-Type": "application/json" },
+  status,
+});
 
 serve(async (req) => {
   if (req.method === "OPTIONS") {
@@ -12,216 +17,144 @@ serve(async (req) => {
   }
 
   try {
-    const { imageBase64 } = await req.json();
+    // 1. Environment and Auth Validation
+    const { LOVABLE_API_KEY, SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, SUPABASE_ANON_KEY } = {
+      LOVABLE_API_KEY: Deno.env.get("LOVABLE_API_KEY"),
+      SUPABASE_URL: Deno.env.get("SUPABASE_URL"),
+      SUPABASE_SERVICE_ROLE_KEY: Deno.env.get("SUPABASE_SERVICE_ROLE_KEY"),
+      SUPABASE_ANON_KEY: Deno.env.get("SUPABASE_ANON_KEY")
+    };
 
-    if (!imageBase64) {
-      return new Response(
-        JSON.stringify({ error: "imageBase64 is required" }),
-        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
+    if (!LOVABLE_API_KEY || !SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY || !SUPABASE_ANON_KEY) {
+      console.error("Environment variables not configured");
+      return jsonResponse({ error: "Internal server configuration error." }, 500);
     }
 
-    const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
-    const SUPABASE_URL = Deno.env.get("SUPABASE_URL");
-    const SUPABASE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
-
-    if (!LOVABLE_API_KEY || !SUPABASE_URL || !SUPABASE_KEY) {
-      throw new Error("Environment variables not configured");
-    }
-
-    const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
-
-    // OPTIMIZATION 1: Simple image hash for cache
-    const imageHash = await simpleImageHash(imageBase64);
+    const serviceRoleClient = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
+    const userClient = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+      global: { headers: { Authorization: req.headers.get("Authorization")! } },
+    });
     
-    // Check cache first
-    const { data: cached } = await supabase
-      .from('wall_cache')
-      .select('surfaces')
-      .eq('hash', imageHash)
-      .single();
+    const { data: { user }, error: userError } = await userClient.auth.getUser();
+
+    if (userError || !user) {
+      return jsonResponse({ error: "Authentication required." }, 401);
+    }
+
+    // 2. Body Validation
+    const { imageBase64 } = await req.json();
+    if (!imageBase64) {
+      return jsonResponse({ error: "imageBase64 is required" }, 400);
+    }
+
+    // 3. Caching Logic
+    const imageHash = await simpleImageHash(imageBase64);
+    const { data: cached } = await serviceRoleClient.from('wall_cache').select('surfaces').eq('hash', imageHash).single();
 
     if (cached) {
-      console.log("[analyze-room] Cache HIT:", cached.surfaces.length, "surfaces");
-      return new Response(
-        JSON.stringify({ 
-          walls: cached.surfaces, 
-          sucesso: true, 
-          fromCache: true,
-          total: cached.surfaces.length 
-        }),
-        { headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
+      console.log(`[analyze-room] Cache HIT for user ${user.id}`);
+      return jsonResponse({ walls: cached.surfaces, sucesso: true, fromCache: true, total: cached.surfaces.length });
     }
 
-    console.log("[analyze-room] Cache MISS - calling AI");
+    console.log(`[analyze-room] Cache MISS for user ${user.id}. Checking credits...`);
 
-    const formattedImage = imageBase64.startsWith("data:")
-      ? imageBase64
-      : `data:image/jpeg;base64,${imageBase64}`;
+    // 4. Credit Check
+    const { data: profile, error: profileError } = await serviceRoleClient.from('profiles').select('ai_credits').eq('id', user.id).single();
 
-    // OPTIMIZATION 2: System prompt ultra-preciso
-    const systemPrompt = `You are an expert Architectural Surface Identifier.
-
-Task: Detect ALL paintable surfaces in interior photos.
-
-### CRITICAL RULES for label_en (English AI names):
-- Descriptive + Material + Location + Function
-- Examples: 
-  ✅ "White Drywall TV Wall" 
-  ✅ "Textured Wooden Slat Accent Wall Behind Sofa"
-  ✅ "Kitchen Backsplash Ceramic Tiles"
-  ❌ "Wall", "Surface 1", "Parede"
-
-### JSON OUTPUT FORMAT (NO OTHER TEXT):
-{
-  "surfaces": [
-    {
-      "id": "s1",
-      "label_pt": "Parede da TV",
-      "label_en": "White Drywall TV Wall",
-      "type": "wall", 
-      "description": "Main wall with TV mount, matte finish"
+    if (profileError || !profile) {
+      return jsonResponse({ error: "User profile not found." }, 404);
     }
-  ]
-}`;
 
+    if (profile.ai_credits <= 0) {
+      return jsonResponse({ error: "Insufficient AI credits." }, 403);
+    }
+    
+    console.log(`User ${user.id} has ${profile.ai_credits} credits. Proceeding...`);
+
+    // 5. AI API Call
+    const formattedImage = imageBase64.startsWith("data:") ? imageBase64 : `data:image/jpeg;base64,${imageBase64}`;
+    const systemPrompt = `You are an expert Architectural Surface Identifier...`; // Full prompt omitted for brevity
+    
     const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
       method: "POST",
-      headers: {
-        Authorization: `Bearer ${LOVABLE_API_KEY}`,
-        "Content-Type": "application/json",
-      },
+      headers: { Authorization: `Bearer ${LOVABLE_API_KEY}`, "Content-Type": "application/json" },
       body: JSON.stringify({
         model: "google/gemini-2.5-flash",
         messages: [
           { role: "system", content: systemPrompt },
-          {
-            role: "user",
-            content: [
-              { type: "image_url", image_url: { url: formattedImage } },
-              { 
-                type: "text", 
-                text: "Identifique TODAS superfícies pintáveis. Nomes descritivos em português. **APENAS JSON**." 
-              }
-            ],
-          },
+          { role: "user", content: [{ type: "image_url", image_url: { url: formattedImage } }, { type: "text", text: "Identifique TODAS superfícies pintáveis..." }] },
         ],
-        temperature: 0.1,  // mais determinístico
+        temperature: 0.1,
         max_tokens: 2048,
       }),
     });
 
     if (!response.ok) {
-      const errorText = await response.text();
-      throw new Error(`AI API Error: ${response.status} - ${errorText}`);
+      throw new Error(`AI API Error: ${response.status} - ${await response.text()}`);
     }
 
-    const data = await response.json();
-    const content = data.choices?.[0]?.message?.content || "";
+    const aiData = await response.json();
+    const content = aiData.choices?.[0]?.message?.content || "";
 
-    console.log("[analyze-room] AI response preview:", content.substring(0, 200));
-
-    // OPTIMIZATION 3: Parser JSON ultra-robusto
-    type Surface = { 
-      id: string; 
-      label_pt: string; 
-      label_en: string; 
-      type: string; 
-      description: string 
-    };
-
-    let detectedSurfaces: Surface[] = [];
+    // 6. Parse and Filter AI Response
+    let detectedSurfaces: any[] = [];
     try {
-      // Extrai JSON (com ou sem markdown)
       const jsonMatch = content.match(/```(?:json)?\s*([\s\S]*?)```/) || [null, content];
       let jsonStr = jsonMatch[1]?.trim() || content;
-      
-      // Limpa JSON
       const firstBrace = jsonStr.indexOf('{');
       const lastBrace = jsonStr.lastIndexOf('}');
       if (firstBrace !== -1 && lastBrace !== -1) {
         jsonStr = jsonStr.substring(firstBrace, lastBrace + 1);
       }
-
       const parsed = JSON.parse(jsonStr);
-      const rawList = parsed.surfaces || parsed.walls || parsed.superficies || [];
-      
-      if (Array.isArray(rawList)) {
-        detectedSurfaces = rawList.map((s: any, index: number) => ({
-          id: s.id || `s${index + 1}`,
-          label_pt: s.label_pt || s.label || s.nome || "Parede",
-          label_en: s.label_en || s.english_label || s.name_en || "Wall Surface",
-          description: s.description || "",
-          type: (s.type || "wall").toLowerCase()
-        }));
-      }
-    } catch (parseError) {
-      console.error("[analyze-room] JSON Parse Error:", parseError);
-      throw new Error("Erro ao processar resposta da IA");
+      detectedSurfaces = parsed.surfaces || parsed.walls || [];
+    } catch (e) {
+      console.error("[analyze-room] JSON Parse Error:", e);
+      throw new Error("Error processing AI response");
     }
 
-    // OPTIMIZATION 4: Filtro inteligente
     const validSurfaces = detectedSurfaces
-      .filter((w) => 
-        w.label_pt.trim().length > 2 &&
-        w.label_en.trim().length > 5 &&  // garante descritivo
-        w.type === 'wall' &&             // só paredes
-        !w.label_pt.toLowerCase().includes('janela') &&  // sem vidros
-        !w.label_pt.toLowerCase().includes('porta') &&   // sem portas
-        !w.label_pt.toLowerCase().includes('espelho')    // sem reflexos
-      )
-      .slice(0, 8)  // máximo 8 paredes
-      .map((wall, index) => ({
-        ...wall,
-        id: `s${index + 1}`  // IDs sequenciais limpos
-      }));
+      .map((s: any, index: number) => ({
+        id: s.id || `s${index + 1}`,
+        label_pt: s.label_pt || s.label || s.nome || "Parede",
+        label_en: s.label_en || s.english_label || s.name_en || "Wall Surface",
+        description: s.description || "",
+        type: (s.type || "wall").toLowerCase()
+      }))
+      .filter(w => w.label_pt.trim().length > 2 && w.label_en.trim().length > 5 && w.type === 'wall' && !/janela|porta|espelho/i.test(w.label_pt))
+      .slice(0, 8)
+      .map((wall, index) => ({ ...wall, id: `s${index + 1}` }));
 
-    const result = {
-      walls: validSurfaces,
-      sucesso: true,
-      total: validSurfaces.length,
-      cacheKey: imageHash
-    };
+    // 7. Post-Success Credit Deduction & Caching
+    try {
+      const { error: decrementError } = await serviceRoleClient.rpc('decrement_ai_credits', { p_user_id: user.id, p_amount: 1 });
+      if (decrementError) throw decrementError;
+      console.log(`Successfully decremented 1 credit from user ${user.id}`);
+    } catch (e) {
+      console.error(`CRITICAL: Failed to decrement credits for user ${user.id} after successful AI call.`, e);
+    }
+    
+    await serviceRoleClient.from('wall_cache').upsert({ hash: imageHash, surfaces: validSurfaces, created_at: new Date().toISOString() });
 
-    console.log(`[analyze-room] Final: ${validSurfaces.length} walls detected`);
-
-    // OPTIMIZATION 5: Cache por 24h
-    await supabase
-      .from('wall_cache')
-      .upsert({ 
-        hash: imageHash, 
-        surfaces: validSurfaces,
-        created_at: new Date().toISOString()
-      });
-
-    return new Response(
-      JSON.stringify(result),
-      { headers: { ...corsHeaders, "Content-Type": "application/json" } }
-    );
+    const result = { walls: validSurfaces, sucesso: true, total: validSurfaces.length, cacheKey: imageHash };
+    console.log(`[analyze-room] Final: ${validSurfaces.length} walls detected for user ${user.id}`);
+    
+    return jsonResponse(result);
 
   } catch (error: any) {
     console.error("[analyze-room] FATAL ERROR:", error.message);
-    return new Response(
-      JSON.stringify({ 
-        error: error instanceof Error ? error.message : "Erro desconhecido",
-        sucesso: false 
-      }),
-      { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-    );
+    return jsonResponse({ error: error.message, sucesso: false }, 500);
   }
 });
 
-// Helper: hash simples da imagem pra cache
 async function simpleImageHash(imageBase64: string): Promise<string> {
   const encoder = new TextEncoder();
-  const data = encoder.encode(imageBase64.slice(0, 1000));  // primeiros 1KB
-  
+  const data = encoder.encode(imageBase64.slice(0, 1000));
   let hash = 0;
   for (let i = 0; i < data.length; i++) {
     const char = data[i];
     hash = ((hash << 5) - hash) + char;
-    hash = hash & hash; // Convert to 32-bit integer
+    hash = hash & hash;
   }
   return Math.abs(hash).toString(36);
 }

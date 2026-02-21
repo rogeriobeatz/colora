@@ -34,6 +34,7 @@ export interface Company {
   primaryColor: string;
   secondaryColor: string;
   catalogs: Catalog[];
+  aiCredits: number;
 
   // Dados públicos da empresa (para rodapé/contato)
   phone?: string;
@@ -174,6 +175,7 @@ export function createDefaultCompany(name: string): Company {
     primaryColor: "#1a8a6a",
     secondaryColor: "#e87040",
     catalogs: [createDefaultCatalog()],
+    aiCredits: 200,
 
     phone: "",
     website: "",
