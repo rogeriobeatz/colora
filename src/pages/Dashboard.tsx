@@ -112,7 +112,7 @@ const Dashboard = () => {
     return (
       <div className="min-h-screen flex flex-col items-center justify-center gap-4">
         <div className="w-24 h-24  flex items-center justify-center animate-pulse">
-          <img src={logoIcon} alt="Logo" className="w-8 h-8" />
+          <img src={logoIcon} alt="Logo" className="w-20 h-20" />
         </div>
         <p className="text-sm text-muted-foreground animate-pulse">Carregando painel...</p>
       </div>
