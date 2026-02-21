@@ -19,6 +19,8 @@ import PaintDialog from "@/components/simulator/PaintDialog";
 import { Paint, HeaderContentMode, HeaderStyleMode, FontSet, CropCoordinates } from "@/data/defaultColors";
 import { SessionListItem } from "@/components/simulator/SessionDrawer";
 import { ImageCropper } from "@/components/ImageCropper";
+import logoSvg from "@/assets/colora-logo.svg";
+import logoSvg from "@/assets/colora-icon.svg";
 
 // ─── helpers ────────────────────────────────────────────────────────────────
 
