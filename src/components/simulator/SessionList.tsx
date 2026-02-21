@@ -5,7 +5,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { FolderOpen, Trash2, Clock, Play, Plus, Loader2 } from "lucide-react";
 import { SessionListItem } from "./SessionDrawer";
 
-interface ProjectsListProps {
+interface SessionListProps {
   companyPrimaryColor?: string;
 }
 
@@ -20,7 +20,7 @@ function formatDate(iso: string) {
   });
 }
 
-const ProjectsList = ({ companyPrimaryColor }: ProjectsListProps) => {
+const SessionList = ({ companyPrimaryColor }: SessionListProps) => {
   const navigate = useNavigate();
   const [items, setItems] = useState<SessionListItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -31,27 +31,27 @@ const ProjectsList = ({ companyPrimaryColor }: ProjectsListProps) => {
     return list.map((r) => ({ id: r.id, name: r.name, updatedAt: r.updatedAt }));
   };
 
-  const loadProjects = async () => {
+  const loadSessions = async () => {
     setLoading(true);
     const list = await listSessions();
     setItems(list);
     setLoading(false);
   };
 
-  const deleteProject = async (id: string) => {
+  const deleteSession = async (id: string) => {
     const { deleteSimulatorSession } = await import("@/lib/simulator-db");
     await deleteSimulatorSession(id);
-    await loadProjects();
+    await loadSessions();
   };
 
-  const openProject = (id: string) => {
-    // Salva o ID do projeto para ser carregado ao abrir o simulador
+  const openSession = (id: string) => {
+    // Salva o ID da sessão para ser carregado ao abrir o simulador
     localStorage.setItem("colora_pending_session", id);
     navigate("/simulator");
   };
 
   useEffect(() => {
-    loadProjects();
+    loadSessions();
   }, []);
 
   return (
@@ -59,10 +59,10 @@ const ProjectsList = ({ companyPrimaryColor }: ProjectsListProps) => {
       <div className="flex items-center justify-between">
         <h3 className="text-sm font-bold text-foreground uppercase tracking-widest flex items-center gap-2">
           <FolderOpen className="w-4 h-4" />
-          Projetos Salvos
+          Sessões Salvas
         </h3>
         <span className="text-xs text-muted-foreground">
-          {loading ? "..." : `${items.length} projeto(s)`}
+          {loading ? "..." : `${items.length} sessão(ões)`}
         </span>
       </div>
 
@@ -73,7 +73,7 @@ const ProjectsList = ({ companyPrimaryColor }: ProjectsListProps) => {
       ) : items.length === 0 ? (
         <div className="text-center py-8 px-4 bg-muted/30 rounded-xl border border-dashed border-border">
           <FolderOpen className="w-8 h-8 text-muted-foreground/40 mx-auto mb-2" />
-          <p className="text-sm text-muted-foreground">Nenhum projeto salvo ainda</p>
+          <p className="text-sm text-muted-foreground">Nenhuma sessão salva ainda</p>
           <p className="text-xs text-muted-foreground/60 mt-1">
             Comece uma simulação e ela será salva automaticamente
           </p>
@@ -89,7 +89,7 @@ const ProjectsList = ({ companyPrimaryColor }: ProjectsListProps) => {
                 <div className="flex items-start justify-between gap-3">
                   <button
                     className="text-left flex-1 min-w-0"
-                    onClick={() => openProject(s.id)}
+                    onClick={() => openSession(s.id)}
                   >
                     <p className="text-sm font-semibold text-foreground truncate">{s.name}</p>
                     <div className="flex items-center gap-1.5 mt-1.5 text-xs text-muted-foreground">
@@ -103,8 +103,8 @@ const ProjectsList = ({ companyPrimaryColor }: ProjectsListProps) => {
                       variant="ghost"
                       size="icon"
                       className="h-8 w-8"
-                      onClick={() => openProject(s.id)}
-                      title="Abrir projeto"
+                      onClick={() => openSession(s.id)}
+                      title="Abrir sessão"
                       style={{ color: companyPrimaryColor }}
                     >
                       <Play className="w-4 h-4" />
@@ -113,8 +113,8 @@ const ProjectsList = ({ companyPrimaryColor }: ProjectsListProps) => {
                       variant="ghost"
                       size="icon"
                       className="h-8 w-8 text-destructive hover:text-destructive"
-                      onClick={() => deleteProject(s.id)}
-                      title="Excluir projeto"
+                      onClick={() => deleteSession(s.id)}
+                      title="Excluir sessão"
                     >
                       <Trash2 className="w-4 h-4" />
                     </Button>
@@ -129,4 +129,4 @@ const ProjectsList = ({ companyPrimaryColor }: ProjectsListProps) => {
   );
 };
 
-export default ProjectsList;
+export default SessionList;

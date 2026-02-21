@@ -270,7 +270,7 @@ const Dashboard = () => {
     const { deleteSimulatorSession } = await import("@/lib/simulator-db");
     await deleteSimulatorSession(id);
     setSessions((prev) => prev.filter((s) => s.id !== id));
-    toast.success("Projeto excluído!");
+    toast.success("Sessão excluída!");
   };
 
   const copyPublicLink = () => {
@@ -358,15 +358,15 @@ const Dashboard = () => {
             </Button>
 
             <Button
-              size="sm"
-              asChild
-              style={isPrimaryHeader ? { backgroundColor: "rgba(255,255,255,0.18)" } : { backgroundColor: company.primaryColor }}
-              className={isPrimaryHeader ? "text-white hover:bg-white/25" : ""}
-            >
-              <Link to="/simulator" className="gap-1.5">
-                <Sparkles className="w-3.5 h-3.5" /> Simulador
-              </Link>
-            </Button>
+                          size="sm"
+                          asChild
+                          style={isPrimaryHeader ? { backgroundColor: "rgba(255,255,255,0.18)" } : { backgroundColor: company.primaryColor }}
+                          className={isPrimaryHeader ? "text-white hover:bg-white/25" : ""}
+                        >
+                          <Link to="/simulator?new=1" className="gap-1.5">
+                            <Sparkles className="w-3.5 h-3.5" /> Simulador
+                          </Link>
+                        </Button>
 
             <Button
               variant="ghost"

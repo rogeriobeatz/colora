@@ -61,7 +61,7 @@ const Simulator = ({ companySlug }: { companySlug?: string }) => {
     if (!pendingFirstUpload) return;
     if (!activeRoom) return;
 
-    if (session?.name === "Projeto sem nome") {
+    if (session?.name === "Sessão sem nome") {
       setProjectDialogOpen(true);
     }
     setPendingFirstUpload(false);
@@ -140,14 +140,14 @@ const Simulator = ({ companySlug }: { companySlug?: string }) => {
 
               <div className="mt-5 flex items-center justify-center gap-2">
                 <Button variant="outline" onClick={() => setProjectsOpen(true)} className="gap-2">
-                  Abrir projetos salvos
+                  Abrir sessões salvas
                 </Button>
                 <Button
                   onClick={() => createNewSession()}
                   className="gap-2"
                   style={{ backgroundColor: company.primaryColor }}
                 >
-                  Novo projeto
+                  Nova sessão
                 </Button>
               </div>
             </div>
@@ -179,15 +179,15 @@ const Simulator = ({ companySlug }: { companySlug?: string }) => {
           <div className="animate-fade-in">
             <div className="flex items-center justify-between gap-3 mb-6">
               <div className="min-w-0">
-                <p className="text-sm text-muted-foreground">Projeto</p>
-                <p className="text-lg font-display font-bold truncate">{session?.name || "Projeto sem nome"}</p>
+                <p className="text-sm text-muted-foreground">Sessão</p>
+                <p className="text-lg font-display font-bold truncate">{session?.name || "Sessão sem nome"}</p>
               </div>
 
               <Button
                 variant="outline"
                 className="gap-2"
                 onClick={() => setProjectDialogOpen(true)}
-                title="Renomear projeto"
+                title="Renomear sessão"
               >
                 <PencilLine className="w-4 h-4" />
                 Renomear

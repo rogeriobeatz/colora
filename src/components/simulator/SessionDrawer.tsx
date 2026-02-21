@@ -61,19 +61,19 @@ const SessionDrawer = ({
         <SheetHeader>
           <SheetTitle className="flex items-center gap-2">
             <FolderOpen className="w-5 h-5" />
-            Projetos
+            Sessões
           </SheetTitle>
         </SheetHeader>
 
         <div className="mt-5 space-y-3">
           <Button className="w-full gap-2" onClick={onNew}>
             <Plus className="w-4 h-4" />
-            Novo projeto
+            Nova sessão
           </Button>
 
           <div className="text-xs text-muted-foreground flex items-center gap-2">
             <Clock className="w-3.5 h-3.5" />
-            {loading ? "Carregando..." : `${items.length} projeto(s) salvos`}
+            {loading ? "Carregando..." : `${items.length} sessão(ões) salva(s)`}
           </div>
 
           <ScrollArea className="h-[calc(100vh-210px)] pr-3">
@@ -94,7 +94,7 @@ const SessionDrawer = ({
                           await onLoad(s.id);
                           onOpenChange(false);
                         }}
-                        title="Abrir projeto"
+                        title="Abrir sessão"
                       >
                         <p className={`text-sm font-bold leading-snug ${isCurrent ? "text-primary" : "text-foreground"}`}>
                           {s.name}
@@ -112,7 +112,7 @@ const SessionDrawer = ({
                           await onDelete(s.id);
                           await refresh();
                         }}
-                        title="Excluir projeto"
+                        title="Excluir sessão"
                       >
                         <Trash2 className="w-4 h-4" />
                       </Button>
@@ -123,7 +123,7 @@ const SessionDrawer = ({
 
               {!loading && items.length === 0 && (
                 <div className="py-10 text-center text-sm text-muted-foreground">
-                  Nenhum projeto salvo ainda.
+                  Nenhuma sessão salva ainda.
                 </div>
               )}
             </div>

@@ -171,23 +171,51 @@ export function useSimulator() {
     return list.map((r) => ({ id: r.id, name: r.name, updatedAt: r.updatedAt }));
   }, []);
 
-  // Load last session on mount
+  // Load last session on mount (or create new if ?new=1)
   useEffect(() => {
     let mounted = true;
 
     (async () => {
-      const lastId = await getLastSessionId();
-      if (!mounted) return;
+      // Check if should create new session
+      const urlParams = new URLSearchParams(window.location.search);
+      const isNewSession = urlParams.get('new') === '1';
 
-      if (lastId) {
-        const record = await getSimulatorSession(lastId);
-        const data = record?.data as SimulatorSessionData | undefined;
-        if (data) {
-          const normalized = normalizeLoadedSession(data);
-          setSession(normalized);
-          setRooms(normalized.rooms || []);
-          setActiveRoomId(normalized.activeRoomId);
-          setSelectedWallId(normalized.selectedWallId);
+      if (isNewSession) {
+        // Create new session
+        const id = genId();
+        const createdAt = nowIso();
+        const newSession: SimulatorSessionData = {
+          id,
+          name: "Sessão sem nome",
+          createdAt,
+          updatedAt: createdAt,
+          rooms: [],
+          activeRoomId: null,
+          selectedWallId: null,
+        };
+        setSession(newSession);
+        setRooms([]);
+        setActiveRoomId(null);
+        setSelectedWallId(null);
+        await persist(newSession);
+        
+        // Remove query param from URL
+        window.history.replaceState({}, '', '/simulator');
+      } else {
+        // Load last session (normal page load/refresh)
+        const lastId = await getLastSessionId();
+        if (!mounted) return;
+
+        if (lastId) {
+          const record = await getSimulatorSession(lastId);
+          const data = record?.data as SimulatorSessionData | undefined;
+          if (data) {
+            const normalized = normalizeLoadedSession(data);
+            setSession(normalized);
+            setRooms(normalized.rooms || []);
+            setActiveRoomId(normalized.activeRoomId);
+            setSelectedWallId(normalized.selectedWallId);
+          }
         }
       }
 

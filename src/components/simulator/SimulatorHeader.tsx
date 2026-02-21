@@ -115,7 +115,7 @@ const SimulatorHeader = ({
             onClick={onOpenProjects}
             className={cn("gap-1.5", outlineOnPrimary)}
           >
-            <FolderOpen className="w-3.5 h-3.5" /> Projetos
+            <FolderOpen className="w-3.5 h-3.5" /> Sessões
           </Button>
 
           <Button variant="outline" size="sm" onClick={onSave} className={cn("gap-1.5", outlineOnPrimary)}>

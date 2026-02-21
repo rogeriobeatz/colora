@@ -27,7 +27,7 @@ const ProjectNameDialog = ({ open, defaultValue, onConfirm, onOpenChange }: Proj
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Briefcase className="w-5 h-5" />
-            Nome do projeto
+            Nome da sessão
           </DialogTitle>
           <DialogDescription>
             Dê um nome para você encontrar depois (ex: “Cliente João · Obra Apto 32”).
@@ -54,7 +54,7 @@ const ProjectNameDialog = ({ open, defaultValue, onConfirm, onOpenChange }: Proj
             <Button
               onClick={() => {
                 const finalName = (name || "").trim();
-                onConfirm(finalName || "Projeto sem nome");
+                onConfirm(finalName || "Sessão sem nome");
               }}
               className="gap-2"
             >
