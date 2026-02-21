@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Palette, Store, ArrowRight, ArrowLeft, Loader2, Mail, Lock, Building2 } from "lucide-react";
 import { toast } from "sonner";
+import logoSvg from "@/assets/colora-logo.svg";
 
 type Step = "info" | "credentials" | "login";
 
