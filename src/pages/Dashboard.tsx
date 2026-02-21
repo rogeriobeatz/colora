@@ -139,7 +139,7 @@ const Dashboard = () => {
   const handleSaveBranding = async () => {
     setIsSaving(true);
     try {
-      const { error } = await (supabase.from('profiles') as any).upsert({
+      const { error } = await supabase.from('profiles').upsert({
         id: user.id,
         company_name: company.name,
         company_slug: company.slug,
