@@ -126,7 +126,7 @@ const Landing = () => {
                 mais confiança e um atendimento que nenhum concorrente oferece.
               </p>
               <div className="flex flex-wrap gap-3 pt-2">
-                <Button size="lg" asChild className="gap-2 text-base px-6 gradient-primary text-foreground font-bold border-0 hover:opacity-90 shadow-lg">
+                <Button size="lg" asChild className="gap-2 text-base px-6 gradient-secondary text-foreground font-bold border-0 hover:opacity-90 shadow-lg">
                   <Link to="/login">
                     Assinar por R$ 59,90/mês <ArrowRight className="w-4 h-4" />
                   </Link>
