@@ -175,6 +175,9 @@
   .gradient-primary {
     background: var(--gradient-primary);
   }
+    .gradient-secondary {
+    background: var(--gradient-secondary);
+  }
   .gradient-accent {
     background: var(--gradient-accent);
   }
