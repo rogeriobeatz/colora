@@ -7,6 +7,8 @@ export type Json =
   | Json[]
 
 export type Database = {
+  // Allows to automatically instantiate createClient with right options
+  // instead of createClient<Database, { PostgrestVersion: 'XX' }>(URL, KEY)
   __InternalSupabase: {
     PostgrestVersion: "14.1"
   }
@@ -85,14 +87,14 @@ export type Database = {
       profiles: {
         Row: {
           avatar_url: string | null
-          company_name: string | null
-          company_slug: string | null
-          company_phone: string | null
-          company_website: string | null
           company_address: string | null
+          company_name: string | null
+          company_phone: string | null
+          company_slug: string | null
+          company_website: string | null
+          font_set: string | null
           header_content: string | null
           header_style: string | null
-          font_set: string | null
           id: string
           primary_color: string | null
           secondary_color: string | null
@@ -100,14 +102,14 @@ export type Database = {
         }
         Insert: {
           avatar_url?: string | null
-          company_name?: string | null
-          company_slug?: string | null
-          company_phone?: string | null
-          company_website?: string | null
           company_address?: string | null
+          company_name?: string | null
+          company_phone?: string | null
+          company_slug?: string | null
+          company_website?: string | null
+          font_set?: string | null
           header_content?: string | null
           header_style?: string | null
-          font_set?: string | null
           id: string
           primary_color?: string | null
           secondary_color?: string | null
@@ -115,14 +117,14 @@ export type Database = {
         }
         Update: {
           avatar_url?: string | null
-          company_name?: string | null
-          company_slug?: string | null
-          company_phone?: string | null
-          company_website?: string | null
           company_address?: string | null
+          company_name?: string | null
+          company_phone?: string | null
+          company_slug?: string | null
+          company_website?: string | null
+          font_set?: string | null
           header_content?: string | null
           header_style?: string | null
-          font_set?: string | null
           id?: string
           primary_color?: string | null
           secondary_color?: string | null
