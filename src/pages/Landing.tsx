@@ -383,7 +383,7 @@ const Landing = () => {
                 </li>
               ))}
             </ul>
-            <Button className="w-full text-base font-bold gradient-primary text-foreground border-0 hover:opacity-90" size="lg" asChild>
+            <Button className="w-full text-base font-bold gradient-secondary text-foreground border-0 hover:opacity-90" size="lg" asChild>
               <Link to="/login">
                 Assinar Agora <ArrowRight className="w-4 h-4 ml-2" />
               </Link>
