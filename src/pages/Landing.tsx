@@ -92,7 +92,7 @@ const Landing = () => {
             <Button variant="ghost" size="sm" asChild>
               <Link to="/login">Área da Loja</Link>
             </Button>
-            <Button size="sm" asChild className="gradient-primary text-foreground font-bold border-0 hover:opacity-90">
+            <Button size="sm" asChild className="gradient-secondary text-foreground font-bold border-0 hover:opacity-90">
               <Link to="/login">Assinar Agora</Link>
             </Button>
           </div>
