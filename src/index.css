@@ -63,7 +63,7 @@
     );
     --gradient-secondary: linear-gradient(90deg,
     hsl(96, 66%, 64%), 
-    hsl(202, 86%, 58%),
+
     hsl(358, 89%, 59%)
     );
     --gradient-accent: linear-gradient(135deg, hsl(18 90% 56%), hsl(30 95% 58%));
