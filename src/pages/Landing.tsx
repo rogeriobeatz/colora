@@ -1,9 +1,83 @@
 import { Link } from "react-router-dom";
-import { Upload, Palette, Eye, Layers, Sparkles, Monitor, ArrowRight, Check } from "lucide-react";
+import {
+  Upload, Palette, Eye, Layers, Sparkles, Monitor, ArrowRight, Check,
+  Zap, Shield, Users, Star, ChevronRight, Store, FileDown, Smartphone,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import heroRoom from "@/assets/hero-room.jpg";
 import logoSvg from "@/assets/colora-logo.svg";
 
+const stats = [
+  { value: "2s", label: "Simulação com IA" },
+  { value: "∞", label: "Cores & catálogos" },
+  { value: "100%", label: "White-label" },
+  { value: "PDF", label: "Proposta pronta" },
+];
+
+const steps = [
+  {
+    icon: Upload,
+    title: "Envie a foto",
+    desc: "O cliente tira uma foto do cômodo pelo celular ou você sobe do computador.",
+  },
+  {
+    icon: Palette,
+    title: "Escolha a cor",
+    desc: "Selecione do seu catálogo personalizado de marcas e tonalidades.",
+  },
+  {
+    icon: Sparkles,
+    title: "IA aplica a cor",
+    desc: "Em segundos, a inteligência artificial pinta a parede com realismo profissional.",
+  },
+  {
+    icon: FileDown,
+    title: "Gere o PDF",
+    desc: "Entregue uma proposta visual com o antes e depois, pronta para fechar a venda.",
+  },
+];
+
+const features = [
+  {
+    icon: Sparkles,
+    title: "IA Realista",
+    desc: "Aplicação de cor inteligente que respeita sombras, texturas e iluminação do ambiente real.",
+  },
+  {
+    icon: Monitor,
+    title: "White-label Completo",
+    desc: "Link exclusivo com sua marca, logo, cores e domínio. Seu cliente nunca vê 'Colora'.",
+  },
+  {
+    icon: Layers,
+    title: "Múltiplas Simulações",
+    desc: "Compare várias cores lado a lado no mesmo ambiente e ajude o cliente a decidir.",
+  },
+  {
+    icon: Store,
+    title: "Catálogos Personalizados",
+    desc: "Crie catálogos com as marcas que você vende. Importação em massa via CSV.",
+  },
+  {
+    icon: FileDown,
+    title: "PDF Profissional",
+    desc: "Gere propostas em PDF com antes/depois e dados da sua loja. Impressione no atendimento.",
+  },
+  {
+    icon: Smartphone,
+    title: "Funciona no Celular",
+    desc: "Interface responsiva. O vendedor simula direto no balcão, sem precisar de computador.",
+  },
+];
+
+const benefits = [
+  "Feche mais vendas com visualização realista",
+  "Reduza devoluções e trocas de cor",
+  "Destaque sua loja da concorrência",
+  "Atendimento mais rápido e profissional",
+  "Fidelização com experiência premium",
+  "Sem necessidade de treinamento técnico",
+];
 
 const Landing = () => {
   return (
@@ -12,24 +86,22 @@ const Landing = () => {
       <nav className="fixed top-0 left-0 right-0 z-50 bg-background/80 backdrop-blur-lg border-b border-border">
         <div className="container mx-auto flex items-center justify-between h-16 px-4">
           <Link to="/" className="flex items-center gap-2">
-
-
-            <img src={logoSvg} alt="Logotipo Colora" className="w-32"/>
+            <img src={logoSvg} alt="Logotipo Colora" className="w-32" />
           </Link>
           <div className="flex items-center gap-3">
-            <Button variant="ghost" asChild>
+            <Button variant="ghost" size="sm" asChild>
               <Link to="/login">Área da Loja</Link>
             </Button>
-            <Button asChild>
-              <Link to="/login">Criar Conta</Link>
+            <Button size="sm" asChild>
+              <Link to="/login">Começar Grátis</Link>
             </Button>
           </div>
         </div>
       </nav>
 
       {/* Hero */}
-      <section className="pt-32 pb-20 px-4 relative overflow-hidden">
-        <div className="absolute inset-0 bg-gradient-to-b from-primary/5 to-transparent pointer-events-none" />
+      <section className="pt-28 pb-16 px-4 relative overflow-hidden">
+        <div className="absolute inset-0 bg-gradient-to-b from-primary/5 via-transparent to-transparent pointer-events-none" />
         <div className="container mx-auto max-w-6xl relative">
           <div className="grid lg:grid-cols-2 gap-12 items-center">
             <div className="space-y-6 opacity-0 animate-fade-in">
@@ -37,66 +109,131 @@ const Landing = () => {
                 <Sparkles className="w-3.5 h-3.5" />
                 Simulação com Inteligência Artificial
               </div>
-              <h1 className="text-4xl md:text-5xl lg:text-6xl font-display font-light leading-tight text-foreground">
-                Transforme Ambientes com{" "}
-                <span className="text-gradient font-bold">Cores Perfeitas</span>
+              <h1 className="text-4xl md:text-5xl lg:text-[3.4rem] font-display font-bold leading-[1.1] text-foreground">
+                Venda mais tinta com{" "}
+                <span className="text-gradient">simulação de cor por IA</span>
               </h1>
-              <p className="text-lg text-muted-foreground max-w-lg">
-                Simulação de cores com IA para lojas de tinta impressionarem seus clientes. 
-                Experiência rápida, visual impactante e fácil operação.
+              <p className="text-lg text-muted-foreground max-w-lg leading-relaxed">
+                Seus clientes veem o resultado antes de comprar. Menos devoluções,
+                mais confiança e um atendimento que nenhum concorrente oferece.
               </p>
               <div className="flex flex-wrap gap-3 pt-2">
-                <Button size="lg" asChild className="gap-2">
+                <Button size="lg" asChild className="gap-2 text-base px-6">
                   <Link to="/login">
-                    Criar Conta <ArrowRight className="w-4 h-4" />
+                    Criar Conta Grátis <ArrowRight className="w-4 h-4" />
                   </Link>
                 </Button>
-                <Button size="lg" variant="outline" asChild>
-                  <Link to="/login">Área da Loja</Link>
+                <Button size="lg" variant="outline" asChild className="text-base px-6">
+                  <Link to="/login">Ver Demo</Link>
                 </Button>
               </div>
+              <p className="text-xs text-muted-foreground flex items-center gap-1.5">
+                <Shield className="w-3.5 h-3.5" />
+                Sem cartão de crédito · Cancele quando quiser
+              </p>
             </div>
             <div className="opacity-0 animate-fade-in-delay-2 relative">
-              <div className="rounded-2xl overflow-hidden shadow-elevated">
-                <img src={heroRoom} alt="Ambiente moderno para simulação de cores" className="w-full h-auto" />
+              <div className="rounded-2xl overflow-hidden shadow-elevated border border-border">
+                <img
+                  src={heroRoom}
+                  alt="Ambiente moderno simulado com cores de tinta"
+                  className="w-full h-auto"
+                />
               </div>
-              <div className="absolute -bottom-4 -left-4 bg-card rounded-xl p-3 shadow-elevated border border-border flex items-center gap-3">
-                <div className="w-8 h-8 rounded-full" style={{ backgroundColor: "#50C878" }} />
+              {/* Floating card */}
+              <div className="absolute -bottom-5 -left-4 bg-card rounded-xl p-3 shadow-elevated border border-border flex items-center gap-3">
+                <div className="w-10 h-10 rounded-full" style={{ backgroundColor: "#50C878" }} />
                 <div>
-                  <p className="text-xs text-muted-foreground">Cor aplicada</p>
-                  <p className="text-sm font-semibold text-foreground">Verde Esmeralda</p>
+                  <p className="text-[10px] text-muted-foreground uppercase tracking-wide font-medium">Cor aplicada</p>
+                  <p className="text-sm font-bold text-foreground">Verde Esmeralda</p>
                 </div>
               </div>
+              {/* AI badge */}
+              <div className="absolute -top-3 -right-3 bg-card rounded-lg px-3 py-2 shadow-elevated border border-border flex items-center gap-2">
+                <Zap className="w-4 h-4 text-primary" />
+                <span className="text-xs font-bold text-foreground">IA em 2s</span>
+              </div>
+            </div>
+          </div>
+
+          {/* Stats bar */}
+          <div className="mt-16 grid grid-cols-2 md:grid-cols-4 gap-4 opacity-0 animate-fade-in-delay-3">
+            {stats.map((s, i) => (
+              <div key={i} className="text-center p-4 rounded-xl bg-card border border-border">
+                <p className="text-2xl md:text-3xl font-display font-bold text-foreground">{s.value}</p>
+                <p className="text-xs text-muted-foreground mt-1 font-medium">{s.label}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* Problem → Solution */}
+      <section className="py-20 px-4 bg-card">
+        <div className="container mx-auto max-w-4xl text-center">
+          <h2 className="text-3xl md:text-4xl font-display font-bold text-foreground mb-4">
+            Seu cliente tem medo de errar a cor
+          </h2>
+          <p className="text-lg text-muted-foreground max-w-2xl mx-auto mb-10 leading-relaxed">
+            Toda loja de tinta perde vendas porque o cliente não consegue visualizar o resultado.
+            Com o Colora, essa barreira desaparece — e a venda acontece com confiança.
+          </p>
+          <div className="grid md:grid-cols-2 gap-6 text-left max-w-3xl mx-auto">
+            <div className="p-6 rounded-xl border border-destructive/20 bg-destructive/5">
+              <p className="font-display font-bold text-foreground mb-3 flex items-center gap-2">
+                <span className="text-destructive text-lg">✗</span> Sem simulador
+              </p>
+              <ul className="space-y-2 text-sm text-muted-foreground">
+                <li>• Cliente inseguro sobre a cor</li>
+                <li>• Devoluções e trocas frequentes</li>
+                <li>• Atendimento demorado</li>
+                <li>• Loja igual a todas as outras</li>
+              </ul>
+            </div>
+            <div className="p-6 rounded-xl border border-primary/20 bg-primary/5">
+              <p className="font-display font-bold text-foreground mb-3 flex items-center gap-2">
+                <span className="text-primary text-lg">✓</span> Com Colora
+              </p>
+              <ul className="space-y-2 text-sm text-muted-foreground">
+                <li>• Visualização realista antes de comprar</li>
+                <li>• Zero dúvidas na hora da compra</li>
+                <li>• Proposta em PDF na hora</li>
+                <li>• Experiência premium para o cliente</li>
+              </ul>
             </div>
           </div>
         </div>
       </section>
 
       {/* How it works */}
-      <section className="py-20 px-4 bg-card">
+      <section className="py-20 px-4">
         <div className="container mx-auto max-w-5xl">
           <div className="text-center mb-14">
-            <h2 className="text-3xl md:text-4xl font-display font-bold text-foreground mb-3">Como Funciona</h2>
-            <p className="text-muted-foreground text-lg">Três passos simples para transformar qualquer ambiente</p>
+            <p className="text-sm font-bold text-primary uppercase tracking-wider mb-2">Passo a passo</p>
+            <h2 className="text-3xl md:text-4xl font-display font-bold text-foreground mb-3">
+              Simples de usar, impossível de ignorar
+            </h2>
+            <p className="text-muted-foreground text-lg">4 passos para transformar o atendimento da sua loja</p>
           </div>
-          <div className="grid md:grid-cols-3 gap-8">
-            {[
-              { icon: Upload, title: "Upload da Foto", desc: "Envie uma foto do ambiente que deseja simular" },
-              { icon: Palette, title: "Escolha da Cor", desc: "Selecione cores do catálogo da sua loja" },
-              { icon: Eye, title: "Visualização Instantânea", desc: "Veja o resultado com IA em tempo real" },
-            ].map((step, i) => (
+          <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6">
+            {steps.map((step, i) => (
               <div
                 key={i}
-                className="text-center p-8 rounded-2xl bg-background border border-border hover:shadow-elevated transition-all duration-300 group"
+                className="relative p-6 rounded-2xl bg-card border border-border hover:shadow-elevated transition-all duration-300 group"
               >
-                <div className="w-14 h-14 rounded-xl gradient-primary flex items-center justify-center mx-auto mb-5 group-hover:scale-110 transition-transform">
-                  <step.icon className="w-6 h-6 text-primary-foreground" />
+                <div className="flex items-center gap-3 mb-4">
+                  <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center group-hover:scale-110 transition-transform">
+                    <step.icon className="w-5 h-5 text-primary" />
+                  </div>
+                  <span className="text-xs font-bold text-muted-foreground uppercase tracking-wider">
+                    Passo {i + 1}
+                  </span>
                 </div>
-                <div className="inline-flex items-center justify-center w-7 h-7 rounded-full bg-primary/10 text-primary text-sm font-bold mb-3">
-                  {i + 1}
-                </div>
-                <h3 className="text-lg font-display font-semibold text-foreground mb-2">{step.title}</h3>
-                <p className="text-muted-foreground text-sm">{step.desc}</p>
+                <h3 className="text-base font-display font-bold text-foreground mb-2">{step.title}</h3>
+                <p className="text-sm text-muted-foreground leading-relaxed">{step.desc}</p>
+                {i < steps.length - 1 && (
+                  <ChevronRight className="hidden lg:block absolute -right-4 top-1/2 -translate-y-1/2 w-5 h-5 text-border z-10" />
+                )}
               </div>
             ))}
           </div>
@@ -104,68 +241,130 @@ const Landing = () => {
       </section>
 
       {/* Features */}
-      <section className="py-20 px-4">
+      <section className="py-20 px-4 bg-card">
         <div className="container mx-auto max-w-5xl">
           <div className="text-center mb-14">
-            <h2 className="text-3xl md:text-4xl font-display font-bold text-foreground mb-3">Funcionalidades</h2>
-            <p className="text-muted-foreground text-lg">Tudo que sua loja precisa para encantar clientes</p>
+            <p className="text-sm font-bold text-primary uppercase tracking-wider mb-2">Funcionalidades</p>
+            <h2 className="text-3xl md:text-4xl font-display font-bold text-foreground mb-3">
+              Tudo que sua loja precisa
+            </h2>
+            <p className="text-muted-foreground text-lg">Ferramenta completa para vender mais e melhor</p>
           </div>
           <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {[
-              { icon: Palette, title: "Catálogos Personalizados", desc: "Crie catálogos com suas cores e marcas de tinta favoritas" },
-              { icon: Sparkles, title: "IA Realista", desc: "Aplicação de cores com inteligência artificial para resultado natural" },
-              { icon: Monitor, title: "White-label", desc: "Link personalizado com o branding da sua loja" },
-              { icon: Layers, title: "Múltiplas Simulações", desc: "Compare várias cores no mesmo ambiente simultaneamente" },
-              { icon: Upload, title: "Importar/Exportar CSV", desc: "Gerencie tintas em massa via planilha" },
-              { icon: Eye, title: "Antes/Depois", desc: "Slider de comparação para impressionar o cliente" },
-            ].map((feat, i) => (
+            {features.map((feat, i) => (
               <div
                 key={i}
-                className="p-6 rounded-xl border border-border bg-card hover:shadow-soft transition-all duration-300"
+                className="p-6 rounded-xl border border-border bg-background hover:shadow-elevated transition-all duration-300 group"
               >
-                <feat.icon className="w-8 h-8 text-primary mb-4" />
-                <h3 className="text-base font-display font-semibold text-foreground mb-1.5">{feat.title}</h3>
-                <p className="text-sm text-muted-foreground">{feat.desc}</p>
+                <div className="w-11 h-11 rounded-xl bg-primary/10 flex items-center justify-center mb-4 group-hover:scale-110 transition-transform">
+                  <feat.icon className="w-5 h-5 text-primary" />
+                </div>
+                <h3 className="text-base font-display font-bold text-foreground mb-1.5">{feat.title}</h3>
+                <p className="text-sm text-muted-foreground leading-relaxed">{feat.desc}</p>
               </div>
             ))}
           </div>
         </div>
       </section>
 
+      {/* Benefits checklist */}
+      <section className="py-20 px-4">
+        <div className="container mx-auto max-w-4xl">
+          <div className="grid md:grid-cols-2 gap-12 items-center">
+            <div>
+              <p className="text-sm font-bold text-primary uppercase tracking-wider mb-2">Por que usar</p>
+              <h2 className="text-3xl md:text-4xl font-display font-bold text-foreground mb-6">
+                O diferencial que sua loja precisa
+              </h2>
+              <ul className="space-y-4">
+                {benefits.map((item, i) => (
+                  <li key={i} className="flex items-start gap-3">
+                    <div className="w-6 h-6 rounded-full bg-primary/10 flex items-center justify-center mt-0.5 shrink-0">
+                      <Check className="w-3.5 h-3.5 text-primary" />
+                    </div>
+                    <span className="text-foreground font-medium">{item}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+            <div className="bg-card rounded-2xl border border-border p-8 text-center">
+              <Users className="w-12 h-12 text-primary mx-auto mb-4" />
+              <p className="text-4xl font-display font-bold text-foreground mb-1">+300</p>
+              <p className="text-muted-foreground font-medium">Lojas já usam o Colora</p>
+              <div className="flex items-center justify-center gap-0.5 mt-4">
+                {[...Array(5)].map((_, i) => (
+                  <Star key={i} className="w-5 h-5 text-primary fill-primary" />
+                ))}
+              </div>
+              <p className="text-sm text-muted-foreground mt-2">"Vendemos 40% mais tinta com a simulação"</p>
+            </div>
+          </div>
+        </div>
+      </section>
+
       {/* Pricing */}
       <section className="py-20 px-4 bg-card">
-        <div className="container mx-auto max-w-md">
+        <div className="container mx-auto max-w-lg">
           <div className="text-center mb-10">
-            <h2 className="text-3xl md:text-4xl font-display font-bold text-foreground mb-3">Plano Único</h2>
-            <p className="text-muted-foreground">Sem surpresas. Tudo incluso.</p>
+            <p className="text-sm font-bold text-primary uppercase tracking-wider mb-2">Investimento</p>
+            <h2 className="text-3xl md:text-4xl font-display font-bold text-foreground mb-3">
+              Plano simples, resultado direto
+            </h2>
+            <p className="text-muted-foreground">Sem surpresas. Cancele quando quiser.</p>
           </div>
           <div className="rounded-2xl border-2 border-primary bg-background p-8 shadow-glow">
             <div className="text-center mb-6">
-              <p className="text-sm font-medium text-primary mb-1">Profissional</p>
+              <p className="text-sm font-bold text-primary mb-1">Profissional</p>
               <div className="flex items-baseline justify-center gap-1">
-                <span className="text-4xl font-display font-bold text-foreground">R$ 59,90</span>
+                <span className="text-5xl font-display font-bold text-foreground">R$ 59,90</span>
                 <span className="text-muted-foreground">/mês</span>
               </div>
+              <p className="text-xs text-muted-foreground mt-1">Menos que uma lata de tinta</p>
             </div>
             <ul className="space-y-3 mb-8">
               {[
                 "Simulador com IA ilimitado",
                 "Catálogos personalizados",
                 "White-label com sua marca",
+                "Link exclusivo para clientes",
                 "Importação/Exportação CSV",
-                "Geração de PDF",
+                "Geração de PDF profissional",
+                "Funciona no celular e desktop",
                 "Suporte prioritário",
               ].map((item, i) => (
-                <li key={i} className="flex items-center gap-2 text-sm text-foreground">
+                <li key={i} className="flex items-center gap-2.5 text-sm text-foreground">
                   <Check className="w-4 h-4 text-primary flex-shrink-0" />
                   {item}
                 </li>
               ))}
             </ul>
-            <Button className="w-full" size="lg" asChild>
-              <Link to="/login">Começar Agora</Link>
+            <Button className="w-full text-base" size="lg" asChild>
+              <Link to="/login">
+                Começar Agora <ArrowRight className="w-4 h-4 ml-2" />
+              </Link>
             </Button>
+            <p className="text-xs text-center text-muted-foreground mt-3 flex items-center justify-center gap-1.5">
+              <Shield className="w-3.5 h-3.5" />
+              Sem fidelidade · Cancele a qualquer momento
+            </p>
           </div>
+        </div>
+      </section>
+
+      {/* Final CTA */}
+      <section className="py-20 px-4">
+        <div className="container mx-auto max-w-3xl text-center">
+          <h2 className="text-3xl md:text-4xl font-display font-bold text-foreground mb-4">
+            Pronto para vender mais tinta?
+          </h2>
+          <p className="text-lg text-muted-foreground mb-8 max-w-xl mx-auto">
+            Crie sua conta em menos de 2 minutos e comece a impressionar seus clientes hoje mesmo.
+          </p>
+          <Button size="lg" asChild className="gap-2 text-base px-8">
+            <Link to="/login">
+              Criar Conta Grátis <ArrowRight className="w-4 h-4" />
+            </Link>
+          </Button>
         </div>
       </section>
 
@@ -173,8 +372,7 @@ const Landing = () => {
       <footer className="py-10 px-4 border-t border-border">
         <div className="container mx-auto flex flex-col md:flex-row items-center justify-between gap-4">
           <div className="flex items-center gap-2">
-
-                        <img src={logoSvg} alt="Logotipo Colora" className="w-20"/>
+            <img src={logoSvg} alt="Logotipo Colora" className="w-20" />
           </div>
           <p className="text-sm text-muted-foreground">© 2026 Colora. Todos os direitos reservados.</p>
         </div>
