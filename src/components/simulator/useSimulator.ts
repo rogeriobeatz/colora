@@ -272,11 +272,15 @@ export function useSimulator() {
       const detectedWalls: DetectedWall[] = (data.walls || []).map((w: any, i: number) => ({ id: w.id || `s${i}`, label: w.label_pt || w.label, englishLabel: w.label_en || "Wall", description: w.description || "" }));
       
       // Atualiza o nome do room com o nome sugerido pela IA
-      if (data.roomName) {
-        console.log(`[useSimulator] Atualizando nome do room para: "${data.roomName}"`);
-        dispatch({ type: 'UPDATE_ROOM_NAME', payload: { roomId: id, name: data.roomName } });
+      const aiRoomName = data.roomName || data.room_name || "";
+      if (aiRoomName) {
+        console.log(`[useSimulator] Atualizando nome do room para: "${aiRoomName}"`);
+        dispatch({ type: 'UPDATE_ROOM_NAME', payload: { roomId: id, name: aiRoomName } });
       } else {
-        console.log(`[useSimulator] IA não retornou roomName`);
+        // Fallback: usar tipo do cômodo ou nome genérico
+        const fallbackName = data.roomType || data.room_type || `Ambiente ${rooms.length + 1}`;
+        console.log(`[useSimulator] IA não retornou roomName, usando fallback: "${fallbackName}"`);
+        dispatch({ type: 'UPDATE_ROOM_NAME', payload: { roomId: id, name: fallbackName } });
       }
       
       dispatch({ type: 'ADD_ROOM_SUCCESS', payload: { roomId: id, walls: detectedWalls } });

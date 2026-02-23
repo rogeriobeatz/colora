@@ -60,7 +60,11 @@ const RoomGallery = ({ rooms, activeRoomId, onSelectRoom, onAddRoom, onUploadCli
             </p>
             {/* Delete button - positioned inside overlay */}
             <button
-              onClick={() => onDeleteRoom(room.id)}
+              onClick={(e) => {
+                e.stopPropagation();
+                e.preventDefault();
+                onDeleteRoom(room.id);
+              }}
               className={`absolute top-1.5 right-1.5 w-5 h-5 rounded-full bg-destructive/80 text-destructive-foreground flex items-center justify-center transition-opacity hover:bg-destructive ${
                 hoveredRoomId === room.id ? 'opacity-100' : 'opacity-0'
               }`}
