@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { useStore } from "@/contexts/StoreContext";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
@@ -11,7 +11,7 @@ import {
   Palette, Plus, Eye, EyeOff, Search, LogOut, Loader2, Settings,
   FileUp, FileDown, Trash2, Image as ImageIcon,
   Check, Upload, Pencil, X, FolderOpen, Clock, Play, Link as LinkIcon,
-  TrendingUp, Layers, Sparkles, ExternalLink, Copy, Globe, Phone, MapPin, Coins
+  TrendingUp, Layers, Sparkles, ExternalLink, Copy, Globe, Phone, MapPin, Coins, CreditCard, RefreshCw
 } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
@@ -69,8 +69,9 @@ function hexToCmyk(hex: string): string {
 // ─── component ───────────────────────────────────────────────────────────────
 
 const Dashboard = () => {
-  const { user, loading: authLoading, signOut } = useAuth();
+  const { user, loading: authLoading, signOut, checkSubscription } = useAuth();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const {
     company, updateCompany, addCatalog, updateCatalog, deleteCatalog,
     importPaintsCSV, exportPaintsCSV, refreshData,
@@ -105,6 +106,7 @@ const Dashboard = () => {
   // Estados para tokens
   const [tokenHistory, setTokenHistory] = useState<any[]>([]);
   const [tokenHistoryLoading, setTokenHistoryLoading] = useState(false);
+  const [isCheckoutLoading, setIsCheckoutLoading] = useState(false);
 
   // Funções auxiliares para tokens
   const getTokenStatus = () => {
@@ -134,6 +136,25 @@ const Dashboard = () => {
   useEffect(() => {
     if (!authLoading && !user) navigate("/login");
   }, [user, authLoading, navigate]);
+
+  // Handle payment success/cancel from Stripe redirect
+  useEffect(() => {
+    const payment = searchParams.get("payment");
+    const type = searchParams.get("type");
+    if (payment === "success") {
+      toast.success(type === "subscription" 
+        ? "Assinatura realizada com sucesso! Seus tokens serão creditados." 
+        : "Recarga de tokens realizada com sucesso!"
+      );
+      // Re-check subscription status to update tokens
+      checkSubscription().then(() => refreshData());
+      // Clean URL
+      navigate("/dashboard", { replace: true });
+    } else if (payment === "canceled") {
+      toast.info("Pagamento cancelado");
+      navigate("/dashboard", { replace: true });
+    }
+  }, [searchParams]);
 
   useEffect(() => {
     if (!user) return;
@@ -465,6 +486,36 @@ const Dashboard = () => {
     return { ...style, ...additionalStyle };
   };
 
+  const handleCheckout = async (mode: "subscription" | "recharge") => {
+    setIsCheckoutLoading(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('create-checkout', {
+        body: { mode },
+      });
+      if (error) throw error;
+      if (data?.url) {
+        window.open(data.url, '_blank');
+      }
+    } catch (error: any) {
+      console.error("Checkout error:", error);
+      toast.error("Erro ao iniciar pagamento. Tente novamente.");
+    } finally {
+      setIsCheckoutLoading(false);
+    }
+  };
+
+  const handleManageSubscription = async () => {
+    try {
+      const { data, error } = await supabase.functions.invoke('customer-portal');
+      if (error) throw error;
+      if (data?.url) {
+        window.open(data.url, '_blank');
+      }
+    } catch (error: any) {
+      console.error("Portal error:", error);
+      toast.error("Erro ao abrir portal. Verifique se possui uma assinatura ativa.");
+    }
+  };
 
   // ─── render ────────────────────────────────────────────────────────────────
 
@@ -700,11 +751,57 @@ const Dashboard = () => {
                 )}
               </div>
 
+              {/* Ações de pagamento */}
+              <div className="flex flex-wrap gap-3">
+                {company.subscriptionStatus !== 'active' ? (
+                  <Button
+                    onClick={() => handleCheckout("subscription")}
+                    disabled={isCheckoutLoading}
+                    className="gap-2"
+                    style={{ backgroundColor: company.primaryColor }}
+                  >
+                    {isCheckoutLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <CreditCard className="w-4 h-4" />}
+                    Assinar por R$ 59,90/mês
+                  </Button>
+                ) : (
+                  <Button
+                    variant="outline"
+                    onClick={handleManageSubscription}
+                    className="gap-2"
+                  >
+                    <Settings className="w-4 h-4" /> Gerenciar Assinatura
+                  </Button>
+                )}
+
+                <Button
+                  variant="outline"
+                  onClick={() => handleCheckout("recharge")}
+                  disabled={isCheckoutLoading}
+                  className="gap-2"
+                >
+                  {isCheckoutLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Coins className="w-4 h-4" />}
+                  Recarregar 100 tokens — R$ 29,90
+                </Button>
+
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={async () => {
+                    await checkSubscription();
+                    await refreshData();
+                    toast.success("Status atualizado!");
+                  }}
+                  className="gap-1.5"
+                >
+                  <RefreshCw className="w-3.5 h-3.5" /> Atualizar
+                </Button>
+              </div>
+
               {company.subscriptionStatus !== 'active' && (
                 <div className="bg-orange-50 border border-orange-200 rounded-xl p-4">
                   <p className="text-sm text-orange-800">
                     <strong>Atenção:</strong> Sua assinatura está inativa. 
-                    Ative sua assinatura para receber 200 tokens mensais!
+                    Assine o plano Colora Pro por R$ 59,90/mês e receba 200 tokens mensais para simulações!
                   </p>
                 </div>
               )}
