@@ -96,8 +96,12 @@ export type Database = {
           header_content: string | null
           header_style: string | null
           id: string
+          last_token_deposit: string | null
           primary_color: string | null
           secondary_color: string | null
+          subscription_status: string | null
+          tokens: number | null
+          tokens_expires_at: string | null
           updated_at: string | null
         }
         Insert: {
@@ -111,8 +115,12 @@ export type Database = {
           header_content?: string | null
           header_style?: string | null
           id: string
+          last_token_deposit?: string | null
           primary_color?: string | null
           secondary_color?: string | null
+          subscription_status?: string | null
+          tokens?: number | null
+          tokens_expires_at?: string | null
           updated_at?: string | null
         }
         Update: {
@@ -126,9 +134,88 @@ export type Database = {
           header_content?: string | null
           header_style?: string | null
           id?: string
+          last_token_deposit?: string | null
           primary_color?: string | null
           secondary_color?: string | null
+          subscription_status?: string | null
+          tokens?: number | null
+          tokens_expires_at?: string | null
           updated_at?: string | null
+        }
+        Relationships: []
+      }
+      simulator_sessions: {
+        Row: {
+          created_at: string | null
+          data: Json
+          id: string
+          name: string
+          updated_at: string | null
+          user_id: string
+        }
+        Insert: {
+          created_at?: string | null
+          data?: Json
+          id?: string
+          name: string
+          updated_at?: string | null
+          user_id: string
+        }
+        Update: {
+          created_at?: string | null
+          data?: Json
+          id?: string
+          name?: string
+          updated_at?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
+      token_consumptions: {
+        Row: {
+          amount: number
+          created_at: string | null
+          description: string | null
+          id: string
+          user_id: string
+        }
+        Insert: {
+          amount: number
+          created_at?: string | null
+          description?: string | null
+          id?: string
+          user_id: string
+        }
+        Update: {
+          amount?: number
+          created_at?: string | null
+          description?: string | null
+          id?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      wall_cache: {
+        Row: {
+          created_at: string | null
+          hash: string
+          room_name: string | null
+          room_type: string | null
+          surfaces: Json
+        }
+        Insert: {
+          created_at?: string | null
+          hash: string
+          room_name?: string | null
+          room_type?: string | null
+          surfaces?: Json
+        }
+        Update: {
+          created_at?: string | null
+          hash?: string
+          room_name?: string | null
+          room_type?: string | null
+          surfaces?: Json
         }
         Relationships: []
       }
