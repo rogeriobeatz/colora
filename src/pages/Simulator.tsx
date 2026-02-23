@@ -11,10 +11,12 @@ import ColorPanel from "@/components/simulator/ColorPanel";
 import SimulationCards from "@/components/simulator/SimulationCards";
 import { useSimulator } from "@/components/simulator/useSimulator";
 import ProjectNameDialog from "@/components/simulator/ProjectNameDialog";
-import SessionDrawer from "@/components/simulator/SessionDrawer";
+import ProjectDrawer from "@/components/simulator/ProjectDrawer";
 import { Button } from "@/components/ui/button";
 import StoreFooter from "@/components/StoreFooter";
 import { ImageCropper } from "@/components/ImageCropper";
+
+type AspectMode = "16-9" | "2-3" | "1-1";
 
 const Simulator = ({ companySlug }: { companySlug?: string }) => {
   const { company } = useStore();
@@ -44,6 +46,7 @@ const Simulator = ({ companySlug }: { companySlug?: string }) => {
     loadSession,
     deleteSession,
     createNewSession,
+    clearRoom,
   } = useSimulator();
 
   const [projectDialogOpen, setProjectDialogOpen] = useState(false);
@@ -54,6 +57,7 @@ const Simulator = ({ companySlug }: { companySlug?: string }) => {
   const [cropperOpen, setCropperOpen] = useState(false);
   const [imageToCrop, setImageToCrop] = useState<string | null>(null);
   const [pendingFile, setPendingFile] = useState<File | null>(null);
+  const [detectedAspectRatio, setDetectedAspectRatio] = useState<AspectMode>("16-9");
 
   const selectedWall = useMemo(() => activeRoom?.walls.find((w) => w.id === selectedWallId), [activeRoom, selectedWallId]);
 
@@ -62,7 +66,7 @@ const Simulator = ({ companySlug }: { companySlug?: string }) => {
     if (!pendingFirstUpload) return;
     if (!activeRoom) return;
 
-    if (session?.name === "Sessão sem nome") {
+    if (session?.name === "") {
       setProjectDialogOpen(true);
     }
     setPendingFirstUpload(false);
@@ -74,8 +78,34 @@ const Simulator = ({ companySlug }: { companySlug?: string }) => {
     });
   };
 
+  // Função para detectar o aspect ratio da imagem
+  const detectAspectRatio = (file: File): Promise<AspectMode> => {
+    return new Promise((resolve) => {
+      const img = new Image();
+      img.onload = () => {
+        const { width, height } = img;
+        const ratio = width / height;
+        
+        // Define os limites para cada aspect ratio
+        const TOLERANCE = 0.15;
+        
+        if (Math.abs(ratio - 1) < TOLERANCE) {
+          resolve('1-1'); // Quadrado
+        } else if (ratio < 1 - TOLERANCE) {
+          resolve('2-3'); // Mais vertical
+        } else {
+          resolve('16-9'); // Mais horizontal
+        }
+      };
+      img.src = URL.createObjectURL(file);
+    });
+  };
+
   const handleUpload = async (file: File) => {
-    // Abre o cropper antes de adicionar a sala
+    // Detecta o aspect ratio automaticamente
+    const detectedRatio = await detectAspectRatio(file);
+    setDetectedAspectRatio(detectedRatio);
+    
     const reader = new FileReader();
     reader.onload = (e) => {
       setImageToCrop(e.target?.result as string);
@@ -101,6 +131,20 @@ const Simulator = ({ companySlug }: { companySlug?: string }) => {
     setCropperOpen(false);
     setImageToCrop(null);
     setPendingFile(null);
+  };
+
+  // Função para ativar o input de upload
+  const triggerUpload = () => {
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = 'image/*';
+    input.onchange = (e) => {
+      const file = (e.target as HTMLInputElement).files?.[0];
+      if (file) {
+        handleUpload(file);
+      }
+    };
+    input.click();
   };
 
   if (loadingSession || !company) {
@@ -141,14 +185,14 @@ const Simulator = ({ companySlug }: { companySlug?: string }) => {
 
               <div className="mt-5 flex items-center justify-center gap-2">
                 <Button variant="outline" onClick={() => setProjectsOpen(true)} className="gap-2">
-                  Abrir sessões salvas
+                  Abrir projetos salvos
                 </Button>
                 <Button
                   onClick={() => createNewSession()}
                   className="gap-2"
                   style={{ backgroundColor: company.primaryColor }}
                 >
-                  Nova sessão
+                  Novo projeto
                 </Button>
               </div>
             </div>
@@ -181,22 +225,21 @@ const Simulator = ({ companySlug }: { companySlug?: string }) => {
             <div className="flex items-center justify-between gap-3 mb-6">
               <div className="min-w-0">
                 <p className="text-sm text-muted-foreground flex items-center gap-2">
-                  Sessão
+                  Projeto
                   {hasUnsavedChanges && (
                     <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full bg-amber-100 text-amber-700 text-[10px] font-medium">
                       <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse" />
-                      Não salvo
                     </span>
                   )}
                 </p>
-                <p className="text-lg font-display font-bold truncate">{session?.name || "Sessão sem nome"}</p>
+                <p className="text-lg font-display font-bold truncate">{session?.name || ""}</p>
               </div>
 
               <Button
                 variant="outline"
                 className="gap-2"
                 onClick={() => setProjectDialogOpen(true)}
-                title="Renomear sessão"
+                title="Renomear projeto"
               >
                 <PencilLine className="w-4 h-4" />
                 Renomear
@@ -219,7 +262,7 @@ const Simulator = ({ companySlug }: { companySlug?: string }) => {
                     <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest mb-3 px-1">
                       Ambientes Carregados ({rooms.length})
                     </p>
-                    <RoomGallery rooms={rooms} activeRoomId={activeRoomId} onSelectRoom={selectRoom} onAddRoom={addRoom} />
+                    <RoomGallery rooms={rooms} activeRoomId={activeRoomId} onSelectRoom={selectRoom} onAddRoom={addRoom} onUploadClick={triggerUpload} onDeleteRoom={clearRoom} />
                   </div>
                 )}
 
@@ -288,11 +331,11 @@ const Simulator = ({ companySlug }: { companySlug?: string }) => {
         }}
       />
 
-      <SessionDrawer
+      <ProjectDrawer
         open={projectsOpen}
         onOpenChange={setProjectsOpen}
-        currentSessionId={session?.id ?? null}
-        listSessions={listSessions}
+        currentProjectId={session?.id ?? null}
+        listProjects={listSessions}
         onLoad={loadSession}
         onDelete={deleteSession}
         onNew={() => {
@@ -306,6 +349,7 @@ const Simulator = ({ companySlug }: { companySlug?: string }) => {
           image={imageToCrop}
           onCrop={handleCropComplete}
           onCancel={handleCropCancel}
+          initialAspectRatio={detectedAspectRatio}
         />
       )}
     </div>

@@ -45,18 +45,24 @@ serve(async (req) => {
       return jsonResponse({ error: "Authentication required." }, 401);
     }
 
-    // 2. Credit Check (before any processing)
-    const { data: profile, error: profileError } = await serviceRoleClient.from('profiles').select('ai_credits').eq('id', user.id).single();
+    // 2. Token Check (before any processing)
+    const { data: profile, error: profileError } = await serviceRoleClient.from('profiles').select('tokens, tokens_expires_at').eq('id', user.id).single();
 
     if (profileError || !profile) {
       return jsonResponse({ error: "User profile not found." }, 404);
     }
 
-    if (profile.ai_credits <= 0) {
-      return jsonResponse({ error: "Insufficient AI credits." }, 403);
+    // Verifica se tem tokens disponíveis
+    const tokensAvailable = profile.tokens > 0 && (
+      !profile.tokens_expires_at || 
+      new Date(profile.tokens_expires_at) > new Date()
+    );
+
+    if (!tokensAvailable) {
+      return jsonResponse({ error: "Tokens insuficientes ou expirados. Assine um plano para receber tokens mensais!" }, 402);
     }
     
-    console.log(`[paint-wall] User ${user.id} has ${profile.ai_credits} credits. Proceeding...`);
+    console.log(`[paint-wall] User ${user.id} has ${profile.tokens} tokens. Proceeding...`);
 
     // 3. Body validation
     const { imageBase64, paintColor, wallLabel, wallLabelEn, cropCoordinates } = await req.json();
@@ -88,7 +94,29 @@ serve(async (req) => {
     const { data: { publicUrl } } = serviceRoleClient.storage.from('images').getPublicUrl(fileName);
 
     // 5. AI API Call
-    const aspectRatio = image.width >= image.height ? "16:9" : "2:3";
+    let aspectRatio = "16:9"; // default
+    
+    // Determine aspect ratio based on crop coordinates
+    if (cropCoordinates && typeof image.width === 'number' && typeof image.height === 'number') {
+      const cropW = (cropCoordinates.width / 100) * image.width;
+      const cropH = (cropCoordinates.height / 100) * image.height;
+      const ratio = cropW / cropH;
+      
+      if (Math.abs(ratio - 1) < 0.1) {
+        aspectRatio = "1:1";
+      } else if (ratio > 1.5) {
+        aspectRatio = "16:9";
+      } else {
+        aspectRatio = "2:3";
+      }
+    } else if (image.width >= image.height) {
+      aspectRatio = "16:9";
+    } else {
+      aspectRatio = "2:3";
+    }
+    
+    console.log(`[paint-wall] Using aspect ratio: ${aspectRatio} for image ${image.width}x${image.height}`);
+    
     const prompt = `Change ONLY the **${technicalWallName}** color to "${paintColor}". ...`; // Prompt truncated
     
     const payload = { model: "flux-2/pro-image-to-image", input: { input_urls: [publicUrl], prompt, aspect_ratio: aspectRatio, resolution: "1K" }};
@@ -107,13 +135,27 @@ serve(async (req) => {
     const taskId = createData.data.taskId;
     const finalImageUrl = await pollKieTask(taskId, KIE_API_KEY);
 
-    // 6. Post-Success Credit Deduction
+    // 6. Post-Success Token Deduction
     try {
-      const { error: decrementError } = await serviceRoleClient.rpc('decrement_ai_credits', { p_user_id: user.id, p_amount: 1 });
-      if (decrementError) throw decrementError;
-      console.log(`[paint-wall] Successfully decremented 1 credit from user ${user.id}`);
+      // Registra consumo de token
+      await serviceRoleClient
+        .from('token_consumptions')
+        .insert({
+          user_id: user.id,
+          amount: -1,
+          description: "Pintura de parede"
+        });
+      
+      // Atualiza saldo de tokens
+      const newTokens = profile.tokens - 1;
+      await serviceRoleClient
+        .from('profiles')
+        .update({ tokens: newTokens })
+        .eq('id', user.id);
+        
+      console.log(`[paint-wall] Successfully consumed 1 token from user ${user.id}`);
     } catch (e) {
-      console.error(`CRITICAL: Failed to decrement credits for user ${user.id} after successful AI call.`, e);
+      console.error(`CRITICAL: Failed to consume token for user ${user.id} after successful AI call.`, e);
     }
     
     // Cleanup

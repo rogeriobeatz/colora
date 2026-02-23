@@ -47,33 +47,62 @@ serve(async (req) => {
       return jsonResponse({ error: "imageBase64 is required" }, 400);
     }
 
-    // 3. Caching Logic
+    // 3. Caching Logic - TEMPORARIAMENTE DESABILITADO
     const imageHash = await simpleImageHash(imageBase64);
-    const { data: cached } = await serviceRoleClient.from('wall_cache').select('surfaces').eq('hash', imageHash).single();
+    console.log(`[analyze-room] Image hash: ${imageHash}`);
+    
+    // TEMPORARIO: Forçar sempre análise nova para garantir roomName
+    console.log(`[analyze-room] Cache desabilitado - forçando análise nova para user ${user.id}`);
+    
+    // Comentado temporariamente para debug
+    /*
+    const { data: cached } = await serviceRoleClient.from('wall_cache').select('surfaces, room_name, room_type').eq('hash', imageHash).single();
 
     if (cached) {
       console.log(`[analyze-room] Cache HIT for user ${user.id}`);
-      return jsonResponse({ walls: cached.surfaces, sucesso: true, fromCache: true, total: cached.surfaces.length });
+      console.log(`[analyze-room] Cached surfaces:`, cached.surfaces);
+      console.log(`[analyze-room] Cached room_name:`, cached.room_name);
+      console.log(`[analyze-room] Cached room_type:`, cached.room_type);
+      return jsonResponse({ 
+        walls: cached.surfaces, 
+        roomName: cached.room_name || "", 
+        roomType: cached.room_type || "", 
+        sucesso: true, 
+        fromCache: true, 
+        total: cached.surfaces.length 
+      });
     }
+    */
 
-    console.log(`[analyze-room] Cache MISS for user ${user.id}. Checking credits...`);
+    console.log(`[analyze-room] Cache MISS for user ${user.id}. Processing analysis...`);
 
-    // 4. Credit Check
-    const { data: profile, error: profileError } = await serviceRoleClient.from('profiles').select('ai_credits').eq('id', user.id).single();
-
-    if (profileError || !profile) {
-      return jsonResponse({ error: "User profile not found." }, 404);
-    }
-
-    if (profile.ai_credits <= 0) {
-      return jsonResponse({ error: "Insufficient AI credits." }, 403);
-    }
-    
-    console.log(`User ${user.id} has ${profile.ai_credits} credits. Proceeding...`);
-
-    // 5. AI API Call
+    // 4. AI API Call (GRATUITO - não consome tokens)
     const formattedImage = imageBase64.startsWith("data:") ? imageBase64 : `data:image/jpeg;base64,${imageBase64}`;
-    const systemPrompt = `You are an expert Architectural Surface Identifier...`; // Full prompt omitted for brevity
+    const systemPrompt = `You are an expert Architectural Surface Identifier and Room Classifier.
+
+Your task is to:
+1. Identify the type of room based on the image (kitchen, bedroom, living room, bathroom, office, dining room, etc.)
+2. Identify ALL paintable wall surfaces in the image
+
+You must respond with a JSON object containing:
+- room_name: A concise, descriptive name for this room in Portuguese (ex: "Cozinha Moderna", "Quarto Principal", "Sala de Estar", "Banheiro Social", "Escritório Home Office")
+- room_type: The general room type in Portuguese (ex: "cozinha", "quarto", "sala", "banheiro", "escritório", "sala de jantar")
+- surfaces: Array of detected paintable surfaces
+
+For each surface include:
+- id: Unique identifier (s1, s2, etc.)
+- label_pt: Surface name in Portuguese (ex: "Parede Principal", "Parede da Janela", "Parede do Guarda-Roupa")
+- label_en: DETAILED technical description in English for AI painting system (ex: "main back wall with large window", "left side wall next to kitchen cabinets", "wall with built-in wardrobe and mirror", "accent wall behind TV unit", "wall with main entrance door")
+- description: Brief description if relevant
+- type: Always "wall"
+
+IMPORTANT: 
+- Only include walls (not windows, doors, mirrors, etc.)
+- Maximum 8 walls
+- Focus on large, clearly visible wall surfaces
+- Be specific but concise with names
+- For label_en: Include spatial context, nearby objects, and wall position (ex: "main back wall with large window", "left side wall next to kitchen cabinets", "wall with built-in wardrobe and mirror", "accent wall behind TV unit", "wall with main entrance door")
+- Use descriptive technical language that helps AI painting system understand exactly which wall to paint`;
     
     const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
       method: "POST",
@@ -82,7 +111,7 @@ serve(async (req) => {
         model: "google/gemini-2.5-flash",
         messages: [
           { role: "system", content: systemPrompt },
-          { role: "user", content: [{ type: "image_url", image_url: { url: formattedImage } }, { type: "text", text: "Identifique TODAS superfícies pintáveis..." }] },
+          { role: "user", content: [{ type: "image_url", image_url: { url: formattedImage } }, { type: "text", text: "Analise esta imagem e identifique o tipo de cômodo e todas as superfícies de parede pintáveis. Responda apenas com o JSON solicitado." }] },
         ],
         temperature: 0.1,
         max_tokens: 2048,
@@ -96,8 +125,14 @@ serve(async (req) => {
     const aiData = await response.json();
     const content = aiData.choices?.[0]?.message?.content || "";
 
+    // Log da resposta pura da IA antes de qualquer parsing
+    console.log(`[analyze-room] PURE AI RESPONSE:`, content);
+
     // 6. Parse and Filter AI Response
     let detectedSurfaces: any[] = [];
+    let roomName = "";
+    let roomType = "";
+    
     try {
       const jsonMatch = content.match(/```(?:json)?\s*([\s\S]*?)```/) || [null, content];
       let jsonStr = jsonMatch[1]?.trim() || content;
@@ -106,10 +141,23 @@ serve(async (req) => {
       if (firstBrace !== -1 && lastBrace !== -1) {
         jsonStr = jsonStr.substring(firstBrace, lastBrace + 1);
       }
+      
+      console.log(`[analyze-room] Raw AI response:`, content);
+      console.log(`[analyze-room] Parsed JSON:`, jsonStr);
+      console.log(`[analyze-room] Parsed object:`, JSON.parse(jsonStr));
+      
       const parsed = JSON.parse(jsonStr);
+      
       detectedSurfaces = parsed.surfaces || parsed.walls || [];
+      roomName = parsed.room_name || "";
+      roomType = parsed.room_type || "";
+      
+      console.log(`[analyze-room] Extracted roomName: "${roomName}"`);
+      console.log(`[analyze-room] Extracted roomType: "${roomType}"`);
+      console.log(`[analyze-room] Extracted surfaces:`, detectedSurfaces.length);
     } catch (e) {
       console.error("[analyze-room] JSON Parse Error:", e);
+      console.error("[analyze-room] Raw content that failed:", content);
       throw new Error("Error processing AI response");
     }
 
@@ -125,19 +173,24 @@ serve(async (req) => {
       .slice(0, 8)
       .map((wall, index) => ({ ...wall, id: `s${index + 1}` }));
 
-    // 7. Post-Success Credit Deduction & Caching
-    try {
-      const { error: decrementError } = await serviceRoleClient.rpc('decrement_ai_credits', { p_user_id: user.id, p_amount: 1 });
-      if (decrementError) throw decrementError;
-      console.log(`Successfully decremented 1 credit from user ${user.id}`);
-    } catch (e) {
-      console.error(`CRITICAL: Failed to decrement credits for user ${user.id} after successful AI call.`, e);
-    }
-    
-    await serviceRoleClient.from('wall_cache').upsert({ hash: imageHash, surfaces: validSurfaces, created_at: new Date().toISOString() });
+    // 7. Caching (sem consumo de tokens - análise é gratuita)
+    await serviceRoleClient.from('wall_cache').upsert({ 
+      hash: imageHash, 
+      surfaces: validSurfaces, 
+      room_name: roomName, 
+      room_type: roomType, 
+      created_at: new Date().toISOString() 
+    });
 
-    const result = { walls: validSurfaces, sucesso: true, total: validSurfaces.length, cacheKey: imageHash };
-    console.log(`[analyze-room] Final: ${validSurfaces.length} walls detected for user ${user.id}`);
+    const result = { 
+      walls: validSurfaces, 
+      roomName: roomName, 
+      roomType: roomType,
+      sucesso: true, 
+      total: validSurfaces.length, 
+      cacheKey: imageHash 
+    };
+    console.log(`[analyze-room] Final: ${validSurfaces.length} walls detected for user ${user.id}, room: "${roomName}"`);
     
     return jsonResponse(result);
 

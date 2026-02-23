@@ -4,13 +4,25 @@ import { Paint } from "@/data/defaultColors";
 import { supabase } from "@/integrations/supabase/client";
 import { Room, DetectedWall, WallSimulation, SimulatorSessionData } from "./types";
 import { useStore } from "@/contexts/StoreContext";
-import { deleteSimulatorSession, getLastSessionId, getSimulatorSession, listSimulatorSessions, saveSimulatorSession, setLastSessionId } from "@/lib/simulator-db";
+import { deleteSimulatorSession, getLastSessionId, getSimulatorSession, listSimulatorSessions, saveSimulatorSession, setLastSessionId, generateUUID, cleanInvalidLocalProjects } from "@/lib/simulator-db";
 import { preprocessImageFile } from "@/lib/image-preprocess";
 
 // --- Helper Functions ---
 const genId = () => Math.random().toString(36).substring(2, 10);
 const AUTOSAVE_DELAY = 2500;
 const nowIso = () => new Date().toISOString();
+
+const normalizeLoadedSession = (data: any): SimulatorSessionData => {
+  return {
+    id: data.id || generateUUID(), // Usar generateUUID em vez de genId
+    name: data.name || "", // Sem fallback genérico
+    createdAt: data.createdAt || nowIso(),
+    updatedAt: data.updatedAt || nowIso(),
+    rooms: Array.isArray(data.rooms) ? data.rooms : [],
+    activeRoomId: data.activeRoomId || null,
+    selectedWallId: data.selectedWallId || null,
+  };
+};
 
 // --- State, Actions, and Reducer ---
 interface SimulatorState {
@@ -34,6 +46,7 @@ type Action =
   | { type: 'ADD_ROOM_START'; payload: Room }
   | { type: 'ADD_ROOM_SUCCESS'; payload: { roomId: string; walls: DetectedWall[] } }
   | { type: 'ADD_ROOM_FAILURE'; payload: { roomId: string } }
+  | { type: 'UPDATE_ROOM_NAME'; payload: { roomId: string; name: string } }
   | { type: 'SET_ACTIVE_ROOM'; payload: string | null }
   | { type: 'SET_SELECTED_WALL'; payload: string | null }
   | { type: 'SET_SELECTED_PAINT'; payload: Paint | null }
@@ -72,6 +85,7 @@ function simulatorReducer(state: SimulatorState, action: Action): SimulatorState
     case 'ADD_ROOM_START': return { ...state, rooms: [...state.rooms, action.payload], activeRoomId: action.payload.id, selectedWallId: null, hasUnsavedChanges: true };
     case 'ADD_ROOM_SUCCESS': return { ...state, rooms: state.rooms.map(r => r.id === action.payload.roomId ? { ...r, walls: action.payload.walls, isAnalyzing: false, isAnalyzed: true } : r), selectedWallId: action.payload.walls[0]?.id ?? null, hasUnsavedChanges: true };
     case 'ADD_ROOM_FAILURE': return { ...state, rooms: state.rooms.map(r => r.id === action.payload.roomId ? { ...r, isAnalyzing: false } : r) };
+    case 'UPDATE_ROOM_NAME': return { ...state, rooms: state.rooms.map(r => r.id === action.payload.roomId ? { ...r, name: action.payload.name } : r), hasUnsavedChanges: true };
     case 'SET_ACTIVE_ROOM': return { ...state, activeRoomId: action.payload };
     case 'SET_SELECTED_WALL': return { ...state, selectedWallId: action.payload };
     case 'SET_SELECTED_PAINT': return { ...state, selectedPaint: action.payload };
@@ -120,13 +134,16 @@ export function useSimulator() {
     if (!session) return;
     if (autosaveTimer.current) clearTimeout(autosaveTimer.current);
 
-    const payload: SimulatorSessionData = { ...session, updatedAt: nowIso(), rooms, activeRoomId, selectedWallId };
-    const result = await saveSimulatorSession({ id: payload.id, name: payload.name, createdAt: payload.createdAt, updatedAt: payload.updatedAt, data: payload });
-    
-    if (result) {
-      dispatch({ type: 'SET_UNSAVED_CHANGES', payload: false });
-      if (!isAutosave) toast.success("Projeto salvo!", { description: session.name });
-    }
+    const updated = { 
+      ...session, 
+      updatedAt: nowIso(),
+      rooms, // Incluir os rooms atualizados
+      activeRoomId, // Incluir o room ativo
+      selectedWallId // Incluir a parede selecionada
+    };
+    await saveSimulatorSession({ id: updated.id, name: updated.name, createdAt: updated.createdAt, updatedAt: updated.updatedAt, data: updated });
+    dispatch({ type: 'SET_STATE', payload: { session: updated, hasUnsavedChanges: false } });
+    if (!isAutosave) toast.success("Projeto salvo", { description: session.name });
   }, [session, rooms, activeRoomId, selectedWallId]);
 
   const manualSave = useCallback(() => persist(false), [persist]);
@@ -142,12 +159,12 @@ export function useSimulator() {
   
   const createNewSession = useCallback(async (name?: string) => {
     if (autosaveTimer.current) clearTimeout(autosaveTimer.current);
-    const id = genId();
+    const id = generateUUID();
     const createdAt = nowIso();
-    const s: SimulatorSessionData = { id, name: (name || "Projeto sem nome").trim(), createdAt, updatedAt: createdAt, rooms: [], activeRoomId: null, selectedWallId: null };
+    const s: SimulatorSessionData = { id, name: (name || "").trim(), createdAt, updatedAt: createdAt, rooms: [], activeRoomId: null, selectedWallId: null };
     await saveSimulatorSession({ id: s.id, name: s.name, createdAt: s.createdAt, updatedAt: s.updatedAt, data: s });
-    await setLastSessionId(s.id);
     dispatch({ type: 'CREATE_SESSION', payload: s });
+    await setLastSessionId(s.id);
     toast.success("Novo projeto criado");
     return s;
   }, []);
@@ -164,7 +181,7 @@ export function useSimulator() {
     };
     const normalized = normalizeLoadedSession(record.data as SimulatorSessionData);
     dispatch({ type: 'LOAD_SESSION', payload: normalized });
-    await setLastSessionId(normalized.id);
+    await setLastSessionId(normalized.id); // Salvar como último projeto carregado
     toast.success("Projeto carregado", { description: normalized.name });
   }, []);
 
@@ -172,7 +189,7 @@ export function useSimulator() {
       await deleteSimulatorSession(id);
       if (session?.id === id) dispatch({ type: 'DELETE_SESSION' });
       toast.success("Projeto excluído");
-    }, [session?.id]);
+  }, [session?.id]);
 
   const listSessions = useCallback(async () => await listSimulatorSessions(), []);
   
@@ -181,6 +198,30 @@ export function useSimulator() {
   useEffect(() => {
     let mounted = true;
     (async () => {
+      // Limpar projetos locais com IDs inválidos antes de continuar
+      await cleanInvalidLocalProjects();
+      
+      // Verificar se há um projeto pendente da dashboard
+      const pendingSessionId = localStorage.getItem("colora_pending_session");
+      if (pendingSessionId) {
+        localStorage.removeItem("colora_pending_session"); // Limpar após usar
+        if (mounted) {
+          await loadSession(pendingSessionId);
+          return;
+        }
+      }
+      
+      // Verificar se deve criar um novo projeto
+      const shouldCreateNew = localStorage.getItem("colora_new_project");
+      if (shouldCreateNew) {
+        localStorage.removeItem("colora_new_project"); // Limpar após usar
+        if (mounted) {
+          await createNewSession();
+          window.history.replaceState({}, '', '/simulator');
+          return;
+        }
+      }
+      
       const urlParams = new URLSearchParams(window.location.search);
       if (urlParams.get('new') === '1') {
         await createNewSession();
@@ -195,44 +236,79 @@ export function useSimulator() {
   }, [createNewSession, loadSession]);
 
   const addRoom = useCallback(async (file: File, cropCoordinates?: { x: number; y: number; width: number; height: number }) => {
-    if ((company?.aiCredits ?? 0) <= 0) return toast.error("Créditos de IA insuficientes");
+    if ((company?.tokens ?? 0) <= 0) return toast.error("Créditos de IA insuficientes");
     await ensureSession();
     
     const id = genId();
     const tempUrl = URL.createObjectURL(file);
-    const newRoom: Room = { id, name: `Ambiente ${rooms.length + 1}`, imageUrl: tempUrl, originalImageUrl: tempUrl, walls: [], isAnalyzing: true, isAnalyzed: false, simulations: [], activeSimulationId: null, cropCoordinates };
+    
+    // Converter imagem para base64 para salvamento permanente
+    const imageBase64 = await preprocessImageFile(file);
+    // Remove o prefixo "data:image/jpeg;base64," para enviar para a API
+    const base64Only = imageBase64.replace(/^data:image\/[a-z]+;base64,/, '');
+    
+    const newRoom: Room = { 
+      id, 
+      name: "", // Nome vazio inicial, será atualizado pela IA
+      imageUrl: imageBase64, // Salvar como data URL permanente
+      originalImageUrl: imageBase64, 
+      walls: [], 
+      isAnalyzing: true, 
+      isAnalyzed: false, 
+      simulations: [], 
+      activeSimulationId: null, 
+      cropCoordinates 
+    };
     
     dispatch({ type: 'ADD_ROOM_START', payload: newRoom });
 
-    let imageBase64: string;
     try {
-      imageBase64 = await preprocessImageFile(file);
-    } finally {
-      URL.revokeObjectURL(tempUrl);
-    }
-    
-    try {
-      const { data, error } = await supabase.functions.invoke("analyze-room", { body: { imageBase64 } });
+      console.log(`[useSimulator] Enviando imagem para analyze-room...`);
+      const { data, error } = await supabase.functions.invoke("analyze-room", { body: { imageBase64: base64Only } });
       if (error || data?.error) throw error || new Error(data.error);
       
+      console.log(`[useSimulator] Resposta recebida:`, data);
       await refreshData();
       const detectedWalls: DetectedWall[] = (data.walls || []).map((w: any, i: number) => ({ id: w.id || `s${i}`, label: w.label_pt || w.label, englishLabel: w.label_en || "Wall", description: w.description || "" }));
+      
+      // Atualiza o nome do room com o nome sugerido pela IA
+      if (data.roomName) {
+        console.log(`[useSimulator] Atualizando nome do room para: "${data.roomName}"`);
+        dispatch({ type: 'UPDATE_ROOM_NAME', payload: { roomId: id, name: data.roomName } });
+      } else {
+        console.log(`[useSimulator] IA não retornou roomName`);
+      }
+      
       dispatch({ type: 'ADD_ROOM_SUCCESS', payload: { roomId: id, walls: detectedWalls } });
     } catch (err: any) {
       dispatch({ type: 'ADD_ROOM_FAILURE', payload: { roomId: id } });
       toast.error("Erro na análise", { description: err.data?.error || err.message });
+    } finally {
+      URL.revokeObjectURL(tempUrl);
     }
   }, [company, ensureSession, rooms.length, refreshData]);
 
   const applyColor = useCallback(async () => {
     if (!activeRoom || !selectedWallId || !selectedPaint) return toast.error("Selecione uma parede e uma cor");
-    if ((company?.aiCredits ?? 0) <= 0) return toast.error("Créditos de IA insuficientes");
+    if ((company?.tokens ?? 0) <= 0) return toast.error("Créditos de IA insuficientes");
     const wall = activeRoom.walls.find((w) => w.id === selectedWallId);
     if (!wall) return toast.error("Parede não encontrada");
 
     dispatch({ type: 'APPLY_COLOR_START' });
     try {
-      const { data, error } = await supabase.functions.invoke("paint-wall", { body: { imageBase64: activeRoom.imageUrl, paintColor: selectedPaint.hex, paintName: selectedPaint.name, wallLabel: wall.label, wallLabelEn: wall.englishLabel, cropCoordinates: activeRoom.cropCoordinates } });
+      // Extrair base64 da data URL do ambiente
+      const base64Only = activeRoom.imageUrl.replace(/^data:image\/[a-z]+;base64,/, '');
+      
+      const { data, error } = await supabase.functions.invoke("paint-wall", { 
+        body: { 
+          imageBase64: base64Only, 
+          paintColor: selectedPaint.hex, 
+          paintName: selectedPaint.name, 
+          wallLabel: wall.label, 
+          wallLabelEn: wall.englishLabel, 
+          cropCoordinates: activeRoom.cropCoordinates 
+        } 
+      });
       if (error || data?.error) throw error || new Error(data.error);
       if (!data?.imageUrl) throw new Error("Image URL not returned");
 
@@ -254,7 +330,11 @@ export function useSimulator() {
   const setSelectedPaint = useCallback((paint: Paint | null) => dispatch({ type: 'SET_SELECTED_PAINT', payload: paint }), []);
   const selectSimulation = useCallback((roomId: string, simId: string | null) => dispatch({ type: 'SELECT_SIMULATION', payload: { roomId, simId } }), []);
   const removeSimulation = useCallback((simId: string) => { if(activeRoom) dispatch({ type: 'REMOVE_SIMULATION', payload: { roomId: activeRoom.id, simId } }) }, [activeRoom]);
-  const clearRoom = useCallback((roomId: string) => dispatch({ type: 'CLEAR_ROOM', payload: roomId }), []);
+  const clearRoom = useCallback(async (roomId: string) => { 
+  dispatch({ type: 'CLEAR_ROOM', payload: roomId });
+  // Persistir a exclusão no banco
+  await persist();
+}, [dispatch, persist]);
   const retryAnalysis = useCallback(() => {
       if (!activeRoom) return;
       const file = dataURLtoFile(activeRoom.originalImageUrl, `ambiente_${Date.now()}.jpg`);

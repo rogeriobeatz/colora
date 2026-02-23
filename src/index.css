@@ -62,8 +62,8 @@
     hsl(358, 89%, 59%)
     );
     --gradient-secondary: linear-gradient(90deg,
-    hsl(96, 44%, 57%), 
-        hsl(73, 83%, 65%)
+    hsl(199, 20%, 75%), 
+        hsl(0, 0%, 100%)
     );
     --gradient-accent: linear-gradient(135deg, hsl(18 90% 56%), hsl(30 95% 58%));
     --gradient-hero: linear-gradient(135deg, hsl(200 20% 12%), hsl(168 72% 22%));
@@ -195,5 +195,56 @@
   .text-gradient {
     @apply bg-clip-text text-transparent;
     background-image: var(--gradient-primary);
+  }
+
+  /* Enhanced button effects */
+  .group:hover .button-shine {
+    transform: translateX(100%);
+  }
+  
+  .button-glow:hover {
+    box-shadow: 0 0 30px hsl(168 72% 32% / 0.3),
+                0 0 60px hsl(168 72% 32% / 0.1);
+  }
+
+  .button-pulse {
+    animation: pulse 2s infinite;
+  }
+
+  @keyframes pulse {
+    0%, 100% {
+      box-shadow: 0 0 0 0 hsl(168 72% 32% / 0.4);
+    }
+    50% {
+      box-shadow: 0 0 0 10px hsl(168 72% 32% / 0);
+    }
+  }
+
+  .button-shine {
+    position: absolute;
+    top: 0;
+    left: -100%;
+    width: 100%;
+    height: 100%;
+    background: linear-gradient(
+      90deg,
+      transparent,
+      rgba(255, 255, 255, 0.2),
+      transparent
+    );
+    transition: transform 0.6s;
+  }
+
+  .gradient-text-animated {
+    @apply bg-clip-text text-transparent;
+    background-image: var(--gradient-primary);
+    background-size: 200% 200%;
+    animation: gradient-shift 3s ease infinite;
+  }
+
+  @keyframes gradient-shift {
+    0% { background-position: 0% 50%; }
+    50% { background-position: 100% 50%; }
+    100% { background-position: 0% 50%; }
   }
 }

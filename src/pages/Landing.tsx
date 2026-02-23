@@ -92,8 +92,11 @@ const Landing = () => {
             <Button variant="ghost" size="sm" asChild>
               <Link to="/login">Área da Loja</Link>
             </Button>
-            <Button size="sm" asChild className="gradient-secondary text-foreground font-bold border-0 hover:opacity-90">
-              <Link to="/login">Assinar Agora</Link>
+            <Button variant="gradient-secondary" size="lg" asChild className="button-glow button-pulse">
+              <Link to="/login">
+                Assinar Agora <ArrowRight className="w-4 h-4 ml-2" />
+                <div className="button-shine" />
+              </Link>
             </Button>
           </div>
         </div>
@@ -126,12 +129,13 @@ const Landing = () => {
                 mais confiança e um atendimento que nenhum concorrente oferece.
               </p>
               <div className="flex flex-wrap gap-3 pt-2">
-                <Button size="lg" asChild className="gap-2 text-base px-6 gradient-secondary text-foreground font-bold border-0 hover:opacity-90 shadow-lg">
+                <Button variant="gradient-secondary" size="lg" asChild className="button-glow">
                   <Link to="/login">
                     Assinar por R$ 59,90/mês <ArrowRight className="w-4 h-4" />
+                    <div className="button-shine" />
                   </Link>
                 </Button>
-                <Button size="lg" variant="outline" asChild className="text-base px-6">
+                <Button size="lg" variant="outline" asChild className="text-base px-6 hover:scale-105 active:scale-95 transition-all duration-300">
                   <Link to="/login">Área da Loja</Link>
                 </Button>
               </div>
@@ -383,9 +387,10 @@ const Landing = () => {
                 </li>
               ))}
             </ul>
-            <Button className="w-full text-base font-bold gradient-secondary text-foreground border-0 hover:opacity-90" size="lg" asChild>
+            <Button variant="gradient-secondary" size="lg" className="w-full button-glow" asChild>
               <Link to="/login">
                 Assinar Agora <ArrowRight className="w-4 h-4 ml-2" />
+                <div className="button-shine" />
               </Link>
             </Button>
             <p className="text-xs text-center text-muted-foreground mt-3 flex items-center justify-center gap-1.5">
@@ -407,9 +412,10 @@ const Landing = () => {
           <p className="text-lg text-muted-foreground mb-8 max-w-xl mx-auto">
             Assine o Colora e comece a impressionar seus clientes hoje mesmo.
           </p>
-          <Button size="lg" asChild className="gap-2 text-base px-8 font-bold gradient-primary text-foreground border-0 hover:opacity-90 shadow-lg">
+          <Button variant="gradient-secondary" size="lg" asChild className="button-glow button-pulse">
             <Link to="/login">
               Assinar por R$ 59,90/mês <ArrowRight className="w-4 h-4" />
+              <div className="button-shine" />
             </Link>
           </Button>
         </div>

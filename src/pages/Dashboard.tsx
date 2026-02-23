@@ -11,14 +11,13 @@ import {
   Palette, Plus, Eye, EyeOff, Search, LogOut, Loader2, Settings,
   FileUp, FileDown, Trash2, Image as ImageIcon,
   Check, Upload, Pencil, X, FolderOpen, Clock, Play, Link as LinkIcon,
-  TrendingUp, Layers, Sparkles, ExternalLink, Copy, Globe, Phone, MapPin
+  TrendingUp, Layers, Sparkles, ExternalLink, Copy, Globe, Phone, MapPin, Coins
 } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import PaintDialog from "@/components/simulator/PaintDialog";
-import { Paint, HeaderContentMode, HeaderStyleMode, FontSet, CropCoordinates } from "@/data/defaultColors";
-import { SessionListItem } from "@/components/simulator/SessionDrawer";
-import { ImageCropper } from "@/components/ImageCropper";
+import { Paint, HeaderContentMode, HeaderStyleMode, FontSet } from "@/data/defaultColors";
+import { ProjectListItem } from "@/components/simulator/ProjectDrawer";
 
 // ─── helpers ────────────────────────────────────────────────────────────────
 
@@ -28,6 +27,24 @@ function formatDate(iso: string) {
     day: "2-digit", month: "short", year: "numeric",
     hour: "2-digit", minute: "2-digit",
   });
+}
+
+// Função para calcular contraste entre duas cores
+function getContrastColor(hexColor: string): string {
+  const r = parseInt(hexColor.slice(1, 3), 16);
+  const g = parseInt(hexColor.slice(3, 5), 16);
+  const b = parseInt(hexColor.slice(5, 7), 16);
+  const luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
+  return luminance > 0.5 ? '#000000' : '#FFFFFF';
+}
+
+// Função para determinar se a cor é clara ou escura
+function isLightColor(hexColor: string): boolean {
+  const r = parseInt(hexColor.slice(1, 3), 16);
+  const g = parseInt(hexColor.slice(3, 5), 16);
+  const b = parseInt(hexColor.slice(5, 7), 16);
+  const brightness = (r * 299 + g * 587 + b * 114) / 1000;
+  return brightness > 186;
 }
 
 function hexToRgb(hex: string): string {
@@ -56,7 +73,8 @@ const Dashboard = () => {
   const navigate = useNavigate();
   const {
     company, updateCompany, addCatalog, updateCatalog, deleteCatalog,
-    importPaintsCSV, exportPaintsCSV, refreshData
+    importPaintsCSV, exportPaintsCSV, refreshData,
+    consumeToken, checkTokensAvailable, depositMonthlyTokens
   } = useStore();
 
   const [selectedCatalogId, setSelectedCatalogId] = useState<string | null>(null);
@@ -68,7 +86,7 @@ const Dashboard = () => {
   const logoInputRef = useRef<HTMLInputElement>(null);
 
   // Sessões recentes
-  const [sessions, setSessions] = useState<SessionListItem[]>([]);
+  const [sessions, setSessions] = useState<ProjectListItem[]>([]);
   const [sessionsLoading, setSessionsLoading] = useState(true);
 
   // CRUD cores
@@ -80,9 +98,38 @@ const Dashboard = () => {
   const [editingCatalogId, setEditingCatalogId] = useState<string | null>(null);
   const [editingCatalogName, setEditingCatalogName] = useState("");
 
-  // Crop de imagem
-  const [cropperOpen, setCropperOpen] = useState(false);
-  const [imageToCrop, setImageToCrop] = useState<string | null>(null);
+  // Estados para o diálogo de boas práticas do logo
+  const [logoGuidelinesOpen, setLogoGuidelinesOpen] = useState(false);
+  const [pendingLogoFile, setPendingLogoFile] = useState<File | null>(null);
+
+  // Estados para tokens
+  const [tokenHistory, setTokenHistory] = useState<any[]>([]);
+  const [tokenHistoryLoading, setTokenHistoryLoading] = useState(false);
+
+  // Funções auxiliares para tokens
+  const getTokenStatus = () => {
+    if (!company) return { status: 'loading', color: 'gray', text: 'Carregando...' };
+    
+    if (company.tokens <= 0) {
+      return { status: 'empty', color: 'red', text: 'Sem tokens' };
+    }
+    
+    if (company.tokensExpiresAt) {
+      const expiryDate = new Date(company.tokensExpiresAt);
+      const now = new Date();
+      const daysLeft = Math.ceil((expiryDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+      
+      if (daysLeft <= 7) {
+        return { status: 'expiring', color: 'orange', text: `Expira em ${daysLeft} dias` };
+      }
+    }
+    
+    return { status: 'available', color: 'green', text: 'Disponíveis' };
+  };
+
+  const formatTokenAmount = (amount: number) => {
+    return amount.toLocaleString('pt-BR');
+  };
 
   useEffect(() => {
     if (!authLoading && !user) navigate("/login");
@@ -106,6 +153,31 @@ const Dashboard = () => {
     })();
   }, []);
 
+  // Buscar histórico de tokens
+  useEffect(() => {
+    if (!user) return;
+    
+    const fetchTokenHistory = async () => {
+      try {
+        setTokenHistoryLoading(true);
+        const { data } = await (supabase as any)
+          .from('token_consumptions')
+          .select('*')
+          .eq('user_id', user.id)
+          .order('created_at', { ascending: false })
+          .limit(10);
+        
+        setTokenHistory(data || []);
+      } catch (error) {
+        console.error("Erro ao buscar histórico de tokens:", error);
+      } finally {
+        setTokenHistoryLoading(false);
+      }
+    };
+
+    fetchTokenHistory();
+  }, [user]);
+
   if (authLoading || isInitialLoading) {
     return (
       <div className="min-h-screen flex flex-col items-center justify-center gap-4">
@@ -127,7 +199,6 @@ const Dashboard = () => {
       </div>
     );
   }
-          <Button onClick={() => window.location.reload()}>Tentar Novamente</Button>
 
   const handleSignOut = async () => {
     await signOut();
@@ -168,29 +239,38 @@ const Dashboard = () => {
     const file = e.target.files?.[0];
     if (!file) return;
     if (file.size > 2 * 1024 * 1024) { toast.error("Logo deve ter menos de 2MB"); return; }
-    const reader = new FileReader();
-    reader.onload = (ev) => {
-      setImageToCrop(ev.target?.result as string);
-      setCropperOpen(true);
-    };
-    reader.readAsDataURL(file);
+    
+    // Verifica se o arquivo é PNG
+    if (!file.type.includes('png')) {
+      toast.error("Por favor, envie o logo em formato PNG para melhor qualidade");
+    }
+    
+    setPendingLogoFile(file);
+    setLogoGuidelinesOpen(true);
     e.target.value = "";
   };
 
-  const handleCropComplete = (croppedDataUrl: string, coordinates: CropCoordinates) => {
-    updateCompany({
-      logo: croppedDataUrl,
-      logoCrop: coordinates
-    });
-    setCropperOpen(false);
-    setImageToCrop(null);
-    toast.success("Logo ajustado!");
+  const handleLogoConfirm = () => {
+    if (!pendingLogoFile) return;
+    
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      updateCompany({
+        logo: ev.target?.result as string
+      });
+      toast.success("Logo atualizado com sucesso!");
+    };
+    reader.readAsDataURL(pendingLogoFile);
+    
+    setLogoGuidelinesOpen(false);
+    setPendingLogoFile(null);
   };
 
-  const handleCropCancel = () => {
-    setCropperOpen(false);
-    setImageToCrop(null);
+  const handleLogoCancel = () => {
+    setLogoGuidelinesOpen(false);
+    setPendingLogoFile(null);
   };
+
 
   const handleImportCSV = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -215,7 +295,7 @@ const Dashboard = () => {
   const handleAddPaint = () => { setEditingPaint(null); setPaintDialogOpen(true); };
   const handleEditPaint = (paint: Paint) => { setEditingPaint(paint); setPaintDialogOpen(true); };
 
-  const handleSavePaint = (paintData: Omit<Paint, "id" | "rgb" | "cmyk">) => {
+  const handleSavePaint = async (paintData: Omit<Paint, "id" | "rgb" | "cmyk">) => {
     const catalogId = selectedCatalogId || company.catalogs[0]?.id;
     if (!catalogId || !company) return;
     setIsSavingPaint(true);
@@ -230,6 +310,7 @@ const Dashboard = () => {
       category: paintData.category,
     };
 
+    // Atualiza estado local
     updateCompany({
       catalogs: company.catalogs.map((cat) => {
         if (cat.id !== catalogId) return cat;
@@ -242,24 +323,87 @@ const Dashboard = () => {
       }),
     });
 
+    // Salva no banco de dados
+    try {
+      if (editingPaint) {
+        // Atualiza tinta existente
+        const { error } = await supabase
+          .from('paints')
+          .update({
+            name: newPaint.name,
+            code: newPaint.code,
+            hex: newPaint.hex,
+            rgb: newPaint.rgb,
+            cmyk: newPaint.cmyk,
+            category: newPaint.category
+          })
+          .eq('id', editingPaint.id);
+
+        if (error) {
+          console.error("Erro ao atualizar tinta:", error);
+        }
+      } else {
+        // Insere nova tinta
+        const { error } = await supabase
+          .from('paints')
+          .insert({
+            catalog_id: catalogId,
+            name: newPaint.name,
+            code: newPaint.code,
+            hex: newPaint.hex,
+            rgb: newPaint.rgb,
+            cmyk: newPaint.cmyk,
+            category: newPaint.category
+          });
+
+        if (error) {
+          console.error("Erro ao salvar tinta:", error);
+        }
+      }
+    } catch (error) {
+      console.error("Erro na operação de tinta:", error);
+    }
+
     setIsSavingPaint(false);
     setPaintDialogOpen(false);
     toast.success(editingPaint ? "Cor atualizada!" : "Cor adicionada!");
   };
 
-  const handleDeletePaint = (paintId: string) => {
+  const handleDeletePaint = async (paintId: string) => {
     const catalogId = selectedCatalogId || company.catalogs[0]?.id;
     if (!catalogId || !company) return;
+    
+    // Atualiza estado local
     updateCompany({
       catalogs: company.catalogs.map((cat) =>
         cat.id === catalogId ? { ...cat, paints: cat.paints.filter((p) => p.id !== paintId) } : cat
       ),
     });
+
+    // Remove do banco de dados
+    try {
+      const { error } = await supabase
+        .from('paints')
+        .delete()
+        .eq('id', paintId);
+
+      if (error) {
+        console.error("Erro ao excluir tinta:", error);
+      }
+    } catch (error) {
+      console.error("Erro na exclusão de tinta:", error);
+    }
+    
     toast.success("Cor excluída!");
   };
 
   const handleOpenProject = (id: string) => {
     localStorage.setItem("colora_pending_session", id);
+    navigate("/simulator");
+  };
+
+  const handleNewProject = () => {
+    localStorage.setItem("colora_new_project", "true");
     navigate("/simulator");
   };
 
@@ -293,7 +437,34 @@ const Dashboard = () => {
   const activeCatalogs = company.catalogs.filter((c) => c.active).length;
 
   const headerStyle = company.headerStyle || "glass";
+  const textColor = getContrastColor(company.primaryColor);
+  const isLight = isLightColor(company.primaryColor);
   const isPrimaryHeader = headerStyle === "primary";
+
+  const getButtonStyle = (baseStyle: string, additionalStyle: string = "") => {
+    const style: any = {};
+    // Aplica estilo base
+    if (baseStyle.includes('border-white/20')) {
+      style.borderColor = isLight ? 'rgba(0,0,0,0.1)' : 'rgba(255,255,255,0.3)';
+      style.backgroundColor = isLight ? 'rgba(0,0,0,0.05)' : 'rgba(255,255,255,0.1)';
+    } else if (baseStyle.includes('text-white')) {
+      style.color = '#FFFFFF';
+    } else if (baseStyle.includes('text-foreground')) {
+      style.color = company.primaryColor;
+    }
+    
+    // Aplica estilo específico para header primário
+    if (isPrimaryHeader) {
+      if (baseStyle.includes('hover:bg-white/10')) {
+        style.backgroundColor = 'rgba(255,255,255,0.15)';
+      } else if (baseStyle.includes('hover:bg-white/25')) {
+        style.backgroundColor = 'rgba(255,255,255,0.25)';
+      }
+    }
+    
+    return { ...style, ...additionalStyle };
+  };
+
 
   // ─── render ────────────────────────────────────────────────────────────────
 
@@ -321,8 +492,12 @@ const Dashboard = () => {
           <div className="flex items-center gap-3">
             {(company.headerContent === "logo+name" || company.headerContent === "logo") && (
               <div
-                className="w-8 h-8 rounded-lg flex items-center justify-center overflow-hidden shrink-0"
-                style={{ backgroundColor: company.logo ? "transparent" : isPrimaryHeader ? "rgba(255,255,255,0.18)" : company.primaryColor }}
+                className="h-8 rounded-lg flex items-center justify-center overflow-hidden shrink-0"
+                style={{ 
+                  backgroundColor: company.logo ? "transparent" : isPrimaryHeader ? "rgba(255,255,255,0.18)" : company.primaryColor,
+                  width: company.logo ? "auto" : "2rem",
+                  maxWidth: "120px"
+                }}
               >
                 {company.logo ? (
                   <img src={company.logo} alt="Logo" className="w-full h-full object-contain" />
@@ -398,6 +573,13 @@ const Dashboard = () => {
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
               {[
                 {
+                  label: "Tokens",
+                  value: formatTokenAmount(company.tokens),
+                  icon: Coins,
+                  color: getTokenStatus().color,
+                  sub: getTokenStatus().text,
+                },
+                {
                   label: "Projetos Salvos",
                   value: sessionsLoading ? "..." : sessions.length,
                   icon: FolderOpen,
@@ -418,13 +600,13 @@ const Dashboard = () => {
                   color: "#6366f1",
                   sub: "em todos os catálogos",
                 },
-                {
-                  label: "Link Público",
-                  value: company.slug ? "Ativo" : "Inativo",
-                  icon: LinkIcon,
-                  color: "#10b981",
-                  sub: `/empresa/${company.slug || "–"}`,
-                },
+                // {
+                //   label: "Link Público",
+                //   value: company.slug ? "Ativo" : "Inativo",
+                //   icon: LinkIcon,
+                //   color: "#10b981",
+                //   sub: `/empresa/${company.slug || "–"}`,
+                // },
               ].map(({ label, value, icon: Icon, color, sub }) => (
                 <div key={label} className="bg-card rounded-2xl border border-border p-5 shadow-soft">
                   <div className="flex items-center justify-between mb-3">
@@ -439,6 +621,95 @@ const Dashboard = () => {
               ))}
             </div>
 
+            {/* Seção de Tokens */}
+            <div className="bg-gradient-to-r from-primary/5 to-secondary/5 rounded-2xl border border-border p-6 shadow-soft space-y-6">
+              <div className="flex items-center justify-between">
+                <h3 className="font-display font-bold text-foreground flex items-center gap-2">
+                  <Coins className="w-5 h-5" /> Meus Tokens
+                </h3>
+                <Badge variant={company.subscriptionStatus === 'active' ? 'default' : 'secondary'}>
+                  {company.subscriptionStatus === 'active' ? 'Assinatura Ativa' : 'Assinatura Inativa'}
+                </Badge>
+              </div>
+
+              <div className="grid md:grid-cols-3 gap-4">
+                <div className="text-center p-4 bg-background/50 rounded-xl">
+                  <div className="text-2xl font-bold text-foreground">
+                    {formatTokenAmount(company.tokens)}
+                  </div>
+                  <div className="text-sm text-muted-foreground">Tokens Disponíveis</div>
+                </div>
+                
+                <div className="text-center p-4 bg-background/50 rounded-xl">
+                  <div className="text-2xl font-bold text-foreground">
+                    {company.tokensExpiresAt ? 
+                      new Date(company.tokensExpiresAt).toLocaleDateString('pt-BR') : 
+                      'Sem validade'
+                    }
+                  </div>
+                  <div className="text-sm text-muted-foreground">Validade</div>
+                </div>
+
+                <div className="text-center p-4 bg-background/50 rounded-xl">
+                  <div className="text-2xl font-bold text-foreground">
+                    {company.lastTokenDeposit ? 
+                      new Date(company.lastTokenDeposit).toLocaleDateString('pt-BR') : 
+                      'N/A'
+                    }
+                  </div>
+                  <div className="text-sm text-muted-foreground">Último Depósito</div>
+                </div>
+              </div>
+
+              {/* Histórico recente */}
+              <div>
+                <h4 className="font-semibold text-foreground mb-3 flex items-center gap-2">
+                  <Clock className="w-4 h-4" /> Histórico Recente
+                </h4>
+                {tokenHistoryLoading ? (
+                  <div className="flex justify-center py-4">
+                    <Loader2 className="w-4 h-4 animate-spin text-muted-foreground" />
+                  </div>
+                ) : tokenHistory.length === 0 ? (
+                  <div className="text-center py-4 text-muted-foreground text-sm">
+                    Nenhuma movimentação recente
+                  </div>
+                ) : (
+                  <div className="space-y-2">
+                    {tokenHistory.slice(0, 5).map((item, index) => (
+                      <div key={index} className="flex items-center justify-between text-sm p-2 rounded-lg bg-background/50">
+                        <div className="flex items-center gap-2">
+                          <div className={`w-2 h-2 rounded-full ${
+                            item.amount > 0 ? 'bg-green-500' : 'bg-red-500'
+                          }`} />
+                          <span className="text-foreground">{item.description}</span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <span className={`font-medium ${
+                            item.amount > 0 ? 'text-green-600' : 'text-red-600'
+                          }`}>
+                            {item.amount > 0 ? '+' : ''}{item.amount}
+                          </span>
+                          <span className="text-muted-foreground text-xs">
+                            {new Date(item.created_at).toLocaleDateString('pt-BR')}
+                          </span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {company.subscriptionStatus !== 'active' && (
+                <div className="bg-orange-50 border border-orange-200 rounded-xl p-4">
+                  <p className="text-sm text-orange-800">
+                    <strong>Atenção:</strong> Sua assinatura está inativa. 
+                    Ative sua assinatura para receber 200 tokens mensais!
+                  </p>
+                </div>
+              )}
+            </div>
+
             {/* Sessões recentes + Link público */}
             <div className="grid lg:grid-cols-[1fr_320px] gap-6">
               {/* Sessões recentes */}
@@ -447,11 +718,9 @@ const Dashboard = () => {
                   <h3 className="font-display font-bold text-foreground flex items-center gap-2">
                     <FolderOpen className="w-4 h-4" /> Projetos Recentes
                   </h3>
-                  <Button size="sm" variant="outline" asChild>
-                    <Link to="/simulator" className="gap-1.5">
+                  <Button size="sm" variant="outline" onClick={handleNewProject} className="gap-1.5">
                       <Plus className="w-3.5 h-3.5" /> Novo
-                    </Link>
-                  </Button>
+                    </Button>
                 </div>
 
                 {sessionsLoading ? (
@@ -840,7 +1109,7 @@ const Dashboard = () => {
                       onClick={() => logoInputRef.current?.click()}
                     >
                       {company.logo ? (
-                        <div className="relative w-20 h-20 mx-auto">
+                        <div className="relative h-20 mx-auto" style={{ width: "auto", maxWidth: "200px" }}>
                           <img src={company.logo} alt="Preview" className="w-full h-full object-contain" />
                           <div className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity rounded-lg">
                             <Upload className="w-5 h-5 text-white" />
@@ -1020,8 +1289,12 @@ const Dashboard = () => {
                     )}
                     {(company.headerContent === "logo+name" || company.headerContent === "logo") && (
                       <div
-                        className="w-6 h-6 rounded flex items-center justify-center"
-                        style={{ backgroundColor: company.logo ? "transparent" : isPrimaryHeader ? "rgba(255,255,255,0.18)" : company.primaryColor }}
+                        className="h-6 rounded flex items-center justify-center"
+                        style={{ 
+                          backgroundColor: company.logo ? "transparent" : isPrimaryHeader ? "rgba(255,255,255,0.18)" : company.primaryColor,
+                          width: company.logo ? "auto" : "1.5rem",
+                          maxWidth: "80px"
+                        }}
                       >
                         {company.logo ? (
                           <img src={company.logo} alt="Logo" className="w-full h-full object-contain" />
@@ -1080,13 +1353,74 @@ const Dashboard = () => {
         isSaving={isSavingPaint}
       />
 
-      {cropperOpen && imageToCrop && (
-        <ImageCropper
-          image={imageToCrop}
-          onCrop={handleCropComplete}
-          onCancel={handleCropCancel}
-        />
+      {/* Diálogo de boas práticas para logo */}
+      {logoGuidelinesOpen && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-background rounded-2xl border border-border shadow-soft max-w-md w-full p-6 space-y-4">
+            <div className="text-center space-y-3">
+              <div className="w-12 h-12 rounded-xl gradient-primary flex items-center justify-center mx-auto">
+                <ImageIcon className="w-6 h-6 text-primary-foreground" />
+              </div>
+              <h3 className="font-display font-bold text-foreground text-lg">Diretrizes para o Logotipo</h3>
+              <p className="text-sm text-muted-foreground">
+                Para garantir a melhor aparência no cabeçalho do seu site, siga estas recomendações:
+              </p>
+            </div>
+
+            <div className="space-y-3 text-sm">
+              <div className="flex items-start gap-3">
+                <div className="w-5 h-5 rounded-full bg-green-500/20 flex items-center justify-center flex-shrink-0 mt-0.5">
+                  <Check className="w-3 h-3 text-green-600" />
+                </div>
+                <div>
+                  <p className="font-medium text-foreground">Formato PNG</p>
+                  <p className="text-muted-foreground text-xs">Use PNG com fundo transparente para melhor qualidade</p>
+                </div>
+              </div>
+
+              <div className="flex items-start gap-3">
+                <div className="w-5 h-5 rounded-full bg-green-500/20 flex items-center justify-center flex-shrink-0 mt-0.5">
+                  <Check className="w-3 h-3 text-green-600" />
+                </div>
+                <div>
+                  <p className="font-medium text-foreground">Layout Horizontal</p>
+                  <p className="text-muted-foreground text-xs">Logotipos mais largos do que altos funcionam melhor no cabeçalho</p>
+                </div>
+              </div>
+
+              <div className="flex items-start gap-3">
+                <div className="w-5 h-5 rounded-full bg-green-500/20 flex items-center justify-center flex-shrink-0 mt-0.5">
+                  <Check className="w-3 h-3 text-green-600" />
+                </div>
+                <div>
+                  <p className="font-medium text-foreground">Alta Resolução</p>
+                  <p className="text-muted-foreground text-xs">Mínimo de 200px de altura para boa nitidez</p>
+                </div>
+              </div>
+
+              <div className="flex items-start gap-3">
+                <div className="w-5 h-5 rounded-full bg-green-500/20 flex items-center justify-center flex-shrink-0 mt-0.5">
+                  <Check className="w-3 h-3 text-green-600" />
+                </div>
+                <div>
+                  <p className="font-medium text-foreground">Cores Contrastantes</p>
+                  <p className="text-muted-foreground text-xs">Evite cores muito claras que possam se perder no fundo</p>
+                </div>
+              </div>
+            </div>
+
+            <div className="flex gap-3 pt-2">
+              <Button variant="outline" onClick={handleLogoCancel} className="flex-1">
+                Cancelar
+              </Button>
+              <Button onClick={handleLogoConfirm} className="flex-1">
+                Entendido, Continuar
+              </Button>
+            </div>
+          </div>
+        </div>
       )}
+
     </div>
   );
 };

@@ -34,7 +34,6 @@ export interface Company {
   primaryColor: string;
   secondaryColor: string;
   catalogs: Catalog[];
-  aiCredits: number;
 
   // Dados públicos da empresa (para rodapé/contato)
   phone?: string;
@@ -45,6 +44,12 @@ export interface Company {
   headerContent?: HeaderContentMode;
   headerStyle?: HeaderStyleMode;
   fontSet?: FontSet;
+
+  // Sistema de Tokens
+  tokens: number;
+  tokensExpiresAt: string | null;
+  subscriptionStatus: 'active' | 'inactive';
+  lastTokenDeposit: string | null;
 
   // Coordenadas de crop da imagem principal (logo)
   logoCrop?: CropCoordinates;
@@ -175,7 +180,6 @@ export function createDefaultCompany(name: string): Company {
     primaryColor: "#1a8a6a",
     secondaryColor: "#e87040",
     catalogs: [createDefaultCatalog()],
-    aiCredits: 200,
 
     phone: "",
     website: "",
@@ -184,5 +188,11 @@ export function createDefaultCompany(name: string): Company {
     headerContent: "logo+name",
     headerStyle: "glass",
     fontSet: "grotesk",
+
+    // Sistema de Tokens
+    tokens: 0,
+    tokensExpiresAt: null,
+    subscriptionStatus: 'inactive',
+    lastTokenDeposit: null,
   };
 }

@@ -6,17 +6,17 @@ import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Trash2, FolderOpen, Plus, Clock } from "lucide-react";
 
-export type SessionListItem = {
+export type ProjectListItem = {
   id: string;
   name: string;
   updatedAt: string;
 };
 
-interface SessionDrawerProps {
+interface ProjectDrawerProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  currentSessionId: string | null;
-  listSessions: () => Promise<SessionListItem[]>;
+  currentProjectId: string | null;
+  listProjects: () => Promise<ProjectListItem[]>;
   onLoad: (id: string) => Promise<void>;
   onDelete: (id: string) => Promise<void>;
   onNew: () => void;
@@ -27,21 +27,21 @@ function formatDate(iso: string) {
   return d.toLocaleString();
 }
 
-const SessionDrawer = ({
+const ProjectDrawer = ({
   open,
   onOpenChange,
-  currentSessionId,
-  listSessions,
+  currentProjectId,
+  listProjects,
   onLoad,
   onDelete,
   onNew,
-}: SessionDrawerProps) => {
-  const [items, setItems] = useState<SessionListItem[]>([]);
+}: ProjectDrawerProps) => {
+  const [items, setItems] = useState<ProjectListItem[]>([]);
   const [loading, setLoading] = useState(false);
 
   const refresh = async () => {
     setLoading(true);
-    const list = await listSessions();
+    const list = await listProjects();
     setItems(list);
     setLoading(false);
   };
@@ -61,25 +61,25 @@ const SessionDrawer = ({
         <SheetHeader>
           <SheetTitle className="flex items-center gap-2">
             <FolderOpen className="w-5 h-5" />
-            Sessões
+            Projetos
           </SheetTitle>
         </SheetHeader>
 
         <div className="mt-5 space-y-3">
           <Button className="w-full gap-2" onClick={onNew}>
             <Plus className="w-4 h-4" />
-            Nova sessão
+            Novo projeto
           </Button>
 
           <div className="text-xs text-muted-foreground flex items-center gap-2">
             <Clock className="w-3.5 h-3.5" />
-            {loading ? "Carregando..." : `${items.length} sessão(ões) salva(s)`}
+            {loading ? "Carregando..." : `${items.length} projeto(s) salvo(s)`}
           </div>
 
           <ScrollArea className="h-[calc(100vh-210px)] pr-3">
             <div className="space-y-2">
               {items.map((s) => {
-                const isCurrent = currentSessionId === s.id;
+                const isCurrent = currentProjectId === s.id;
                 return (
                   <div
                     key={s.id}
@@ -94,7 +94,7 @@ const SessionDrawer = ({
                           await onLoad(s.id);
                           onOpenChange(false);
                         }}
-                        title="Abrir sessão"
+                        title="Abrir projeto"
                       >
                         <p className={`text-sm font-bold leading-snug ${isCurrent ? "text-primary" : "text-foreground"}`}>
                           {s.name}
@@ -112,7 +112,7 @@ const SessionDrawer = ({
                           await onDelete(s.id);
                           await refresh();
                         }}
-                        title="Excluir sessão"
+                        title="Excluir projeto"
                       >
                         <Trash2 className="w-4 h-4" />
                       </Button>
@@ -123,7 +123,7 @@ const SessionDrawer = ({
 
               {!loading && items.length === 0 && (
                 <div className="py-10 text-center text-sm text-muted-foreground">
-                  Nenhuma sessão salva ainda.
+                  Nenhum projeto salvo ainda.
                 </div>
               )}
             </div>
@@ -134,4 +134,4 @@ const SessionDrawer = ({
   );
 };
 
-export default SessionDrawer;
+export default ProjectDrawer;

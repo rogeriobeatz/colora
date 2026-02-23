@@ -1,6 +1,7 @@
 import Dexie, { Table } from 'dexie';
 import { toast } from 'sonner';
 import { supabase } from "@/integrations/supabase/client";
+import { v4 as uuidv4 } from 'uuid';
 
 export type SimulatorSessionRecord = {
   id: string;
@@ -52,7 +53,7 @@ export async function saveSimulatorSession(record: SimulatorSessionRecord): Prom
       return handleLocalDB(db.sessions.put(record), "Erro ao salvar localmente");
     }
 
-    const { data, error } = await supabase
+    const { data, error } = await (supabase as any)
       .from('simulator_sessions')
       .upsert({
         id: record.id,
@@ -71,7 +72,7 @@ export async function saveSimulatorSession(record: SimulatorSessionRecord): Prom
       return handleLocalDB(db.sessions.put(record), "Erro no fallback local");
     }
 
-    console.log("[SimulatorDB] Sessão salva no Supabase:", data.id);
+    console.log("[SimulatorDB] Projeto salvo no Supabase:", data.id);
     return data?.id || record.id;
   } catch (error: any) {
     console.error("[SimulatorDB] Erro crítico ao salvar:", error);
@@ -87,7 +88,7 @@ export async function getSimulatorSession(id: string): Promise<SimulatorSessionR
       return handleLocalDB(db.sessions.get(id), "Erro ao carregar localmente");
     }
 
-    const { data, error } = await supabase
+    const { data, error } = await (supabase as any)
       .from('simulator_sessions')
       .select('*')
       .eq('id', id)
@@ -95,7 +96,7 @@ export async function getSimulatorSession(id: string): Promise<SimulatorSessionR
       .single();
 
     if (error || !data) {
-      console.warn("[SimulatorDB] Sessão não encontrada no Supabase, buscando localmente");
+      console.warn("[SimulatorDB] Projeto não encontrado no Supabase, buscando localmente");
       return handleLocalDB(db.sessions.get(id), "Erro no fallback local");
     }
 
@@ -107,7 +108,7 @@ export async function getSimulatorSession(id: string): Promise<SimulatorSessionR
       data: data.data,
     };
   } catch (error: any) {
-    console.error("[SimulatorDB] Erro ao carregar sessão:", error);
+    console.error("[SimulatorDB] Erro ao carregar projeto:", error);
     return handleLocalDB(db.sessions.get(id), "Erro no fallback local");
   }
 }
@@ -120,7 +121,7 @@ export async function listSimulatorSessions(): Promise<SimulatorSessionRecord[]>
       return result || [];
     }
 
-    const { data, error } = await supabase
+    const { data, error } = await (supabase as any)
       .from('simulator_sessions')
       .select('id, name, created_at, updated_at, data')
       .eq('user_id', user.id)
@@ -140,7 +141,7 @@ export async function listSimulatorSessions(): Promise<SimulatorSessionRecord[]>
       data: s.data,
     }));
   } catch (error: any) {
-    console.error("[SimulatorDB] Erro ao listar sessões:", error);
+    console.error("[SimulatorDB] Erro ao listar projetos:", error);
     const result = await handleLocalDB(db.sessions.orderBy('updatedAt').reverse().toArray(), "Erro no fallback local");
     return result || [];
   }
@@ -153,7 +154,7 @@ export async function deleteSimulatorSession(id: string): Promise<void | null> {
       return handleLocalDB(db.sessions.delete(id), "Erro ao excluir localmente");
     }
 
-    const { error } = await supabase
+    const { error } = await (supabase as any)
       .from('simulator_sessions')
       .delete()
       .eq('id', id)
@@ -167,18 +168,42 @@ export async function deleteSimulatorSession(id: string): Promise<void | null> {
     // Também remove do local
     await db.sessions.delete(id);
     
-    console.log("[SimulatorDB] Sessão excluída:", id);
+    console.log("[SimulatorDB] Projeto excluído:", id);
   } catch (error: any) {
-    console.error("[SimulatorDB] Erro ao excluir sessão:", error);
+    console.error("[SimulatorDB] Erro ao excluir projeto:", error);
     return handleLocalDB(db.sessions.delete(id), "Erro no fallback local");
   }
 }
 
 export async function setLastSessionId(id: string): Promise<string | null> {
-  return handleLocalDB(db.meta.put({ key: 'lastSessionId', value: id }), "Erro ao salvar sessão recente");
+  return handleLocalDB(db.meta.put({ key: 'lastSessionId', value: id }), "Erro ao salvar projeto recente");
 }
 
 export async function getLastSessionId(): Promise<string | null> {
-  const res = await handleLocalDB(db.meta.get('lastSessionId'), "Erro ao buscar sessão recente");
+  const res = await handleLocalDB(db.meta.get('lastSessionId'), "Erro ao buscar projeto recente");
   return res?.value ?? null;
+}
+
+// Função para gerar UUID válido
+export function generateUUID(): string {
+  return uuidv4();
+}
+
+// Função para limpar projetos locais com IDs inválidos
+export async function cleanInvalidLocalProjects(): Promise<void> {
+  try {
+    const allSessions = await db.sessions.toArray();
+    const invalidSessions = allSessions.filter(session => {
+      // Verifica se o ID é um UUID válido (formato xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx)
+      const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+      return !uuidRegex.test(session.id);
+    });
+    
+    if (invalidSessions.length > 0) {
+      console.log(`[SimulatorDB] Limpando ${invalidSessions.length} projetos locais com IDs inválidos`);
+      await db.sessions.bulkDelete(invalidSessions.map(s => s.id));
+    }
+  } catch (error) {
+    console.error("[SimulatorDB] Erro ao limpar projetos inválidos:", error);
+  }
 }

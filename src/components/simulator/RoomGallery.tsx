@@ -1,5 +1,5 @@
-import { useRef } from "react";
-import { Plus, ImageIcon } from "lucide-react";
+import { useRef, useState } from "react";
+import { Plus, ImageIcon, Trash2 } from "lucide-react";
 import { Room } from "./types";
 
 interface RoomGalleryProps {
@@ -7,10 +7,13 @@ interface RoomGalleryProps {
   activeRoomId: string | null;
   onSelectRoom: (id: string) => void;
   onAddRoom: (file: File) => void;
+  onUploadClick: () => void; // Nova prop para ativar o crop
+  onDeleteRoom: (id: string) => void; // Nova prop para excluir ambiente
 }
 
-const RoomGallery = ({ rooms, activeRoomId, onSelectRoom, onAddRoom }: RoomGalleryProps) => {
+const RoomGallery = ({ rooms, activeRoomId, onSelectRoom, onAddRoom, onUploadClick, onDeleteRoom }: RoomGalleryProps) => {
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const [hoveredRoomId, setHoveredRoomId] = useState<string | null>(null);
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -25,12 +28,12 @@ const RoomGallery = ({ rooms, activeRoomId, onSelectRoom, onAddRoom }: RoomGalle
       {rooms.map((room) => (
         <button
           key={room.id}
-          onClick={() => onSelectRoom(room.id)}
-          className={`flex-shrink-0 group relative rounded-xl overflow-hidden border-2 transition-all duration-200 ${
-            activeRoomId === room.id
-              ? "border-primary shadow-soft ring-2 ring-primary/20"
-              : "border-border hover:border-primary/40"
+          className={`relative flex-shrink-0 rounded-xl border-2 border-border overflow-hidden group transition-all duration-200 ${
+            activeRoomId === room.id ? 'ring-2 ring-primary ring-offset-2' : 'hover:border-primary/50 hover:shadow-md'
           }`}
+          onClick={() => onSelectRoom(room.id)}
+          onMouseEnter={() => setHoveredRoomId(room.id)}
+          onMouseLeave={() => setHoveredRoomId(null)}
           style={{ width: 120, height: 80 }}
         >
           <img
@@ -50,9 +53,21 @@ const RoomGallery = ({ rooms, activeRoomId, onSelectRoom, onAddRoom }: RoomGalle
               <span className="inline-flex rounded-full h-2.5 w-2.5 bg-primary" />
             )}
           </div>
-          {/* Overlay with name */}
+          {/* Overlay with name and delete button */}
           <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-foreground/70 to-transparent p-1.5">
-            <p className="text-[10px] font-medium text-primary-foreground truncate">{room.name}</p>
+            <p className="text-[10px] font-medium text-primary-foreground truncate pr-8">
+              {room.isAnalyzing ? "Analisando..." : room.name}
+            </p>
+            {/* Delete button - positioned inside overlay */}
+            <button
+              onClick={() => onDeleteRoom(room.id)}
+              className={`absolute top-1.5 right-1.5 w-5 h-5 rounded-full bg-destructive/80 text-destructive-foreground flex items-center justify-center transition-opacity hover:bg-destructive ${
+                hoveredRoomId === room.id ? 'opacity-100' : 'opacity-0'
+              }`}
+              title="Excluir ambiente"
+            >
+              <Trash2 className="w-3 h-3" />
+            </button>
           </div>
           {/* Simulation count */}
           {room.simulations.length > 0 && (
@@ -65,7 +80,7 @@ const RoomGallery = ({ rooms, activeRoomId, onSelectRoom, onAddRoom }: RoomGalle
 
       {/* Add Room Card */}
       <button
-        onClick={() => fileInputRef.current?.click()}
+        onClick={onUploadClick}
         className="flex-shrink-0 rounded-xl border-2 border-dashed border-border hover:border-primary/50 transition-all duration-200 flex flex-col items-center justify-center gap-1 bg-muted/30 hover:bg-muted/60"
         style={{ width: 120, height: 80 }}
       >

@@ -117,7 +117,7 @@ const SimulatorHeader = ({
             !isPrimaryHeader && "border-border"
           )}>
             <Sparkles className={cn("w-3.5 h-3.5", isPrimaryHeader ? "text-white/80" : "text-amber-500")} />
-            <span className={cn(titleColor)}>{company?.aiCredits ?? 0}</span>
+            <span className={cn(titleColor)}>{company?.tokens ?? 0}</span>
             <span className={cn("hidden sm:inline-block", mutedColor)}>créditos</span>
           </div>
 
