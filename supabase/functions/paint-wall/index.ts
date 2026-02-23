@@ -1,6 +1,5 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import * as ImageScript from "https://deno.land/x/imagescript@1.2.16/mod.ts";
 import { decode as decodeBase64 } from "https://deno.land/std@0.224.0/encoding/base64.ts";
 
 const corsHeaders = {
@@ -72,36 +71,13 @@ serve(async (req) => {
     }
     const technicalWallName = wallLabelEn || wallLabel || "wall";
 
-    // 4. Image Processing
-    let image = await ImageScript.decode(decodeBase64(imageBase64.replace(/^data:image\/[^;]+;base64,/, "")));
+    // 4. Image Processing - decode base64 to raw bytes
+    const rawBytes = decodeBase64(imageBase64.replace(/^data:image\/[^;]+;base64,/, ""));
     
-    if (cropCoordinates && typeof image.width === 'number' && typeof image.height === 'number') {
-      const { width: origW, height: origH } = image;
-      const cropX = Math.floor((cropCoordinates.x / 100) * origW);
-      const cropY = Math.floor((cropCoordinates.y / 100) * origH);
-      const cropW = Math.floor((cropCoordinates.width / 100) * origW);
-      const cropH = Math.floor((cropCoordinates.height / 100) * origH);
-      image.crop(cropX, cropY, cropW, cropH);
-    }
-    
-    const processedImageBytes = await image.encode();
-    const fileName = `input_${Date.now()}_${Math.random().toString(36).substring(7)}.png`;
-
-    const { error: uploadError } = await serviceRoleClient.storage.from('images').upload(fileName, processedImageBytes, { contentType: 'image/png' });
-
-    if (uploadError) throw new Error(`Upload failed: ${uploadError.message}`);
-
-    const { data: { publicUrl } } = serviceRoleClient.storage.from('images').getPublicUrl(fileName);
-
-    // 5. AI API Call
-    let aspectRatio = "16:9"; // default
-    
-    // Determine aspect ratio based on crop coordinates
-    if (cropCoordinates && typeof image.width === 'number' && typeof image.height === 'number') {
-      const cropW = (cropCoordinates.width / 100) * image.width;
-      const cropH = (cropCoordinates.height / 100) * image.height;
-      const ratio = cropW / cropH;
-      
+    // Determine aspect ratio from crop coordinates if available
+    let aspectRatio = "16:9";
+    if (cropCoordinates) {
+      const ratio = cropCoordinates.width / cropCoordinates.height;
       if (Math.abs(ratio - 1) < 0.1) {
         aspectRatio = "1:1";
       } else if (ratio > 1.5) {
@@ -109,14 +85,15 @@ serve(async (req) => {
       } else {
         aspectRatio = "2:3";
       }
-    } else if (image.width >= image.height) {
-      aspectRatio = "16:9";
-    } else {
-      aspectRatio = "2:3";
     }
     
-    console.log(`[paint-wall] Using aspect ratio: ${aspectRatio} for image ${image.width}x${image.height}`);
-    
+    console.log(`[paint-wall] Using aspect ratio: ${aspectRatio}`);
+
+    const fileName = `input_${Date.now()}_${Math.random().toString(36).substring(7)}.png`;
+    const { error: uploadError } = await serviceRoleClient.storage.from('images').upload(fileName, rawBytes, { contentType: 'image/png' });
+    if (uploadError) throw new Error(`Upload failed: ${uploadError.message}`);
+    const { data: { publicUrl } } = serviceRoleClient.storage.from('images').getPublicUrl(fileName);
+
     const prompt = `Change ONLY the **${technicalWallName}** color to "${paintColor}". ...`; // Prompt truncated
     
     const payload = { model: "flux-2/pro-image-to-image", input: { input_urls: [publicUrl], prompt, aspect_ratio: aspectRatio, resolution: "1K" }};
