@@ -131,43 +131,48 @@ serve(async (req) => {
 
     // Process completed token recharge payments
     for (const session of recentSessions.data) {
-      if (session.mode === 'payment' && session.payment_status === 'paid' && session.metadata?.type === 'recharge') {
-        // Check if already processed by looking at token_consumptions
-        const { data: existing } = await supabaseClient
-          .from('token_consumptions')
-          .select('id')
-          .eq('user_id', user.id)
-          .eq('description', `Recarga de tokens - ${session.id}`)
-          .limit(1);
+      try {
+        if (session.mode === 'payment' && session.payment_status === 'paid' && session.metadata?.type === 'recharge') {
+          // Check if already processed by looking at token_consumptions
+          const { data: existing } = await supabaseClient
+            .from('token_consumptions')
+            .select('id')
+            .eq('user_id', user.id)
+            .eq('description', `Recarga de tokens - ${session.id}`)
+            .limit(1);
 
-        if (!existing || existing.length === 0) {
-          // Credit 100 tokens
-          const { data: profile } = await supabaseClient
-            .from('profiles')
-            .select('tokens, tokens_expires_at')
-            .eq('id', user.id)
-            .single();
-
-          if (profile) {
-            const newTokens = (profile.tokens || 0) + 100;
-            const expiresAt = profile.tokens_expires_at || new Date(Date.now() + 100 * 24 * 60 * 60 * 1000).toISOString();
-
-            await supabaseClient
+          if (!existing || existing.length === 0) {
+            // Credit 100 tokens
+            const { data: profile } = await supabaseClient
               .from('profiles')
-              .update({ tokens: newTokens, tokens_expires_at: expiresAt })
-              .eq('id', user.id);
+              .select('tokens, tokens_expires_at')
+              .eq('id', user.id)
+              .single();
 
-            await supabaseClient
-              .from('token_consumptions')
-              .insert({
-                user_id: user.id,
-                amount: 100,
-                description: `Recarga de tokens - ${session.id}`,
-              });
+            if (profile) {
+              const newTokens = (profile.tokens || 0) + 100;
+              const expiresAt = profile.tokens_expires_at || new Date(Date.now() + 100 * 24 * 60 * 60 * 1000).toISOString();
 
-            logStep("Token recharge processed", { sessionId: session.id, newTokens });
+              await supabaseClient
+                .from('profiles')
+                .update({ tokens: newTokens, tokens_expires_at: expiresAt })
+                .eq('id', user.id);
+
+              await supabaseClient
+                .from('token_consumptions')
+                .insert({
+                  user_id: user.id,
+                  amount: 100,
+                  description: `Recarga de tokens - ${session.id}`,
+                });
+
+              logStep("Token recharge processed", { sessionId: session.id, newTokens });
+            }
           }
         }
+      } catch (sessionError: any) {
+        logStep("Error processing session", { sessionId: session.id, error: sessionError.message });
+        continue;
       }
     }
 
