@@ -1,14 +1,18 @@
 import { Link } from "react-router-dom";
+import { useState, useEffect } from "react";
 import {
   Upload, Palette, Eye, Layers, Sparkles, Monitor, ArrowRight, Check,
-  Zap, Shield, Users, Star, ChevronRight, Store, FileDown, Smartphone,
+  Zap, Shield, Users, Star, ChevronRight, Store, FileDown, Smartphone, Play, Video, X,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import heroRoom from "@/assets/hero-room.jpg";
+import heroWhite from "@/assets/HeroWhite.jpg";
+import heroYellowstone from "@/assets/HeroYellowstone.jpg";
+import heroTiffany from "@/assets/HeroTiffany.jpg";
 import logoSvg from "@/assets/colora-logo.svg";
 
 const stats = [
-  { value: "2s", label: "Simulação com IA" },
+  { value: "Rápido", label: "Simulação com IA" },
   { value: "200", label: "Simulações/mês" },
   { value: "100%", label: "White-label" },
   { value: "PDF", label: "Proposta pronta" },
@@ -80,6 +84,42 @@ const benefits = [
 ];
 
 const Landing = () => {
+  const [currentImage, setCurrentImage] = useState(0);
+  const [showVideoModal, setShowVideoModal] = useState(false);
+  
+  const roomImages = [
+    {
+      src: heroWhite,
+      colorName: "Branco Original",
+      colorCode: "#FFFFFF",
+      description: "Sofisticação e claridade para qualquer ambiente"
+    },
+    {
+      src: heroYellowstone,
+      colorName: "Amarelo Queimado",
+      colorCode: "#D4A574",
+      description: "Aconchego e elegância com toque rústico"
+    },
+    {
+      src: heroTiffany,
+      colorName: "Azul Tiffany",
+      colorCode: "#78C2D9",
+      description: "Serenidade e estilo contemporâneo"
+    }
+  ];
+
+  // Auto-play carousel
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setCurrentImage((prev) => (prev + 1) % roomImages.length);
+    }, 4000); // Muda a cada 4 segundos
+
+    return () => clearInterval(interval);
+  }, []);
+
+  const handleImageChange = (index: number) => {
+    setCurrentImage(index);
+  };
   return (
     <div className="min-h-screen bg-background">
       {/* Nav */}
@@ -116,13 +156,13 @@ const Landing = () => {
           <div className="grid lg:grid-cols-2 gap-12 items-center">
             <div className="space-y-6 opacity-0 animate-fade-in">
               <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-sm font-bold"
-                style={{ background: "linear-gradient(90deg, hsl(96 66% 64% / 0.15), hsl(202 86% 58% / 0.15))", color: "hsl(202 86% 48%)" }}>
+                style={{ background: "linear-gradient(90deg, hsl(96 66% 64% / 0.15), hsl(202 86% 58% / 0.15))", color: "hsla(0, 0%, 3%, 1.00)" }}>
                 <Sparkles className="w-3.5 h-3.5" />
                 Simulação com Inteligência Artificial
               </div>
-              <h1 className="text-4xl md:text-5xl lg:text-[3.4rem] font-display font-bold leading-[1.1] text-foreground">
-                Venda mais tinta com{" "}
-                <span className="text-gradient">simulação de cor por IA</span>
+              <h1 className="text-4xl md:text-5xl lg:text-[3.4rem] font-display font-light leading-[1.1] text-foreground">
+                Venda mais tintas com {" "}
+                <span className="text-gradient font-bold">simulação de cor por IA</span>
               </h1>
               <p className="text-lg text-muted-foreground max-w-lg leading-relaxed">
                 Seus clientes veem o resultado antes de comprar. Menos devoluções,
@@ -136,7 +176,10 @@ const Landing = () => {
                   </Link>
                 </Button>
                 <Button size="lg" variant="outline" asChild className="text-base px-6 hover:scale-105 active:scale-95 transition-all duration-300">
-                  <Link to="/login">Área da Loja</Link>
+                  <Link to="/login" onClick={(e) => { e.preventDefault(); setShowVideoModal(true); }}>
+                    <Video className="w-4 h-4 mr-2" />
+                    Assistir ao vídeo
+                  </Link>
                 </Button>
               </div>
               <p className="text-xs text-muted-foreground flex items-center gap-1.5">
@@ -149,24 +192,63 @@ const Landing = () => {
                 {/* Gradient border glow */}
                 <div className="absolute -inset-[1px] rounded-2xl opacity-40 -z-10 blur-sm"
                   style={{ background: "var(--gradient-primary)" }} />
-                <img
-                  src={heroRoom}
-                  alt="Ambiente moderno simulado com cores de tinta"
-                  className="w-full h-auto"
-                />
-              </div>
-              {/* Floating card */}
-              <div className="absolute -bottom-5 -left-4 bg-card rounded-xl p-3 shadow-elevated border border-border flex items-center gap-3">
-                <div className="w-10 h-10 rounded-full" style={{ backgroundColor: "#50C878" }} />
-                <div>
-                  <p className="text-[10px] text-muted-foreground uppercase tracking-wide font-medium">Cor aplicada</p>
-                  <p className="text-sm font-bold text-foreground">Verde Esmeralda</p>
+                
+                {/* Carousel Container */}
+                <div className="relative h-[400px] md:h-[500px]">
+                  {roomImages.map((image, index) => (
+                    <div
+                      key={index}
+                      className={`absolute inset-0 transition-opacity duration-1000 ease-in-out ${
+                        index === currentImage ? 'opacity-100' : 'opacity-0'
+                      }`}
+                    >
+                      <img
+                        src={image.src}
+                        alt={`Ambiente com cor ${image.colorName}`}
+                        className="w-full h-full object-cover"
+                      />
+                    </div>
+                  ))}
                 </div>
-              </div>
-              {/* AI badge */}
-              <div className="absolute -top-3 -right-3 bg-card rounded-lg px-3 py-2 shadow-elevated border border-border flex items-center gap-2">
-                <Zap className="w-4 h-4" style={{ color: "hsl(202 86% 58%)" }} />
-                <span className="text-xs font-bold text-foreground">IA em 2s</span>
+
+                {/* Color Indicators */}
+                <div className="absolute bottom-4 left-1/2 -translate-x-1/2 flex gap-2 bg-card/90 backdrop-blur-sm rounded-full px-3 py-2 border border-border">
+                  {roomImages.map((_, index) => (
+                    <button
+                      key={index}
+                      onClick={() => handleImageChange(index)}
+                      className={`w-2 h-2 rounded-full transition-all duration-300 ${
+                        index === currentImage 
+                          ? 'bg-primary w-6' 
+                          : 'bg-muted-foreground/40 hover:bg-muted-foreground/60'
+                      }`}
+                      aria-label={`Ver imagem ${index + 1}`}
+                    />
+                  ))}
+                </div>
+
+                {/* Floating Color Card */}
+                <div className="absolute -bottom-5 -left-4 bg-card rounded-xl p-3 shadow-elevated border border-border flex items-center gap-3 transition-all duration-500">
+                  <div 
+                    className="w-10 h-10 rounded-full border-2 border-border" 
+                    style={{ backgroundColor: roomImages[currentImage].colorCode }}
+                  />
+                  <div>
+                    <p className="text-[10px] text-muted-foreground uppercase tracking-wide font-medium">Cor aplicada</p>
+                    <p className="text-sm font-bold text-foreground">{roomImages[currentImage].colorName}</p>
+                  </div>
+                </div>
+
+                {/* AI Badge */}
+                {/* <div className="absolute -top-3 -right-3 bg-card rounded-lg px-3 py-2 shadow-elevated border border-border flex items-center gap-2">
+                  <Zap className="w-4 h-4" style={{ color: "hsl(202 86% 58%)" }} />
+                  <span className="text-xs font-bold text-foreground">Simulação em segundos</span>
+                </div> */}
+
+                {/* Color Description */}
+                <div className="absolute top-4 right-4 bg-card/90 backdrop-blur-sm rounded-lg px-3 py-2 border border-border max-w-[200px] transition-all duration-500">
+                  <p className="text-xs text-muted-foreground italic">{roomImages[currentImage].description}</p>
+                </div>
               </div>
             </div>
           </div>
@@ -257,49 +339,10 @@ const Landing = () => {
                       Passo {i + 1}
                     </span>
                   </div>
-                  <h3 className="text-base font-display font-bold text-foreground mb-2">{step.title}</h3>
-                  <p className="text-sm text-muted-foreground leading-relaxed">{step.desc}</p>
+                  <p className="text-sm text-muted-foreground">{step.desc}</p>
                   {i < steps.length - 1 && (
                     <ChevronRight className="hidden lg:block absolute -right-4 top-1/2 -translate-y-1/2 w-5 h-5 text-border z-10" />
                   )}
-                </div>
-              );
-            })}
-          </div>
-        </div>
-      </section>
-
-      {/* Features */}
-      <section className="py-20 px-4">
-        <div className="container mx-auto max-w-5xl">
-          <div className="text-center mb-14">
-            <p className="text-sm font-bold uppercase tracking-wider mb-2 text-gradient inline-block">Funcionalidades</p>
-            <h2 className="text-3xl md:text-4xl font-display font-bold text-foreground mb-3">
-              Tudo que sua loja precisa
-            </h2>
-            <p className="text-muted-foreground text-lg">Ferramenta completa para vender mais e melhor</p>
-          </div>
-          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {features.map((feat, i) => {
-              const colors = [
-                "hsl(300 77% 41%)",
-                "hsl(202 86% 58%)",
-                "hsl(96 66% 64%)",
-                "hsl(61 66% 64%)",
-                "hsl(358 89% 59%)",
-                "hsl(202 86% 58%)",
-              ];
-              return (
-                <div
-                  key={i}
-                  className="p-6 rounded-xl border border-border bg-card hover:shadow-elevated transition-all duration-300 group"
-                >
-                  <div className="w-11 h-11 rounded-xl flex items-center justify-center mb-4 group-hover:scale-110 transition-transform"
-                    style={{ backgroundColor: `${colors[i]}15` }}>
-                    <feat.icon className="w-5 h-5" style={{ color: colors[i] }} />
-                  </div>
-                  <h3 className="text-base font-display font-bold text-foreground mb-1.5">{feat.title}</h3>
-                  <p className="text-sm text-muted-foreground leading-relaxed">{feat.desc}</p>
                 </div>
               );
             })}
@@ -400,6 +443,45 @@ const Landing = () => {
           </div>
         </div>
       </section>
+
+      {/* Video Modal */}
+      {showVideoModal && (
+        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-fade-in">
+          <div className="bg-white rounded-2xl max-w-4xl w-full max-h-[90vh] overflow-y-auto transform transition-all duration-300 scale-100 opacity-100 animate-slide-up">
+            {/* Header */}
+            <div className="flex items-center justify-between p-6 border-b border-border">
+              <h3 className="text-lg font-display font-bold text-foreground">Demonstração Colora</h3>
+              <button
+                onClick={() => setShowVideoModal(false)}
+                className="text-muted-foreground hover:text-foreground transition-colors p-2 rounded-lg hover:bg-muted/100 transform hover:scale-110 transition-all duration-200"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Video Content */}
+            <div className="p-6">
+              <div className="aspect-video bg-black rounded-lg overflow-hidden">
+                <div className="flex items-center justify-center h-full">
+                  <p className="text-white text-lg mb-4">🎬 Vídeo Demonstrativo</p>
+                  <p className="text-white/80 text-center">Veja como o Colora transforma qualquer ambiente em segundos</p>
+                </div>
+              </div>
+            </div>
+
+            {/* CTA Section */}
+            <div className="p-6 bg-muted/50">
+              <h4 className="text-lg font-display font-bold text-foreground mb-2">Pronto para transformar sua loja?</h4>
+              <p className="text-muted-foreground mb-4">Assine agora e comece a vender mais com simulação realista</p>
+              <Button variant="gradient-secondary" size="lg" className="w-full button-glow button-shine" asChild>
+                <Link to="/login">
+                  Assinar Agora <ArrowRight className="w-4 h-4 ml-2" />
+                </Link>
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Final CTA */}
       <section className="py-20 px-4 relative overflow-hidden">

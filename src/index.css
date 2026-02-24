@@ -54,16 +54,15 @@
     --sidebar-ring: 257 4% 70.4%;
 
     /* Custom tokens */
-    --gradient-primary: linear-gradient(90deg,
-    hsl(61, 66%, 64%),
-    hsl(96, 66%, 64%), 
-    hsl(202, 86%, 58%),
-    hsl(300, 77%, 41%),
-    hsl(358, 89%, 59%)
-    );
+--gradient-primary: linear-gradient(90deg,
+  hsl(41, 68%, 55%),  /* Amarelo */
+  hsl(96, 42%, 41%),  /* Verde */
+  hsl(202, 86%, 58%), /* Azul */
+  hsl(0, 77%, 41%)  /* Roxo */
+);
     --gradient-secondary: linear-gradient(90deg,
-    hsl(199, 20%, 75%), 
-        hsl(0, 0%, 100%)
+    hsl(199, 50%, 74%), 
+        hsl(184, 74%, 70%)
     );
     --gradient-accent: linear-gradient(135deg, hsl(18 90% 56%), hsl(30 95% 58%));
     --gradient-hero: linear-gradient(135deg, hsl(200 20% 12%), hsl(168 72% 22%));
