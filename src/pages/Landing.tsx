@@ -133,7 +133,7 @@ const Landing = () => {
               <Link to="/login">Área da Loja</Link>
             </Button>
             <Button variant="gradient-secondary" size="lg" asChild className="button-glow button-pulse">
-              <Link to="/login">
+              <Link to="/checkout">
                 Assinar Agora <ArrowRight className="w-4 h-4 ml-2" />
                 <div className="button-shine" />
               </Link>
@@ -170,7 +170,7 @@ const Landing = () => {
               </p>
               <div className="flex flex-wrap gap-3 pt-2">
                 <Button variant="gradient-secondary" size="lg" asChild className="button-glow">
-                  <Link to="/login">
+                  <Link to="/checkout">
                     Assinar por R$ 59,90/mês <ArrowRight className="w-4 h-4" />
                     <div className="button-shine" />
                   </Link>
@@ -431,7 +431,7 @@ const Landing = () => {
               ))}
             </ul>
             <Button variant="gradient-secondary" size="lg" className="w-full button-glow" asChild>
-              <Link to="/login">
+              <Link to="/checkout">
                 Assinar Agora <ArrowRight className="w-4 h-4 ml-2" />
                 <div className="button-shine" />
               </Link>
@@ -474,7 +474,7 @@ const Landing = () => {
               <h4 className="text-lg font-display font-bold text-foreground mb-2">Pronto para transformar sua loja?</h4>
               <p className="text-muted-foreground mb-4">Assine agora e comece a vender mais com simulação realista</p>
               <Button variant="gradient-secondary" size="lg" className="w-full button-glow button-shine" asChild>
-                <Link to="/login">
+                <Link to="/checkout">
                   Assinar Agora <ArrowRight className="w-4 h-4 ml-2" />
                 </Link>
               </Button>
@@ -495,7 +495,7 @@ const Landing = () => {
             Assine o Colora e comece a impressionar seus clientes hoje mesmo.
           </p>
           <Button variant="gradient-secondary" size="lg" asChild className="button-glow button-pulse">
-            <Link to="/login">
+            <Link to="/checkout">
               Assinar por R$ 59,90/mês <ArrowRight className="w-4 h-4" />
               <div className="button-shine" />
             </Link>

@@ -123,7 +123,7 @@ function simulatorReducer(state: SimulatorState, action: Action): SimulatorState
 }
 
 // --- The Hook ---
-export function useSimulator() {
+export function useSimulator({ companySlug }: { companySlug?: string } = {}) {
   const { company, refreshData } = useStore();
   const [state, dispatch] = useReducer(simulatorReducer, initialState);
   const { session, loadingSession, rooms, activeRoomId, selectedWallId, selectedPaint, isPainting, hasUnsavedChanges } = state;

@@ -11,13 +11,15 @@ import {
   Palette, Plus, Eye, EyeOff, Search, LogOut, Loader2, Settings,
   FileUp, FileDown, Trash2, Image as ImageIcon,
   Check, Upload, Pencil, X, FolderOpen, Clock, Play, Link as LinkIcon,
-  TrendingUp, Layers, Sparkles, ExternalLink, Copy, Globe, Phone, MapPin, Coins, CreditCard, RefreshCw
+  TrendingUp, Layers, Sparkles, ExternalLink, Copy, Globe, Phone, MapPin, Coins, CreditCard, RefreshCw,
+  User, FileText, Building2
 } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import PaintDialog from "@/components/simulator/PaintDialog";
 import { Paint, HeaderContentMode, HeaderStyleMode, FontSet } from "@/data/defaultColors";
 import { ProjectListItem } from "@/components/simulator/ProjectDrawer";
+import { useAccessibleStyles } from "@/hooks/useAccessibleStyles";
 
 // ─── helpers ────────────────────────────────────────────────────────────────
 
@@ -69,44 +71,91 @@ function hexToCmyk(hex: string): string {
 // ─── component ───────────────────────────────────────────────────────────────
 
 const Dashboard = () => {
-  const { user, loading: authLoading, signOut, checkSubscription } = useAuth();
+  // Hooks principais - sempre no topo e em ordem consistente
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
+  const { user, loading: authLoading, signOut, checkSubscription } = useAuth();
   const {
     company, updateCompany, addCatalog, updateCatalog, deleteCatalog,
     importPaintsCSV, exportPaintsCSV, refreshData,
     consumeToken, checkTokensAvailable, depositMonthlyTokens
   } = useStore();
-
+  
+  // Hook de estilos acessíveis - sempre depois dos hooks principais
+  const accessibleStyles = useAccessibleStyles();
+  
+  // Refs
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const logoInputRef = useRef<HTMLInputElement>(null);
+  
+  // Estados em ordem consistente
   const [selectedCatalogId, setSelectedCatalogId] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState("");
   const [newCatalogName, setNewCatalogName] = useState("");
   const [isSaving, setIsSaving] = useState(false);
   const [isInitialLoading, setIsInitialLoading] = useState(true);
-  const fileInputRef = useRef<HTMLInputElement>(null);
-  const logoInputRef = useRef<HTMLInputElement>(null);
-
-  // Sessões recentes
   const [sessions, setSessions] = useState<ProjectListItem[]>([]);
   const [sessionsLoading, setSessionsLoading] = useState(true);
-
-  // CRUD cores
   const [paintDialogOpen, setPaintDialogOpen] = useState(false);
   const [editingPaint, setEditingPaint] = useState<Paint | null>(null);
   const [isSavingPaint, setIsSavingPaint] = useState(false);
-
-  // Edição inline do nome do catálogo
   const [editingCatalogId, setEditingCatalogId] = useState<string | null>(null);
   const [editingCatalogName, setEditingCatalogName] = useState("");
-
-  // Estados para o diálogo de boas práticas do logo
   const [logoGuidelinesOpen, setLogoGuidelinesOpen] = useState(false);
   const [pendingLogoFile, setPendingLogoFile] = useState<File | null>(null);
-
-  // Estados para tokens
   const [tokenHistory, setTokenHistory] = useState<any[]>([]);
   const [tokenHistoryLoading, setTokenHistoryLoading] = useState(false);
   const [isCheckoutLoading, setIsCheckoutLoading] = useState(false);
+
+  // Obter dados do usuário do metadata como fallback
+  const userData = user?.user_metadata || {};
+  const displayData = {
+    name: company?.name || userData?.full_name || userData?.name || "Não informado",
+    email: user?.email || "Não informado",
+    phone: company?.phone || userData?.phone || "Não informado",
+    documentType: userData?.document_type || "cpf",
+    documentNumber: userData?.document_number || userData?.document || "Não informado",
+    companyName: company?.name || userData?.company || "Não informado",
+    website: company?.website || "Não informado",
+    address: company?.address || userData?.company || "Não informado",
+  };
+
+  // Estilos dinâmicos baseados nas cores da empresa
+  const companyStyles = {
+    primaryColor: company?.primaryColor || '#1a8a6a',
+    secondaryColor: company?.secondaryColor || '#e87040',
+    
+    // Função para determinar se uma cor é clara ou escura
+    isColorLight: (color: string) => {
+      // Converter hex para RGB
+      const hex = color.replace('#', '');
+      const r = parseInt(hex.substr(0, 2), 16);
+      const g = parseInt(hex.substr(2, 2), 16);
+      const b = parseInt(hex.substr(4, 2), 16);
+      
+      // Calcular luminosidade (fórmula W3C)
+      const luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
+      
+      // Retornar true se for clara (> 0.5)
+      return luminance > 0.5;
+    },
+    
+    getButtonStyle: (isPrimary = true, backgroundColor?: string) => {
+      const color = backgroundColor || (isPrimary ? company?.primaryColor : company?.secondaryColor);
+      const isLight = companyStyles.isColorLight(color);
+      
+      return {
+        backgroundColor: color,
+        color: isLight ? '#000000' : '#FFFFFF', // Preto se fundo claro, branco se fundo escuro
+        border: 'none',
+      };
+    },
+    getAccentStyle: () => ({
+      backgroundColor: `${company?.secondaryColor}10`,
+      borderColor: `${company?.secondaryColor}30`,
+      color: company?.secondaryColor,
+    }),
+  };
 
   // Funções auxiliares para tokens
   const getTokenStatus = () => {
@@ -227,13 +276,65 @@ const Dashboard = () => {
     navigate("/");
   };
 
+  // Gerar slug único baseado no nome da empresa
+  const generateUniqueSlug = async (baseName: string): Promise<string> => {
+    const baseSlug = baseName
+      .toLowerCase()
+      .replace(/[^a-z0-9\s-]/g, '')
+      .replace(/\s+/g, '-')
+      .substring(0, 30);
+    
+    let slug = baseSlug;
+    let counter = 1;
+    
+    while (true) {
+      const { data: existing } = await supabase
+        .from('profiles')
+        .select('id')
+        .eq('company_slug', slug)
+        .neq('id', user.id)
+        .maybeSingle();
+      
+      if (!existing) return slug;
+      
+      slug = `${baseSlug}-${counter}`;
+      counter++;
+      
+      // Limitar tentativas para evitar loop infinito
+      if (counter > 100) {
+        throw new Error('Não foi possível gerar um slug único');
+      }
+    }
+  };
+
   const handleSaveBranding = async () => {
     setIsSaving(true);
     try {
+      let finalSlug = company.slug;
+      
+      // Se não tiver slug, gerar um automático
+      if (!finalSlug) {
+        finalSlug = await generateUniqueSlug(company.name);
+      } else {
+        // Verificar se o slug atual já existe em outra empresa
+        const { data: existingSlug, error: slugCheckError } = await supabase
+          .from('profiles')
+          .select('id, company_slug')
+          .eq('company_slug', finalSlug)
+          .neq('id', user.id)
+          .maybeSingle();
+        
+        // Se existir, gerar um novo baseado no nome
+        if (existingSlug && !slugCheckError) {
+          finalSlug = await generateUniqueSlug(company.name);
+          toast.info(`URL "${company.slug}" já estava em uso. Usando "${finalSlug}"`);
+        }
+      }
+
       const { error } = await supabase.from('profiles').upsert({
         id: user.id,
         company_name: company.name,
-        company_slug: company.slug,
+        company_slug: finalSlug, // Usar o slug final (gerado ou verificado)
         primary_color: company.primaryColor,
         secondary_color: company.secondaryColor,
         avatar_url: company.logo,
@@ -246,11 +347,32 @@ const Dashboard = () => {
         font_set: company.fontSet || "grotesk",
 
         updated_at: new Date().toISOString(),
+      }, {
+        onConflict: 'id',
+        ignoreDuplicates: false
       });
-      if (error) throw error;
+      
+      if (error) {
+        console.error('Erro ao salvar perfil:', error);
+        throw error;
+      }
+      
+      // Atualizar o estado local com o slug usado
+      if (finalSlug !== company.slug) {
+        updateCompany({ slug: finalSlug });
+      }
+      
       toast.success("Identidade visual salva!");
     } catch (error: any) {
-      toast.error("Erro ao salvar: " + error.message);
+      console.error('Erro detalhado:', error);
+      // Se for erro de duplicidade (409), não é crítico
+      if (error.message?.includes('409') || error.message?.includes('duplicate')) {
+        toast.success("Identidade visual já atualizada!");
+      } else if (error.message?.includes('profiles_company_slug_key')) {
+        toast.error("Este URL personalizado já está em uso. Tente outro.");
+      } else {
+        toast.error("Erro ao salvar: " + error.message);
+      }
     } finally {
       setIsSaving(false);
     }
@@ -435,12 +557,6 @@ const Dashboard = () => {
     toast.success("Projeto excluído!");
   };
 
-  const copyPublicLink = () => {
-    const link = `${window.location.origin}/empresa/${company.slug}`;
-    navigator.clipboard.writeText(link);
-    toast.success("Link copiado!");
-  };
-
   // ─── derived ───────────────────────────────────────────────────────────────
 
   const activeCatalog =
@@ -458,32 +574,29 @@ const Dashboard = () => {
   const activeCatalogs = company.catalogs.filter((c) => c.active).length;
 
   const headerStyle = company.headerStyle || "glass";
-  const textColor = getContrastColor(company.primaryColor);
-  const isLight = isLightColor(company.primaryColor);
-  const isPrimaryHeader = headerStyle === "primary";
+  const isGradientHeader = headerStyle === "gradient";
+  const isCardHeader = headerStyle === "card";
+  const isMinimalHeader = headerStyle === "minimal";
 
-  const getButtonStyle = (baseStyle: string, additionalStyle: string = "") => {
-    const style: any = {};
-    // Aplica estilo base
-    if (baseStyle.includes('border-white/20')) {
-      style.borderColor = isLight ? 'rgba(0,0,0,0.1)' : 'rgba(255,255,255,0.3)';
-      style.backgroundColor = isLight ? 'rgba(0,0,0,0.05)' : 'rgba(255,255,255,0.1)';
-    } else if (baseStyle.includes('text-white')) {
-      style.color = '#FFFFFF';
-    } else if (baseStyle.includes('text-foreground')) {
-      style.color = company.primaryColor;
-    }
-    
-    // Aplica estilo específico para header primário
-    if (isPrimaryHeader) {
-      if (baseStyle.includes('hover:bg-white/10')) {
-        style.backgroundColor = 'rgba(255,255,255,0.15)';
-      } else if (baseStyle.includes('hover:bg-white/25')) {
-        style.backgroundColor = 'rgba(255,255,255,0.25)';
+  const getButtonStyle = (isPrimary = true) => {
+      // Se estiver em modo gradiente, usar estilo primário acessível
+      if (isGradientHeader) {
+        return accessibleStyles.primary.primaryButton;
       }
+      // Se estiver em modo criativo, usar contraste inteligente
+      if (isMinimalHeader) {
+        return accessibleStyles.primary.primaryButton;
+      }
+      // Caso contrário, usar lógica normal
+      return companyStyles.getButtonStyle(isPrimary);
+    };
+
+  const getHeaderTextColor = () => {
+    // Se estiver em modo gradiente ou criativo, usar texto acessível
+    if (isGradientHeader || isMinimalHeader) {
+      return accessibleStyles.primary.primaryText.color;
     }
-    
-    return { ...style, ...additionalStyle };
+    return undefined; // Usa cores padrão do Tailwind
   };
 
   const handleCheckout = async (mode: "subscription" | "recharge") => {
@@ -523,47 +636,69 @@ const Dashboard = () => {
     <div className="min-h-screen bg-background">
       {/* Header */}
       <header
-        className={`sticky top-0 z-50 border-b border-border ${
+        className={`sticky top-0 z-50 ${
           headerStyle === "glass"
-            ? "bg-background/80 backdrop-blur-lg"
-            : headerStyle === "primary"
-              ? ""
-              : "bg-white"
+            ? "bg-background/80 backdrop-blur-lg border-b border-border"
+            : headerStyle === "gradient"
+              ? "border-b border-transparent"
+              : headerStyle === "card"
+                ? "bg-card border-b border-border shadow-xl"
+                : headerStyle === "minimal"
+                  ? "border-b border-transparent"
+                  : "bg-background/80 backdrop-blur-lg border-b border-border"
         }`}
-        style={isPrimaryHeader ? { backgroundColor: company.primaryColor } : undefined}
+        style={
+          isGradientHeader ? { 
+            background: `linear-gradient(135deg, ${company.primaryColor} 0%, ${company.secondaryColor} 100%)`
+          } : isMinimalHeader ? {
+            backgroundColor: company.primaryColor,
+            opacity: 0.95 // Leve transparência no fundo
+          } : undefined
+        }
       >
-        {headerStyle === "white-accent" && (
-          <div
+        {/* Linha gradient para o estilo cartão (sem transparência) */}
+        {isCardHeader && (
+          <div 
             className="h-1 w-full"
-            style={{ background: `linear-gradient(90deg, ${company.primaryColor}, ${company.secondaryColor})` }}
+            style={{ 
+              background: `linear-gradient(90deg, ${company.primaryColor}, ${company.secondaryColor})`
+            }}
           />
         )}
 
         <div className="container mx-auto flex items-center justify-between h-16 px-4 max-w-7xl">
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-3 min-w-0">
             {(company.headerContent === "logo+name" || company.headerContent === "logo") && (
               <div
                 className="h-8 rounded-lg flex items-center justify-center overflow-hidden shrink-0"
                 style={{ 
-                  backgroundColor: company.logo ? "transparent" : isPrimaryHeader ? "rgba(255,255,255,0.18)" : company.primaryColor,
+                  backgroundColor: company.logo ? "transparent" : (isGradientHeader || isMinimalHeader) ? "rgba(255,255,255,0.15)" : undefined,
                   width: company.logo ? "auto" : "2rem",
-                  maxWidth: "120px"
+                  maxWidth: "120px",
+                  border: (isGradientHeader || isMinimalHeader) ? "1px solid rgba(255,255,255,0.2)" : undefined,
+                  opacity: isMinimalHeader ? 0.9 : undefined // Leve transparência adicional no logo
                 }}
               >
                 {company.logo ? (
                   <img src={company.logo} alt="Logo" className="w-full h-full object-contain" />
                 ) : (
-                  <Palette className="w-4 h-4 text-white" />
+                  <Palette className="w-4 h-4" style={{ color: (isGradientHeader || isMinimalHeader) ? "#FFFFFF" : company.primaryColor }} />
                 )}
               </div>
             )}
 
             {(company.headerContent === "logo+name" || company.headerContent === "name" || !company.headerContent) && (
               <div className="leading-tight">
-                <span className={`font-display text-base font-bold block ${isPrimaryHeader ? "text-white" : "text-foreground"}`}>
+                <span 
+                  className={`font-display text-base font-bold block`}
+                  style={getHeaderTextColor() ? { color: getHeaderTextColor() } : {}}
+                >
                   {company.name}
                 </span>
-                <span className={`text-[10px] ${isPrimaryHeader ? "text-white/75" : "text-muted-foreground"}`}>
+                <span 
+                  className={`text-[10px]`}
+                  style={getHeaderTextColor() ? { color: getHeaderTextColor() + "80" } : {}}
+                >
                   Painel Administrativo
                 </span>
               </div>
@@ -572,19 +707,9 @@ const Dashboard = () => {
 
           <div className="flex items-center gap-2">
             <Button
-              variant="outline"
-              size="sm"
-              className={`gap-1.5 hidden sm:flex ${isPrimaryHeader ? "border-white/20 text-white hover:bg-white/10" : ""}`}
-              onClick={copyPublicLink}
-            >
-              <LinkIcon className="w-3.5 h-3.5" /> Link Público
-            </Button>
-
-            <Button
               size="sm"
               asChild
-              style={isPrimaryHeader ? { backgroundColor: "rgba(255,255,255,0.18)" } : { backgroundColor: company.primaryColor }}
-              className={isPrimaryHeader ? "text-white hover:bg-white/25" : ""}
+              style={getButtonStyle()}
             >
               <Link to="/simulator" className="gap-1.5">
                 <Sparkles className="w-3.5 h-3.5" /> Simulador
@@ -596,9 +721,9 @@ const Dashboard = () => {
               size="icon"
               onClick={handleSignOut}
               title="Sair"
-              className={isPrimaryHeader ? "text-white hover:bg-white/10" : ""}
+              style={getHeaderTextColor() ? { color: getHeaderTextColor() } : {}}
             >
-              <LogOut className={`w-4 h-4 ${isPrimaryHeader ? "text-white" : "text-muted-foreground"}`} />
+              <LogOut className="w-4 h-4" />
             </Button>
           </div>
         </div>
@@ -615,6 +740,9 @@ const Dashboard = () => {
             </TabsTrigger>
             <TabsTrigger value="branding" className="gap-2 rounded-lg">
               <Settings className="w-4 h-4" /> Identidade Visual
+            </TabsTrigger>
+            <TabsTrigger value="profile" className="gap-2 rounded-lg">
+              <User className="w-4 h-4" /> Meus Dados
             </TabsTrigger>
           </TabsList>
 
@@ -634,14 +762,14 @@ const Dashboard = () => {
                   label: "Projetos Salvos",
                   value: sessionsLoading ? "..." : sessions.length,
                   icon: FolderOpen,
-                  color: company.primaryColor,
+                  color: accessibleStyles.primary.primaryIcon.color,
                   sub: "no seu dispositivo",
                 },
                 {
                   label: "Catálogos Ativos",
                   value: activeCatalogs,
                   icon: Layers,
-                  color: company.secondaryColor,
+                  color: accessibleStyles.secondary.secondaryIcon.color,
                   sub: `de ${company.catalogs.length} total`,
                 },
                 {
@@ -678,7 +806,10 @@ const Dashboard = () => {
                 <h3 className="font-display font-bold text-foreground flex items-center gap-2">
                   <Coins className="w-5 h-5" /> Meus Tokens
                 </h3>
-                <Badge variant={company.subscriptionStatus === 'active' ? 'default' : 'secondary'}>
+                <Badge 
+                  variant={company.subscriptionStatus === 'active' ? 'default' : 'secondary'}
+                  style={company.subscriptionStatus === 'active' ? accessibleStyles.primary.primaryBadge : accessibleStyles.elements.inactiveStatus}
+                >
                   {company.subscriptionStatus === 'active' ? 'Assinatura Ativa' : 'Assinatura Inativa'}
                 </Badge>
               </div>
@@ -758,7 +889,7 @@ const Dashboard = () => {
                     onClick={() => handleCheckout("subscription")}
                     disabled={isCheckoutLoading}
                     className="gap-2"
-                    style={{ backgroundColor: company.primaryColor }}
+                    style={accessibleStyles.elements.actionButton}
                   >
                     {isCheckoutLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <CreditCard className="w-4 h-4" />}
                     Assinar por R$ 59,90/mês
@@ -768,6 +899,7 @@ const Dashboard = () => {
                     variant="outline"
                     onClick={handleManageSubscription}
                     className="gap-2"
+                    style={accessibleStyles.elements.secondaryActionButton}
                   >
                     <Settings className="w-4 h-4" /> Gerenciar Assinatura
                   </Button>
@@ -778,6 +910,7 @@ const Dashboard = () => {
                   onClick={() => handleCheckout("recharge")}
                   disabled={isCheckoutLoading}
                   className="gap-2"
+                  style={accessibleStyles.elements.secondaryActionButton}
                 >
                   {isCheckoutLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Coins className="w-4 h-4" />}
                   Recarregar 100 tokens — R$ 29,90
@@ -815,7 +948,7 @@ const Dashboard = () => {
                   <h3 className="font-display font-bold text-foreground flex items-center gap-2">
                     <FolderOpen className="w-4 h-4" /> Projetos Recentes
                   </h3>
-                  <Button size="sm" variant="outline" onClick={handleNewProject} className="gap-1.5">
+                  <Button size="sm" variant="outline" onClick={handleNewProject} className="gap-1.5" style={companyStyles.getAccentStyle()}>
                       <Plus className="w-3.5 h-3.5" /> Novo
                     </Button>
                 </div>
@@ -845,7 +978,7 @@ const Dashboard = () => {
                           </div>
                         </button>
                         <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                          <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => handleOpenProject(s.id)} title="Abrir" style={{ color: company.primaryColor }}>
+                          <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => handleOpenProject(s.id)} title="Abrir" style={accessibleStyles.primary.primaryIcon}>
                             <Play className="w-3.5 h-3.5" />
                           </Button>
                           <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive hover:text-destructive" onClick={() => handleDeleteSession(s.id)} title="Excluir">
@@ -858,31 +991,8 @@ const Dashboard = () => {
                 )}
               </div>
 
-              {/* Painel lateral: link público + catálogos */}
+              {/* Painel lateral: catálogos */}
               <div className="space-y-4">
-                {/* Link público */}
-                <div className="bg-card rounded-2xl border border-border p-5 shadow-soft space-y-3">
-                  <h3 className="font-display font-bold text-foreground text-sm flex items-center gap-2">
-                    <ExternalLink className="w-4 h-4" /> Simulador Público
-                  </h3>
-                  <p className="text-xs text-muted-foreground">
-                    Compartilhe este link com seus clientes para que eles simulem cores com seu catálogo.
-                  </p>
-                  <div className="flex gap-2">
-                    <div className="flex-1 bg-muted/50 rounded-lg px-3 py-2 text-xs font-mono text-muted-foreground truncate">
-                      /empresa/{company.slug || "–"}
-                    </div>
-                    <Button size="icon" variant="outline" className="h-9 w-9 shrink-0" onClick={copyPublicLink}>
-                      <Copy className="w-3.5 h-3.5" />
-                    </Button>
-                  </div>
-                  <Button variant="outline" size="sm" className="w-full gap-2" asChild>
-                    <a href={`/empresa/${company.slug}`} target="_blank" rel="noreferrer">
-                      <ExternalLink className="w-3.5 h-3.5" /> Abrir como cliente
-                    </a>
-                  </Button>
-                </div>
-
                 {/* Resumo de catálogos */}
                 <div className="bg-card rounded-2xl border border-border p-5 shadow-soft space-y-3">
                   <h3 className="font-display font-bold text-foreground text-sm flex items-center gap-2">
@@ -895,7 +1005,11 @@ const Dashboard = () => {
                           <p className="text-xs font-semibold text-foreground">{cat.name}</p>
                           <p className="text-[10px] text-muted-foreground">{cat.paints.length} cores</p>
                         </div>
-                        <Badge variant={cat.active ? "default" : "secondary"} className="text-[10px]">
+                        <Badge 
+                          variant={cat.active ? "default" : "secondary"} 
+                          className="text-[10px]"
+                          style={cat.active ? accessibleStyles.primary.primaryBadge : accessibleStyles.elements.inactiveStatus}
+                        >
                           {cat.active ? "Ativo" : "Inativo"}
                         </Badge>
                       </div>
@@ -1025,13 +1139,13 @@ const Dashboard = () => {
                     </p>
                   </div>
                   <div className="flex items-center gap-2 flex-wrap">
-                    <Button variant="outline" size="sm" className="gap-1.5" onClick={() => fileInputRef.current?.click()}>
+                    <Button variant="outline" size="sm" className="gap-1.5" onClick={() => fileInputRef.current?.click()} style={accessibleStyles.elements.secondaryActionButton}>
                       <FileUp className="w-3.5 h-3.5" /> Importar CSV
                     </Button>
-                    <Button variant="outline" size="sm" className="gap-1.5" onClick={handleExportCSV}>
+                    <Button variant="outline" size="sm" className="gap-1.5" onClick={handleExportCSV} style={accessibleStyles.elements.secondaryActionButton}>
                       <FileDown className="w-3.5 h-3.5" /> Exportar
                     </Button>
-                    <Button size="sm" className="gap-1.5" onClick={handleAddPaint} style={{ backgroundColor: company.primaryColor }}>
+                    <Button size="sm" className="gap-1.5" onClick={handleAddPaint} style={accessibleStyles.elements.actionButton}>
                       <Plus className="w-3.5 h-3.5" /> Nova Cor
                     </Button>
                     <input type="file" ref={fileInputRef} className="hidden" accept=".csv" onChange={handleImportCSV} />
@@ -1117,7 +1231,7 @@ const Dashboard = () => {
                       <Palette className="w-10 h-10 text-muted-foreground mx-auto mb-3 opacity-20" />
                       <p className="text-muted-foreground font-medium">Este catálogo está vazio.</p>
                       <p className="text-xs text-muted-foreground mt-1">Importe um CSV ou adicione cores manualmente.</p>
-                      <Button className="mt-4 gap-2" onClick={handleAddPaint} style={{ backgroundColor: company.primaryColor }}>
+                      <Button className="mt-4 gap-2" onClick={handleAddPaint} style={accessibleStyles.elements.actionButton}>
                         <Plus className="w-4 h-4" /> Adicionar Primeira Cor
                       </Button>
                     </div>
@@ -1279,13 +1393,13 @@ const Dashboard = () => {
                     
                     {/* Modelo do cabeçalho */}
                     <div className="space-y-2">
-                      <Label className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Modelo da Barra Superior</Label>
+                      <Label className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Estilo da Barra Superior</Label>
                       <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
                         {([
                           { value: "glass", label: "Transparente", desc: "Fundo translúcido" },
-                          { value: "primary", label: "Cor Sólida", desc: "Fundo na cor primária" },
-                          { value: "white", label: "Branco", desc: "Fundo branco" },
-                          { value: "white-accent", label: "Colorido", desc: "Barra colorida embaixo" },
+                          { value: "gradient", label: "Gradiente", desc: "Degrade intenso" },
+                          { value: "card", label: "Cartão", desc: "Com linha gradient" },
+                          { value: "minimal", label: "Criativo", desc: "Divisor animado" },
                         ] as { value: HeaderStyleMode; label: string; desc: string }[]).map((opt) => (
                           <button
                             key={opt.value}
@@ -1360,7 +1474,7 @@ const Dashboard = () => {
                     </div>
                   </div>
 
-                  <Button onClick={handleSaveBranding} disabled={isSaving} className="w-full h-11" style={{ backgroundColor: company.primaryColor }}>
+                  <Button onClick={handleSaveBranding} disabled={isSaving} className="w-full h-11" style={accessibleStyles.elements.actionButton}>
                     {isSaving ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Check className="w-4 h-4 mr-2" />}
                     Salvar Alterações
                   </Button>
@@ -1377,31 +1491,56 @@ const Dashboard = () => {
                   <div
                     className={`h-12 flex items-center gap-2 px-3 ${
                       headerStyle === "glass" ? "bg-background/80 backdrop-blur-lg" :
-                      headerStyle === "primary" ? "" : "bg-white"
+                      headerStyle === "gradient" ? "border-b border-transparent" :
+                      headerStyle === "card" ? "bg-card border-b border-border shadow-lg" :
+                      headerStyle === "minimal" ? "border-b border-transparent" :
+                      "bg-background/80 backdrop-blur-lg"
                     }`}
-                    style={isPrimaryHeader ? { backgroundColor: company.primaryColor } : undefined}
+                    style={
+                      headerStyle === "gradient" ? { 
+                        background: `linear-gradient(135deg, ${company.primaryColor} 0%, ${company.secondaryColor} 100%)`
+                      } : headerStyle === "minimal" ? {
+                        backgroundColor: company.primaryColor,
+                        opacity: 0.95 // Leve transparência no fundo
+                      } : undefined
+                    }
                   >
-                    {headerStyle === "white-accent" && (
-                      <div className="absolute top-0 left-0 right-0 h-1" style={{ background: `linear-gradient(90deg, ${company.primaryColor}, ${company.secondaryColor})` }} />
+                    {/* Linha gradient para o estilo cartão (sem transparência) */}
+                    {headerStyle === "card" && (
+                      <div 
+                        className="h-1 w-full"
+                        style={{ 
+                          background: `linear-gradient(90deg, ${company.primaryColor}, ${company.secondaryColor})`
+                        }}
+                      />
                     )}
+
                     {(company.headerContent === "logo+name" || company.headerContent === "logo") && (
                       <div
                         className="h-6 rounded flex items-center justify-center"
                         style={{ 
-                          backgroundColor: company.logo ? "transparent" : isPrimaryHeader ? "rgba(255,255,255,0.18)" : company.primaryColor,
+                          backgroundColor: company.logo ? "transparent" : (headerStyle === "gradient" || headerStyle === "minimal") ? "rgba(255,255,255,0.15)" : undefined,
                           width: company.logo ? "auto" : "1.5rem",
-                          maxWidth: "80px"
+                          maxWidth: "80px",
+                          border: (headerStyle === "gradient" || headerStyle === "minimal") ? "1px solid rgba(255,255,255,0.2)" : undefined,
+                          opacity: headerStyle === "minimal" ? 0.9 : undefined // Leve transparência adicional no logo
                         }}
                       >
                         {company.logo ? (
                           <img src={company.logo} alt="Logo" className="w-full h-full object-contain" />
                         ) : (
-                          <Palette className="w-3 h-3 text-white" />
+                          <Palette className="w-3 h-3" style={{ color: (headerStyle === "gradient" || headerStyle === "minimal") ? "#FFFFFF" : company.primaryColor }} />
                         )}
                       </div>
                     )}
                     {(company.headerContent === "logo+name" || company.headerContent === "name") && (
-                      <span className={`text-sm font-bold ${isPrimaryHeader ? "text-white" : "text-foreground"}`}>
+                      <span className={`text-sm font-bold ${
+                        headerStyle === "gradient" || headerStyle === "minimal" ? "" : "text-foreground"
+                      }`} style={
+                        (headerStyle === "gradient" || headerStyle === "minimal") ? { 
+                          color: '#FFFFFF' // Sempre branco nestes estilos
+                        } : undefined
+                      }>
                         {company.name}
                       </span>
                     )}
@@ -1426,14 +1565,215 @@ const Dashboard = () => {
 
                 {/* Link público */}
                 <div className="bg-card rounded-2xl border border-border p-4 shadow-soft space-y-2">
-                  <p className="text-xs font-bold text-muted-foreground uppercase tracking-wider">URL Pública</p>
+                  <p className="text-xs font-bold text-muted-foreground uppercase tracking-wider">Preview</p>
                   <div className="flex gap-2">
                     <div className="flex-1 bg-muted/50 rounded-lg px-3 py-2 text-xs font-mono text-foreground truncate">
                       {window.location.origin}/empresa/{company.slug || "–"}
                     </div>
-                    <Button size="icon" variant="outline" className="h-9 w-9 shrink-0" onClick={copyPublicLink}>
-                      <Copy className="w-3.5 h-3.5" />
-                    </Button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </TabsContent>
+
+          {/* ── ABA: MEUS DADOS ────────────────────────────────────── */}
+          <TabsContent value="profile" className="animate-fade-in">
+            <div className="grid md:grid-cols-[1fr_340px] gap-8">
+              
+              {/* Dados Pessoais */}
+              <div className="space-y-6">
+                <div>
+                  <h3 className="text-lg font-display font-semibold text-foreground mb-4 flex items-center gap-2">
+                    <User className="w-5 h-5" />
+                    Dados Pessoais
+                  </h3>
+                  
+                  <div className="bg-card border border-border rounded-xl p-6 space-y-4">
+                    <div>
+                      <Label className="text-sm font-medium text-foreground">Nome Completo</Label>
+                      <div className="mt-1 p-3 bg-muted/50 rounded-lg text-foreground">
+                        {displayData.name}
+                      </div>
+                    </div>
+                    
+                    <div>
+                      <Label className="text-sm font-medium text-foreground">E-mail</Label>
+                      <div className="mt-1 p-3 bg-muted/50 rounded-lg text-foreground">
+                        {displayData.email}
+                      </div>
+                    </div>
+                    
+                    <div>
+                      <Label className="text-sm font-medium text-foreground">Telefone</Label>
+                      <div className="mt-1 p-3 bg-muted/50 rounded-lg text-foreground">
+                        {displayData.phone}
+                      </div>
+                    </div>
+                    
+                    <div>
+                      <Label className="text-sm font-medium text-foreground">Tipo de Documento</Label>
+                      <div className="mt-1 p-3 bg-muted/50 rounded-lg text-foreground capitalize">
+                        {displayData.documentType.toUpperCase()}
+                      </div>
+                    </div>
+                    
+                    <div>
+                      <Label className="text-sm font-medium text-foreground">Documento</Label>
+                      <div className="mt-1 p-3 bg-muted/50 rounded-lg text-foreground">
+                        {displayData.documentNumber}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Dados da Empresa */}
+                <div>
+                  <h3 className="text-lg font-display font-semibold text-foreground mb-4 flex items-center gap-2">
+                    <Building2 className="w-5 h-5" />
+                    Dados da Empresa
+                  </h3>
+                  
+                  <div className="bg-card border border-border rounded-xl p-6 space-y-4">
+                    <div>
+                      <Label className="text-sm font-medium text-foreground">Nome da Loja</Label>
+                      <div className="mt-1 p-3 bg-muted/50 rounded-lg text-foreground">
+                        {displayData.companyName}
+                      </div>
+                    </div>
+                    
+                    <div>
+                      <Label className="text-sm font-medium text-foreground">Website</Label>
+                      <div className="mt-1 p-3 bg-muted/50 rounded-lg text-foreground">
+                        {displayData.website ? (
+                          <a href={displayData.website} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline flex items-center gap-1">
+                            <Globe className="w-4 h-4" />
+                            {displayData.website}
+                          </a>
+                        ) : "Não informado"}
+                      </div>
+                    </div>
+                    
+                    <div>
+                      <Label className="text-sm font-medium text-foreground">Endereço</Label>
+                      <div className="mt-1 p-3 bg-muted/50 rounded-lg text-foreground">
+                        {displayData.address}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Sidebar: Status da Assinatura */}
+              <div className="space-y-6">
+                {/* Status da Assinatura */}
+                <div>
+                  <h3 className="text-lg font-display font-semibold text-foreground mb-4 flex items-center gap-2">
+                    <CreditCard className="w-5 h-5" />
+                    Assinatura
+                  </h3>
+                  
+                  <div className="bg-card border border-border rounded-xl p-6 space-y-4">
+                    <div>
+                      <Label className="text-sm font-medium text-foreground">Status</Label>
+                      <div className="mt-2">
+                        <Badge 
+                          variant={company?.subscriptionStatus === 'active' ? 'default' : 'secondary'} 
+                          className="w-full justify-center py-2"
+                          style={company?.subscriptionStatus === 'active' ? accessibleStyles.primary.primaryBadge : accessibleStyles.elements.inactiveStatus}
+                        >
+                          {company?.subscriptionStatus === 'active' ? 'Assinatura Ativa' : 'Assinatura Inativa'}
+                        </Badge>
+                      </div>
+                    </div>
+                    
+                    <div>
+                      <Label className="text-sm font-medium text-foreground">Tokens Disponíveis</Label>
+                      <div className="mt-1 p-3 bg-muted/50 rounded-lg">
+                        <div className="text-2xl font-bold text-foreground">
+                          {formatTokenAmount(company?.tokens || 0)}
+                        </div>
+                        <div className="text-sm text-muted-foreground">
+                          {getTokenStatus().text}
+                        </div>
+                      </div>
+                    </div>
+                    
+                    {company?.tokensExpiresAt && (
+                      <div>
+                        <Label className="text-sm font-medium text-foreground">Validade dos Tokens</Label>
+                        <div className="mt-1 p-3 bg-muted/50 rounded-lg text-foreground">
+                          {new Date(company.tokensExpiresAt).toLocaleDateString('pt-BR')}
+                        </div>
+                      </div>
+                    )}
+                    
+                    <div className="pt-2 space-y-2">
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="w-full gap-2"
+                        onClick={async () => {
+                          await checkSubscription();
+                          await refreshData();
+                          toast.success("Status atualizado!");
+                        }}
+                        style={accessibleStyles.elements.secondaryActionButton}
+                      >
+                        <RefreshCw className="w-4 h-4" />
+                        Atualizar Status
+                      </Button>
+                      
+                      {company?.subscriptionStatus !== 'active' && (
+                        <Button
+                          size="sm"
+                          className="w-full gap-2"
+                          onClick={() => window.location.href = '/checkout'}
+                          style={accessibleStyles.elements.actionButton}
+                        >
+                          <CreditCard className="w-4 h-4" />
+                          Assinar Agora
+                        </Button>
+                      )}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Histórico de Tokens */}
+                <div>
+                  <h3 className="text-lg font-display font-semibold text-foreground mb-4 flex items-center gap-2">
+                    <FileText className="w-5 h-5" />
+                    Histórico de Tokens
+                  </h3>
+                  
+                  <div className="bg-card border border-border rounded-xl p-6">
+                    {tokenHistoryLoading ? (
+                      <div className="flex items-center justify-center py-4">
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                      </div>
+                    ) : tokenHistory.length > 0 ? (
+                      <div className="space-y-3">
+                        {tokenHistory.map((item, index) => (
+                          <div key={index} className="flex items-center justify-between p-3 bg-muted/30 rounded-lg">
+                            <div>
+                              <div className="text-sm font-medium text-foreground">
+                                {item.description}
+                              </div>
+                              <div className="text-xs text-muted-foreground">
+                                {formatDate(item.created_at)}
+                              </div>
+                            </div>
+                            <Badge variant={item.amount > 0 ? 'default' : 'destructive'} style={item.amount > 0 ? accessibleStyles.primary.primaryBadge : undefined}>
+                              {item.amount > 0 ? '+' : ''}{item.amount}
+                            </Badge>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <div className="text-center py-4 text-muted-foreground">
+                        <FileText className="w-8 h-8 mx-auto mb-2 opacity-50" />
+                        <p className="text-sm">Nenhuma movimentação de tokens</p>
+                      </div>
+                    )}
                   </div>
                 </div>
               </div>

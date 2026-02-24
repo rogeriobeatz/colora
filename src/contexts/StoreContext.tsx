@@ -48,11 +48,20 @@ interface Profile {
   font_set: string | null;
   ai_credits: number | null;
 
+  // Novos campos do checkout
+  full_name: string | null;
+  document_type: string | null;
+  document_number: string | null;
+  stripe_customer_id: string | null;
+
   // Sistema de Tokens
   tokens: number | null;
   tokens_expires_at: string | null;
   subscription_status: string | null;
   last_token_deposit: string | null;
+
+  created_at?: string;
+  updated_at?: string;
 }
 
 interface StoreContextType {
@@ -81,7 +90,7 @@ function isHeaderContentMode(v: any): v is HeaderContentMode {
   return v === "logo+name" || v === "logo" || v === "name";
 }
 function isHeaderStyleMode(v: any): v is HeaderStyleMode {
-  return v === "glass" || v === "primary" || v === "white" || v === "white-accent";
+  return v === "glass" || v === "gradient" || v === "card" || v === "minimal";
 }
 function isFontSet(v: any): v is FontSet {
   return v === "grotesk" || v === "rounded" || v === "neo";
@@ -125,7 +134,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
 
         const formattedCompany: Company = {
           id: p.id,
-          name: p.company_name || "Minha Loja",
+          name: p.company_name || user?.user_metadata?.full_name || user?.user_metadata?.name || p.full_name || "Minha Loja",
           slug: p.company_slug || "minha-loja",
           primaryColor: p.primary_color || "#1a8a6a",
           secondaryColor: p.secondary_color || "#e87040",
@@ -139,9 +148,9 @@ export function StoreProvider({ children }: { children: ReactNode }) {
               }))
             : [createDefaultCatalog()],
 
-          phone: p.company_phone || "",
+          phone: p.company_phone || user?.user_metadata?.phone || "",
           website: p.company_website || "",
-          address: p.company_address || "",
+          address: p.company_address || user?.user_metadata?.company || p.company_name || "",
 
           headerContent: isHeaderContentMode(p.header_content) ? p.header_content : "logo+name",
           headerStyle: isHeaderStyleMode(p.header_style) ? p.header_style : "glass",
