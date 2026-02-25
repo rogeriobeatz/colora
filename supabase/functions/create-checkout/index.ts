@@ -17,9 +17,17 @@ serve(async (req) => {
     return new Response(null, { headers: corsHeaders });
   }
 
+  // Client for user auth verification
   const supabaseClient = createClient(
     Deno.env.get("SUPABASE_URL") ?? "",
     Deno.env.get("SUPABASE_ANON_KEY") ?? ""
+  );
+
+  // Service role client for profile updates (bypasses RLS)
+  const supabaseAdmin = createClient(
+    Deno.env.get("SUPABASE_URL") ?? "",
+    Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "",
+    { auth: { persistSession: false } }
   );
 
   try {
@@ -50,7 +58,7 @@ serve(async (req) => {
         profileUpdate.company_name = customerData.company || customerData.name || "Minha Loja";
       }
 
-      const { error: profileError } = await supabaseClient
+      const { error: profileError } = await supabaseAdmin
         .from('profiles')
         .update(profileUpdate)
         .eq('id', user.id);
@@ -97,7 +105,7 @@ serve(async (req) => {
       customerId = newCustomer.id;
       
       // Salvar stripe_customer_id no perfil
-      await supabaseClient
+      await supabaseAdmin
         .from('profiles')
         .update({ stripe_customer_id: customerId })
         .eq('id', user.id);
