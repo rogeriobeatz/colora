@@ -92,13 +92,17 @@ export type Database = {
           company_phone: string | null
           company_slug: string | null
           company_website: string | null
+          document_number: string | null
+          document_type: string | null
           font_set: string | null
+          full_name: string | null
           header_content: string | null
           header_style: string | null
           id: string
           last_token_deposit: string | null
           primary_color: string | null
           secondary_color: string | null
+          stripe_customer_id: string | null
           subscription_status: string | null
           tokens: number | null
           tokens_expires_at: string | null
@@ -111,13 +115,17 @@ export type Database = {
           company_phone?: string | null
           company_slug?: string | null
           company_website?: string | null
+          document_number?: string | null
+          document_type?: string | null
           font_set?: string | null
+          full_name?: string | null
           header_content?: string | null
           header_style?: string | null
           id: string
           last_token_deposit?: string | null
           primary_color?: string | null
           secondary_color?: string | null
+          stripe_customer_id?: string | null
           subscription_status?: string | null
           tokens?: number | null
           tokens_expires_at?: string | null
@@ -130,13 +138,17 @@ export type Database = {
           company_phone?: string | null
           company_slug?: string | null
           company_website?: string | null
+          document_number?: string | null
+          document_type?: string | null
           font_set?: string | null
+          full_name?: string | null
           header_content?: string | null
           header_style?: string | null
           id?: string
           last_token_deposit?: string | null
           primary_color?: string | null
           secondary_color?: string | null
+          stripe_customer_id?: string | null
           subscription_status?: string | null
           tokens?: number | null
           tokens_expires_at?: string | null
