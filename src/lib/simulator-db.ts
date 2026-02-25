@@ -213,6 +213,50 @@ export function generateUUID(): string {
   return uuidv4();
 }
 
+// Função para limpar cache local e forçar sincronização
+export async function forceSyncFromSupabase(): Promise<void> {
+  try {
+    console.log("[SimulatorDB] 🔄 Forçando sincronização com Supabase...");
+    
+    // Limpar IndexedDB local
+    await db.sessions.clear();
+    await db.meta.clear();
+    
+    console.log("[SimulatorDB] 🗑️ Cache local limpo, forçando reload do Supabase");
+    
+    // Forçar reload da página para buscar dados frescos
+    window.location.reload();
+  } catch (error) {
+    console.error("[SimulatorDB] Erro ao limpar cache:", error);
+  }
+}
+
+// Função para verificar sincronização
+export async function checkSyncStatus(): Promise<{local: number, remote: number}> {
+  try {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return { local: 0, remote: 0 };
+
+    // Contar projetos locais
+    const localCount = await db.sessions.count();
+    
+    // Contar projetos remotos
+    const { data, error } = await (supabase as any)
+      .from('simulator_sessions')
+      .select('id')
+      .eq('user_id', user.id);
+
+    const remoteCount = data?.length || 0;
+    
+    console.log(`[SimulatorDB] 📊 Status: Local=${localCount}, Remoto=${remoteCount}`);
+    
+    return { local: localCount, remote: remoteCount };
+  } catch (error) {
+    console.error("[SimulatorDB] Erro ao verificar sincronização:", error);
+    return { local: 0, remote: 0 };
+  }
+}
+
 // Função para limpar projetos locais com IDs inválidos
 export async function cleanInvalidLocalProjects(): Promise<void> {
   try {

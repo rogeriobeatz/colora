@@ -12,7 +12,7 @@ import {
   FileUp, FileDown, Trash2, Image as ImageIcon,
   Check, Upload, Pencil, X, FolderOpen, Clock, Play, Link as LinkIcon,
   TrendingUp, Layers, Sparkles, ExternalLink, Copy, Globe, Phone, MapPin, Coins, CreditCard, RefreshCw,
-  User, FileText, Building2, Menu
+  User, FileText, Building2, Menu, Database, RefreshCw as Sync
 } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
@@ -92,6 +92,10 @@ const Dashboard = () => {
   
   // Estado para menu mobile
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  
+  // Estado para diagnóstico
+  const [syncStatus, setSyncStatus] = useState<{local: number, remote: number} | null>(null);
+  const [checkingSync, setCheckingSync] = useState(false);
   
   // Refs
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -586,6 +590,39 @@ const Dashboard = () => {
     toast.success("Projeto excluído!");
   };
 
+  // Funções de diagnóstico
+  const handleCheckSync = async () => {
+    setCheckingSync(true);
+    try {
+      const { checkSyncStatus } = await import("@/lib/simulator-db");
+      const status = await checkSyncStatus();
+      setSyncStatus(status);
+      
+      if (status.local === status.remote) {
+        toast.success("✅ Sincronização perfeita!", {
+          description: `Local: ${status.local} | Remoto: ${status.remote}`
+        });
+      } else {
+        toast.warning("⚠️ Dados dessincronizados!", {
+          description: `Local: ${status.local} | Remoto: ${status.remote}`
+        });
+      }
+    } catch (error) {
+      toast.error("Erro ao verificar sincronização");
+    } finally {
+      setCheckingSync(false);
+    }
+  };
+
+  const handleForceSync = async () => {
+    try {
+      const { forceSyncFromSupabase } = await import("@/lib/simulator-db");
+      await forceSyncFromSupabase();
+    } catch (error) {
+      toast.error("Erro ao forçar sincronização");
+    }
+  };
+
   // ─── derived ───────────────────────────────────────────────────────────────
 
   const activeCatalog =
@@ -1018,6 +1055,48 @@ const Dashboard = () => {
                     ))}
                   </div>
                 )}
+              </div>
+
+              {/* Diagnóstico de Sincronização */}
+              <div className="border-t border-border pt-4">
+                <div className="flex items-center justify-between mb-3">
+                  <h4 className="text-sm font-medium flex items-center gap-2">
+                    <Database className="w-4 h-4" />
+                    Diagnóstico de Sincronização
+                  </h4>
+                  {syncStatus && (
+                    <Badge variant={syncStatus.local === syncStatus.remote ? "default" : "destructive"} className="text-xs">
+                      Local: {syncStatus.local} | Remoto: {syncStatus.remote}
+                    </Badge>
+                  )}
+                </div>
+                
+                <div className="flex gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={handleCheckSync}
+                    disabled={checkingSync}
+                    className="gap-1.5"
+                  >
+                    {checkingSync ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Database className="w-3.5 h-3.5" />}
+                    Verificar Sync
+                  </Button>
+                  
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={handleForceSync}
+                    className="gap-1.5"
+                  >
+                    <Sync className="w-3.5 h-3.5" />
+                    Forçar Sync
+                  </Button>
+                </div>
+                
+                <p className="text-xs text-muted-foreground mt-2">
+                  Verifique se os dados locais (IndexedDB) estão sincronizados com o Supabase
+                </p>
               </div>
 
               {/* Painel lateral: catálogos */}
