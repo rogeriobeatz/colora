@@ -47,9 +47,12 @@ async function handleLocalDB<T>(promise: Promise<T>, errorMessage: string): Prom
 
 export async function saveSimulatorSession(record: SimulatorSessionRecord): Promise<string | null> {
   try {
+    console.log("[SimulatorDB] 💾 Salvando projeto:", record); // Debug
+    
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) {
       console.warn("[SimulatorDB] Usuário não autenticado, salvando localmente");
+      console.log("[SimulatorDB] 📱 Salvando no IndexedDB (offline)"); // Debug
       return handleLocalDB(db.sessions.put(record), "Erro ao salvar localmente");
     }
 
@@ -63,16 +66,19 @@ export async function saveSimulatorSession(record: SimulatorSessionRecord): Prom
         created_at: record.createdAt,
         updated_at: record.updatedAt,
       }, { onConflict: 'id' })
-      .select('id')
+      .select('id, name, updated_at')
       .single();
+
+    console.log("[SimulatorDB] 🌐 Resultado do upsert no Supabase:", { data, error }); // Debug
 
     if (error) {
       console.error("[SimulatorDB] Erro ao salvar no Supabase:", error);
-      // Fallback para local
+      console.log("[SimulatorDB] 📱 Fallback: Salvando no IndexedDB"); // Debug
       return handleLocalDB(db.sessions.put(record), "Erro no fallback local");
     }
 
-    console.log("[SimulatorDB] Projeto salvo no Supabase:", data.id);
+    console.log("[SimulatorDB] 🌐 Projeto salvo no Supabase com sucesso:", data.id);
+    console.log(`[SimulatorDB] ✅ "${record.name}" persistido no banco de dados!`); // Debug
     return data?.id || record.id;
   } catch (error: any) {
     console.error("[SimulatorDB] Erro crítico ao salvar:", error);
@@ -85,7 +91,9 @@ export async function getSimulatorSession(id: string): Promise<SimulatorSessionR
   try {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) {
-      return handleLocalDB(db.sessions.get(id), "Erro ao carregar localmente");
+      const result = await handleLocalDB(db.sessions.get(id), "Erro ao carregar localmente");
+      console.log("[SimulatorDB] Carregado do IndexedDB:", result); // Debug
+      return result;
     }
 
     const { data, error } = await (supabase as any)
@@ -95,18 +103,25 @@ export async function getSimulatorSession(id: string): Promise<SimulatorSessionR
       .eq('user_id', user.id)
       .single();
 
+    console.log("[SimulatorDB] Dados brutos do Supabase:", { data, error }); // Debug
+
     if (error || !data) {
       console.warn("[SimulatorDB] Projeto não encontrado no Supabase, buscando localmente");
-      return handleLocalDB(db.sessions.get(id), "Erro no fallback local");
+      const result = await handleLocalDB(db.sessions.get(id), "Erro no fallback local");
+      console.log("[SimulatorDB] Fallback para IndexedDB:", result); // Debug
+      return result;
     }
 
-    return {
+    const result = {
       id: data.id,
       name: data.name,
       createdAt: data.created_at,
       updatedAt: data.updated_at,
       data: data.data,
     };
+    
+    console.log("[SimulatorDB] Dados processados:", result); // Debug
+    return result;
   } catch (error: any) {
     console.error("[SimulatorDB] Erro ao carregar projeto:", error);
     return handleLocalDB(db.sessions.get(id), "Erro no fallback local");
@@ -118,6 +133,7 @@ export async function listSimulatorSessions(): Promise<SimulatorSessionRecord[]>
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) {
       const result = await handleLocalDB(db.sessions.orderBy('updatedAt').reverse().toArray(), "Erro ao listar localmente");
+      console.log("[SimulatorDB] 📱 Lista do IndexedDB (offline):", result); // Debug
       return result || [];
     }
 
@@ -127,22 +143,30 @@ export async function listSimulatorSessions(): Promise<SimulatorSessionRecord[]>
       .eq('user_id', user.id)
       .order('updated_at', { ascending: false });
 
+    console.log("[SimulatorDB] 🌐 Dados brutos da lista Supabase:", { data, error }); // Debug
+
     if (error) {
       console.warn("[SimulatorDB] Erro ao listar do Supabase:", error);
       const result = await handleLocalDB(db.sessions.orderBy('updatedAt').reverse().toArray(), "Erro no fallback local");
+      console.log("[SimulatorDB] 📱 Fallback para IndexedDB:", result); // Debug
       return result || [];
     }
 
-    return (data || []).map((s) => ({
+    const result = (data || []).map((s) => ({
       id: s.id,
       name: s.name,
       createdAt: s.created_at,
       updatedAt: s.updated_at,
       data: s.data,
     }));
+    
+    console.log("[SimulatorDB] 🌐 Lista processada do Supabase:", result); // Debug
+    console.log(`[SimulatorDB] ✅ ${result.length} projetos carregados do banco de dados!`); // Debug
+    return result;
   } catch (error: any) {
     console.error("[SimulatorDB] Erro ao listar projetos:", error);
     const result = await handleLocalDB(db.sessions.orderBy('updatedAt').reverse().toArray(), "Erro no fallback local");
+    console.log("[SimulatorDB] 📱 Fallback final para IndexedDB:", result); // Debug
     return result || [];
   }
 }

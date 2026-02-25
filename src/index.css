@@ -158,15 +158,329 @@
 
 @layer base {
   * {
-    @apply border-border;
+    border-color: hsl(var(--border));
   }
 
   body {
-    @apply bg-background text-foreground font-sans antialiased;
+    background-color: hsl(var(--background));
+    color: hsl(var(--foreground));
+    font-family: var(--font-sans), system-ui, -apple-system, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    text-rendering: optimizeLegibility;
+    -webkit-text-size-adjust: 100%;
+    -ms-text-size-adjust: 100%;
   }
 
   h1, h2, h3, h4, h5, h6 {
-    @apply font-display;
+    font-family: var(--font-display), var(--font-sans), system-ui, sans-serif;
+    word-wrap: break-word;
+    overflow-wrap: break-word;
+    hyphens: auto;
+  }
+
+  /* Melhorias para elementos interativos mobile */
+  button, input, textarea, select {
+    touch-action: manipulation;
+    -webkit-tap-highlight-color: transparent;
+    -webkit-touch-callout: none;
+    -webkit-user-select: none;
+    user-select: none;
+  }
+
+  input, textarea {
+    touch-action: manipulation;
+    -webkit-tap-highlight-color: transparent;
+    -webkit-user-select: text;
+    user-select: text;
+  }
+
+  /* Scroll melhorado mobile */
+  *::-webkit-scrollbar {
+    width: 0.5rem;
+  }
+
+  *::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  *::-webkit-scrollbar-thumb {
+    background: hsl(var(--border));
+    border-radius: 9999px;
+  }
+
+  /* Prevenir zoom em inputs iOS */
+  @supports (-webkit-touch-callout: none) {
+    input[type="text"],
+    input[type="email"],
+    input[type="tel"],
+    input[type="password"],
+    input[type="number"],
+    input[type="search"],
+    textarea,
+    select {
+      font-size: 16px !important;
+    }
+  }
+
+  /* Melhorias para dispositivos móveis */
+  @media (max-width: 768px) {
+    html {
+      -webkit-text-size-adjust: 100%;
+      -ms-text-size-adjust: 100%;
+    }
+
+    body {
+      font-size: 14px;
+      line-height: 1.5;
+    }
+
+    /* Prevenir horizontal scroll */
+    body, #root {
+      overflow-x: hidden;
+      width: 100%;
+      max-width: 100%;
+    }
+
+    /* Botões touch-friendly */
+    button, .btn {
+      min-height: 44px;
+      min-width: 44px;
+      padding: 8px 16px;
+    }
+
+    /* Inputs touch-friendly */
+    input, textarea, select {
+      min-height: 44px;
+      font-size: 16px;
+    }
+
+    /* Espaçamento melhorado */
+    .container, .container-fluid {
+      padding-left: 1rem;
+      padding-right: 1rem;
+    }
+
+    /* Cards responsivos */
+    .card, .glass-card, .elevated-card {
+      margin: 0.5rem;
+      border-radius: 0.75rem;
+    }
+
+    /* Navegação mobile */
+    nav, .nav {
+      padding: 0.5rem;
+    }
+
+    nav button, .nav button {
+      min-height: 48px;
+      padding: 12px 16px;
+    }
+
+    /* Tabelas responsivas */
+    table {
+      font-size: 0.875rem;
+    }
+
+    table th, table td {
+      padding: 0.5rem;
+      white-space: nowrap;
+    }
+
+    /* Imagens responsivas */
+    img {
+      max-width: 100%;
+      height: auto;
+    }
+
+    /* Modal mobile */
+    .modal, .dialog {
+      margin: 1rem;
+      max-width: calc(100% - 2rem);
+      max-height: calc(100vh - 2rem);
+    }
+
+    /* Tabs mobile */
+    .tabs-list {
+      overflow-x: auto;
+      -webkit-overflow-scrolling: touch;
+      scrollbar-width: none;
+      -ms-overflow-style: none;
+    }
+
+    .tabs-list::-webkit-scrollbar {
+      display: none;
+    }
+
+    /* Dropdown mobile */
+    .dropdown-menu {
+      position: fixed;
+      top: auto;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      max-height: 50vh;
+      border-radius: 1rem 1rem 0 0;
+      transform: translateY(100%);
+      transition: transform 0.3s ease;
+    }
+
+    .dropdown-menu[data-state="open"] {
+      transform: translateY(0);
+    }
+
+    /* Tooltip mobile */
+    @media (hover: none) and (pointer: coarse) {
+      [data-tooltip] {
+        position: relative;
+      }
+
+      [data-tooltip]:hover::after {
+        content: attr(data-tooltip);
+        position: absolute;
+        bottom: 100%;
+        left: 50%;
+        transform: translateX(-50%);
+        background: rgba(0, 0, 0, 0.9);
+        color: white;
+        padding: 0.5rem;
+        border-radius: 0.25rem;
+        font-size: 0.875rem;
+        white-space: nowrap;
+        z-index: 50;
+      }
+    }
+  }
+
+  /* Dispositivos muito pequenos */
+  @media (max-width: 480px) {
+    body {
+      font-size: 13px;
+    }
+
+    /* Botões menores */
+    button, .btn {
+      min-height: 40px;
+      padding: 6px 12px;
+      font-size: 0.875rem;
+    }
+
+    /* Cards mais compactos */
+    .card, .glass-card, .elevated-card {
+      margin: 0.25rem;
+      padding: 0.75rem;
+    }
+
+    /* Header mobile */
+    header, .header {
+      padding: 0.5rem;
+    }
+
+    /* Sidebar mobile */
+    .sidebar, .drawer {
+      width: 100%;
+      max-width: 100%;
+    }
+
+    /* Grid responsivo */
+    .grid-cols-2 {
+      grid-template-columns: 1fr;
+    }
+
+    .grid-cols-3 {
+      grid-template-columns: 1fr;
+    }
+
+    .grid-cols-4 {
+      grid-template-columns: repeat(2, 1fr);
+    }
+  }
+
+  /* Orientação landscape */
+  @media (max-width: 768px) and (orientation: landscape) {
+    body {
+      font-size: 13px;
+    }
+
+    .modal, .dialog {
+      max-height: 90vh;
+    }
+
+    /* Reduzir altura em landscape */
+    .card, .glass-card, .elevated-card {
+      margin: 0.25rem;
+      padding: 0.5rem;
+    }
+  }
+
+  /* iPad e tablets */
+  @media (min-width: 769px) and (max-width: 1024px) {
+    body {
+      font-size: 15px;
+    }
+
+    .container {
+      max-width: 100%;
+      padding: 0 2rem;
+    }
+  }
+
+  /* High DPI displays */
+  @media (-webkit-min-device-pixel-ratio: 2), (min-resolution: 192dpi) {
+    /* Melhorar renderização em telas retina */
+    .icon, svg {
+      image-rendering: -webkit-optimize-contrast;
+      image-rendering: crisp-edges;
+    }
+  }
+
+  /* Dark mode optimizations */
+  .dark {
+    /* Reduzir brilho em modo escuro mobile */
+    @media (max-width: 768px) {
+      --background: 0 0% 10%;
+      --card: 266 4% 15%;
+    }
+  }
+
+  /* Reduce motion */
+  @media (prefers-reduced-motion: reduce) {
+    * {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+      scroll-behavior: auto !important;
+    }
+  }
+
+  /* Touch device optimizations */
+  @media (pointer: coarse) {
+    button, .btn, a, [role="button"] {
+      min-height: 44px;
+      min-width: 44px;
+    }
+
+    /* Aumentar área de clique */
+    .clickable {
+      padding: 8px;
+      margin: -8px;
+    }
+  }
+
+  /* Safe area para iPhone X+ */
+  @supports (padding: max(0px)) {
+    body {
+      padding-left: max(env(safe-area-inset-left), 0px);
+      padding-right: max(env(safe-area-inset-right), 0px);
+    }
+
+    .header, .navbar {
+      padding-top: max(env(safe-area-inset-top), 0px);
+    }
+
+    .footer, .bottom-nav {
+      padding-bottom: max(env(safe-area-inset-bottom), 0px);
+    }
   }
 }
 
@@ -174,7 +488,7 @@
   .gradient-primary {
     background: var(--gradient-primary);
   }
-    .gradient-secondary {
+  .gradient-secondary {
     background: var(--gradient-secondary);
   }
   .gradient-accent {
@@ -193,7 +507,9 @@
     box-shadow: var(--shadow-glow);
   }
   .text-gradient {
-    @apply bg-clip-text text-transparent;
+    background-clip: text;
+    -webkit-background-clip: text;
+    color: transparent;
     background-image: var(--gradient-primary);
   }
 
@@ -236,7 +552,9 @@
   }
 
   .gradient-text-animated {
-    @apply bg-clip-text text-transparent;
+    background-clip: text;
+    -webkit-background-clip: text;
+    color: transparent;
     background-image: var(--gradient-primary);
     background-size: 200% 200%;
     animation: gradient-shift 3s ease infinite;

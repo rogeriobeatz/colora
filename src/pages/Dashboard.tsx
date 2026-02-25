@@ -12,7 +12,7 @@ import {
   FileUp, FileDown, Trash2, Image as ImageIcon,
   Check, Upload, Pencil, X, FolderOpen, Clock, Play, Link as LinkIcon,
   TrendingUp, Layers, Sparkles, ExternalLink, Copy, Globe, Phone, MapPin, Coins, CreditCard, RefreshCw,
-  User, FileText, Building2
+  User, FileText, Building2, Menu
 } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
@@ -20,6 +20,8 @@ import PaintDialog from "@/components/simulator/PaintDialog";
 import { Paint, HeaderContentMode, HeaderStyleMode, FontSet } from "@/data/defaultColors";
 import { ProjectListItem } from "@/components/simulator/ProjectDrawer";
 import { useAccessibleStyles } from "@/hooks/useAccessibleStyles";
+import MobileMenu from "@/components/MobileMenu";
+import { useMobile, useOrientation } from "@/hooks/useMobile";
 
 // ─── helpers ────────────────────────────────────────────────────────────────
 
@@ -83,6 +85,13 @@ const Dashboard = () => {
   
   // Hook de estilos acessíveis - sempre depois dos hooks principais
   const accessibleStyles = useAccessibleStyles();
+  
+  // Hooks para detectar dispositivos móveis
+  const { isMobile, isTablet, isDesktop, isSmallMobile } = useMobile();
+  const orientation = useOrientation();
+  
+  // Estado para menu mobile
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   
   // Refs
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -216,7 +225,27 @@ const Dashboard = () => {
         setSessionsLoading(true);
         const { listSimulatorSessions } = await import("@/lib/simulator-db");
         const list = await listSimulatorSessions();
-        setSessions(list.map((r) => ({ id: r.id, name: r.name, updatedAt: r.updatedAt })));
+        console.log("[Dashboard] Projetos carregados:", list); // Debug
+        
+        // Melhorar o mapeamento com fallbacks robustos
+        setSessions(list.map((r) => {
+          // Tentar extrair nome de múltiplas fontes
+          let name = "Projeto sem nome";
+          
+          if (r.name && typeof r.name === 'string' && r.name.trim()) {
+            name = r.name.trim();
+          } else if (r.data && typeof r.data === 'object' && r.data !== null && 'name' in r.data) {
+            name = String((r.data as any).name).trim();
+          } else if (r.data && typeof r.data === 'object' && r.data !== null && 'data' in r.data && (r.data as any).data && 'name' in (r.data as any).data) {
+            name = String((r.data as any).data.name).trim();
+          }
+          
+          return { 
+            id: r.id, 
+            name: name || "Projeto sem nome", 
+            updatedAt: r.updatedAt || r.createdAt || new Date().toISOString()
+          };
+        }));
       } finally {
         setSessionsLoading(false);
       }

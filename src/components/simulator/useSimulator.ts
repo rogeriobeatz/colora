@@ -13,7 +13,8 @@ const AUTOSAVE_DELAY = 2500;
 const nowIso = () => new Date().toISOString();
 
 const normalizeLoadedSession = (data: any): SimulatorSessionData => {
-  return {
+  console.log("[Simulator] Dados brutos carregados:", data); // Debug
+  const normalized = {
     id: data.id || generateUUID(), // Usar generateUUID em vez de genId
     name: data.name || "", // Sem fallback genérico
     createdAt: data.createdAt || nowIso(),
@@ -22,6 +23,8 @@ const normalizeLoadedSession = (data: any): SimulatorSessionData => {
     activeRoomId: data.activeRoomId || null,
     selectedWallId: data.selectedWallId || null,
   };
+  console.log("[Simulator] Dados normalizados:", normalized); // Debug
+  return normalized;
 };
 
 // --- State, Actions, and Reducer ---
