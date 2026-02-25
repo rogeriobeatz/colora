@@ -623,6 +623,23 @@ const Dashboard = () => {
     }
   };
 
+  const handleAnalyzeDatabase = async () => {
+    try {
+      const { analyzeSupabaseTables } = await import("@/lib/simulator-db");
+      const result = await analyzeSupabaseTables();
+      
+      if (result) {
+        toast.success("✅ Análise concluída! Verifique o console.", {
+          description: `Profiles: ${result.profiles} | Sessions: ${result.sessions}`
+        });
+      } else {
+        toast.error("Erro na análise do banco");
+      }
+    } catch (error) {
+      toast.error("Erro ao analisar banco de dados");
+    }
+  };
+
   // ─── derived ───────────────────────────────────────────────────────────────
 
   const activeCatalog =
@@ -1092,10 +1109,20 @@ const Dashboard = () => {
                     <Sync className="w-3.5 h-3.5" />
                     Forçar Sync
                   </Button>
+                  
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={handleAnalyzeDatabase}
+                    className="gap-1.5"
+                  >
+                    <Database className="w-3.5 h-3.5" />
+                    Analisar BD
+                  </Button>
                 </div>
                 
                 <p className="text-xs text-muted-foreground mt-2">
-                  Verifique se os dados locais (IndexedDB) estão sincronizados com o Supabase
+                  Verifique sincronização, limpe cache ou analise todas as tabelas em busca de duplicatas e problemas
                 </p>
               </div>
 

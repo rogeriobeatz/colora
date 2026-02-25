@@ -213,6 +213,78 @@ export function generateUUID(): string {
   return uuidv4();
 }
 
+// Função de análise completa do Supabase
+export async function analyzeSupabaseTables() {
+  const results = [];
+  console.log("🔍 Iniciando análise completa do Supabase...");
+
+  try {
+    // 1. Contar registros de cada tabela
+    const { data: profiles } = await supabase.from('profiles').select('id, company_name, document_number, tokens');
+    const { data: catalogs } = await supabase.from('catalogs').select('id, name, company_id');
+    const { data: paints } = await supabase.from('paints').select('id, name, hex, code, catalog_id');
+    const { data: sessions } = await supabase.from('simulator_sessions').select('id, name, user_id, created_at');
+    const { data: consumptions } = await supabase.from('token_consumptions').select('id, amount, user_id, created_at');
+    const { data: cache } = await supabase.from('wall_cache').select('hash, created_at');
+
+    console.log("📊 RESULTADOS DA ANÁLISE:");
+    console.log(`👥 Profiles: ${profiles?.length || 0} registros`);
+    console.log(`📚 Catalogs: ${catalogs?.length || 0} registros`);
+    console.log(`🎨 Paints: ${paints?.length || 0} registros`);
+    console.log(`🏠 Simulator Sessions: ${sessions?.length || 0} registros`);
+    console.log(`💰 Token Consumptions: ${consumptions?.length || 0} registros`);
+    console.log(`🗄️ Wall Cache: ${cache?.length || 0} registros`);
+
+    // Verificar duplicatas
+    if (profiles) {
+      const docGroups = profiles.reduce((acc, p) => {
+        if (p.document_number) {
+          const key = p.document_number;
+          acc[key] = (acc[key] || 0) + 1;
+        }
+        return acc;
+      }, {} as Record<string, number>);
+
+      const duplicateDocs = Object.entries(docGroups).filter(([_, count]) => (count as number) > 1);
+      if (duplicateDocs.length > 0) {
+        console.log(`⚠️ DOCUMENTOS DUPLICADOS: ${duplicateDocs.length} casos`);
+      }
+    }
+
+    if (sessions) {
+      const emptyNames = sessions.filter(s => !s.name || s.name.trim() === '');
+      if (emptyNames.length > 0) {
+        console.log(`⚠️ SESSÕES SEM NOME: ${emptyNames.length}`);
+      }
+    }
+
+    if (paints) {
+      const hexGroups = paints.reduce((acc, p) => {
+        acc[p.hex] = (acc[p.hex] || 0) + 1;
+        return acc;
+      }, {} as Record<string, number>);
+
+      const duplicateHex = Object.entries(hexGroups).filter(([_, count]) => (count as number) > 1);
+      if (duplicateHex.length > 0) {
+        console.log(`⚠️ CORES DUPLICADAS (HEX): ${duplicateHex.length} casos`);
+      }
+    }
+
+    return {
+      profiles: profiles?.length || 0,
+      catalogs: catalogs?.length || 0,
+      paints: paints?.length || 0,
+      sessions: sessions?.length || 0,
+      consumptions: consumptions?.length || 0,
+      cache: cache?.length || 0
+    };
+
+  } catch (error) {
+    console.error("❌ Erro na análise:", error);
+    return null;
+  }
+}
+
 // Função para limpar cache local e forçar sincronização
 export async function forceSyncFromSupabase(): Promise<void> {
   try {
