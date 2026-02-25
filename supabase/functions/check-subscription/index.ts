@@ -74,10 +74,16 @@ serve(async (req) => {
 
       if (hasActiveSub) {
         const subscription = subscriptions.data[0];
-        const periodEnd = subscription.current_period_end;
+        logStep("Subscription object keys", { keys: Object.keys(subscription) });
+        // Try multiple ways to get period end
+        const periodEnd = subscription.current_period_end 
+          ?? (subscription as any)['current_period_end']
+          ?? null;
         logStep("Subscription period_end raw", { periodEnd, type: typeof periodEnd });
         if (periodEnd && typeof periodEnd === 'number') {
           subscriptionEnd = new Date(periodEnd * 1000).toISOString();
+        } else if (periodEnd && typeof periodEnd === 'string') {
+          subscriptionEnd = periodEnd;
         }
         logStep("Active subscription found", { subscriptionId: subscription.id, endDate: subscriptionEnd });
 
