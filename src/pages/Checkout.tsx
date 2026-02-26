@@ -3,7 +3,7 @@ import { Link, useNavigate } from "react-router-dom";
 import { ArrowRight, Shield, CreditCard, User, Mail, Phone, Building2, Lock, Check } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import logoSvg from "@/assets/colora-logo.svg";
-import { createClient } from "@supabase/supabase-js";
+import { supabase } from "@/integrations/supabase/client";
 
 const Checkout = () => {
   const navigate = useNavigate();
@@ -19,12 +19,6 @@ const Checkout = () => {
 
   const [isProcessing, setIsProcessing] = useState(false);
   const [error, setError] = useState("");
-
-  // Initialize Supabase client
-  const supabase = createClient(
-    import.meta.env.VITE_SUPABASE_URL,
-    import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY
-  );
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value, type, checked } = e.target;
@@ -99,10 +93,12 @@ const Checkout = () => {
     setIsProcessing(true);
     
     try {
+      const tempPassword = generateTempPassword();
+
       // 1. Criar usuário no Supabase Auth com metadata
       const { data: authData, error: authError } = await supabase.auth.signUp({
         email: formData.email,
-        password: generateTempPassword(),
+        password: tempPassword,
         options: {
           data: {
             name: formData.name,
@@ -120,15 +116,16 @@ const Checkout = () => {
 
       // Se usuário já existe, fazer login
       if (authError) {
-        const { data: signInData, error: signInError } = await supabase.auth.signInWithPassword({
-          email: formData.email,
-          password: generateTempPassword(),
-        });
+        const msg = (authError as any)?.message || "";
+        const alreadyRegistered = msg.toLowerCase().includes("already") || msg.toLowerCase().includes("registered") || (authError as any)?.status === 422;
 
-        if (signInError) {
-          throw new Error("Erro ao autenticar usuário");
+        if (alreadyRegistered) {
+          setError("Esse e-mail já possui conta. Faça login para continuar o checkout.");
+          navigate(`/login?email=${encodeURIComponent(formData.email)}`);
+          return;
         }
-        userId = signInData.user?.id;
+
+        throw authError;
       }
 
       // 2. Salvar/atualizar perfil diretamente (fallback se migration não funcionou)
