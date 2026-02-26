@@ -87,47 +87,13 @@ serve(async (req) => {
         }
         logStep("Active subscription found", { subscriptionId: subscription.id, endDate: subscriptionEnd });
 
-      // Check if we need to deposit monthly tokens
-      const now = new Date();
-      const currentMonth = now.toISOString().slice(0, 7);
-
-      const { data: profile } = await supabaseClient
-        .from('profiles')
-        .select('last_token_deposit, tokens')
-        .eq('id', user.id)
-        .single();
-
-      if (profile && !profile.last_token_deposit?.startsWith(currentMonth)) {
-        // Deposit 200 tokens
-        const newTokens = (profile.tokens || 0) + 200;
-        const expiresAt = new Date(now.getTime() + 100 * 24 * 60 * 60 * 1000);
-
-        await supabaseClient
-          .from('profiles')
-          .update({
-            subscription_status: 'active',
-            tokens: newTokens,
-            tokens_expires_at: expiresAt.toISOString(),
-            last_token_deposit: now.toISOString().slice(0, 10),
-          })
-          .eq('id', user.id);
-
-        await supabaseClient
-          .from('token_consumptions')
-          .insert({
-            user_id: user.id,
-            amount: 200,
-            description: "Depósito mensal de tokens (assinatura)",
-          });
-
-        logStep("Monthly tokens deposited", { newTokens });
-      } else {
-        // Just update subscription status
+        // Token mensal via CRON:
+        // O depósito mensal é responsabilidade da edge function monthly-tokens.
+        // Aqui a gente só garante que o status da assinatura está correto.
         await supabaseClient
           .from('profiles')
           .update({ subscription_status: 'active' })
           .eq('id', user.id);
-      }
     } else {
       logStep("No active subscription");
       await supabaseClient

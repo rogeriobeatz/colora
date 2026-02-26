@@ -68,28 +68,31 @@ serve(async (req) => {
 
     for (const user of activeUsers) {
       try {
-        // Verifica se já depositou este mês
-        if (user.last_token_deposit?.startsWith(currentMonth)) {
-          console.log(`[monthly-tokens] Usuário ${user.id} já recebeu tokens este mês`);
-          skipped++;
-          continue;
-        }
+        // Depósito idempotente:
+        // faz update apenas se last_token_deposit NÃO for do mês atual.
+        // Isso evita duplicidade se o cron rodar mais de uma vez.
+        const baseTokens = user.tokens || 0;
+        const newTokens = baseTokens + 200;
 
-        // Deposita tokens
-        const newTokens = (user.tokens || 0) + 200;
-        
-        // Atualiza perfil
-        const { error: updateError } = await serviceRoleClient
+        const { data: updatedProfiles, error: updateError } = await serviceRoleClient
           .from('profiles')
           .update({
             tokens: newTokens,
             tokens_expires_at: expiresAt.toISOString(),
             last_token_deposit: now.toISOString().slice(0, 10)
           })
-          .eq('id', user.id);
+          .eq('id', user.id)
+          .not('last_token_deposit', 'like', `${currentMonth}%`)
+          .select('id');
 
         if (updateError) {
           console.error(`[monthly-tokens] Erro ao atualizar usuário ${user.id}:`, updateError);
+          continue;
+        }
+
+        if (!updatedProfiles || updatedProfiles.length === 0) {
+          console.log(`[monthly-tokens] Usuário ${user.id} já recebeu tokens este mês (idempotência)`);
+          skipped++;
           continue;
         }
 
