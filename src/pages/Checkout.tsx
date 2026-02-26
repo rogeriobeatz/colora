@@ -20,6 +20,7 @@ const Checkout = () => {
 
   const [isProcessing, setIsProcessing] = useState(false);
   const [error, setError] = useState("");
+  const [showLoginPrompt, setShowLoginPrompt] = useState(false);
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value, type, checked } = e.target;
@@ -79,6 +80,7 @@ const Checkout = () => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
+    setShowLoginPrompt(false);
     
     if (!formData.acceptTerms) {
       setError("Você precisa aceitar os termos de uso");
@@ -125,18 +127,19 @@ const Checkout = () => {
         const alreadyRegistered = msg.toLowerCase().includes("already") || msg.toLowerCase().includes("registered") || (authError as any)?.status === 422;
 
         if (alreadyRegistered) {
-          const { data: signInData, error: signInError } = await supabase.auth.signInWithPassword({
-            email: formData.email,
-            password: formData.password,
-          });
+          // Perguntar ao usuário se deseja fazer login
+          const shouldGoToLogin = window.confirm(
+            "Este e-mail já está cadastrado. Deseja fazer login para continuar o checkout?"
+          );
 
-          if (signInError) {
-            setError("Esse e-mail já possui conta. Faça login para continuar o checkout.");
+          if (shouldGoToLogin) {
             navigate(`/login?email=${encodeURIComponent(formData.email)}`);
             return;
+          } else {
+            setError("Use outro e-mail ou faça login para continuar.");
+            setIsProcessing(false);
+            return;
           }
-
-          userId = signInData.user?.id;
         }
 
         if (!alreadyRegistered) {
