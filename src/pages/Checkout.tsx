@@ -10,6 +10,7 @@ const Checkout = () => {
   const [formData, setFormData] = useState({
     name: "",
     email: "",
+    password: "",
     phone: "",
     company: "",
     document: "", // CNPJ ou CPF
@@ -93,12 +94,10 @@ const Checkout = () => {
     setIsProcessing(true);
     
     try {
-      const tempPassword = generateTempPassword();
-
       // 1. Criar usuário no Supabase Auth com metadata
       const { data: authData, error: authError } = await supabase.auth.signUp({
         email: formData.email,
-        password: tempPassword,
+        password: formData.password,
         options: {
           data: {
             name: formData.name,
@@ -114,18 +113,35 @@ const Checkout = () => {
 
       let userId = authData.user?.id;
 
+      if (!authError && !authData.session) {
+        setError("Verifique seu e-mail para confirmar o cadastro e depois faça login para continuar o checkout.");
+        navigate(`/login?email=${encodeURIComponent(formData.email)}`);
+        return;
+      }
+
       // Se usuário já existe, fazer login
       if (authError) {
         const msg = (authError as any)?.message || "";
         const alreadyRegistered = msg.toLowerCase().includes("already") || msg.toLowerCase().includes("registered") || (authError as any)?.status === 422;
 
         if (alreadyRegistered) {
-          setError("Esse e-mail já possui conta. Faça login para continuar o checkout.");
-          navigate(`/login?email=${encodeURIComponent(formData.email)}`);
-          return;
+          const { data: signInData, error: signInError } = await supabase.auth.signInWithPassword({
+            email: formData.email,
+            password: formData.password,
+          });
+
+          if (signInError) {
+            setError("Esse e-mail já possui conta. Faça login para continuar o checkout.");
+            navigate(`/login?email=${encodeURIComponent(formData.email)}`);
+            return;
+          }
+
+          userId = signInData.user?.id;
         }
 
-        throw authError;
+        if (!alreadyRegistered) {
+          throw authError;
+        }
       }
 
       // 2. Salvar/atualizar perfil diretamente (fallback se migration não funcionou)
@@ -207,11 +223,6 @@ const Checkout = () => {
     } finally {
       setIsProcessing(false);
     }
-  };
-
-  // Gerar senha temporária (em produção, deveria ser enviada por email)
-  const generateTempPassword = () => {
-    return "temp123@" + Date.now();
   };
 
   return (
@@ -298,6 +309,22 @@ const Checkout = () => {
                     required
                     className="w-full px-4 py-3 border border-border rounded-lg bg-background text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
                     placeholder="seu@email.com"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-foreground mb-2">
+                    Senha *
+                  </label>
+                  <input
+                    type="password"
+                    name="password"
+                    value={formData.password}
+                    onChange={handleInputChange}
+                    required
+                    minLength={6}
+                    className="w-full px-4 py-3 border border-border rounded-lg bg-background text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
+                    placeholder="Mínimo 6 caracteres"
                   />
                 </div>
 

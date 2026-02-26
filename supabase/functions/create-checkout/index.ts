@@ -31,11 +31,38 @@ serve(async (req) => {
   );
 
   try {
-    const authHeader = req.headers.get("Authorization")!;
-    const token = authHeader.replace("Bearer ", "");
-    const { data } = await supabaseClient.auth.getUser(token);
+    const authHeader = req.headers.get("Authorization");
+    if (!authHeader || !authHeader.toLowerCase().startsWith("bearer ")) {
+      return new Response(JSON.stringify({ error: "Unauthorized" }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+        status: 401,
+      });
+    }
+
+    const token = authHeader.slice("Bearer ".length).trim();
+    if (!token) {
+      return new Response(JSON.stringify({ error: "Unauthorized" }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+        status: 401,
+      });
+    }
+
+    const { data, error: userError } = await supabaseClient.auth.getUser(token);
+    if (userError) {
+      logStep("Auth error", { message: userError.message });
+      return new Response(JSON.stringify({ error: "Unauthorized" }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+        status: 401,
+      });
+    }
+
     const user = data.user;
-    if (!user?.email) throw new Error("User not authenticated");
+    if (!user?.email) {
+      return new Response(JSON.stringify({ error: "Unauthorized" }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+        status: 401,
+      });
+    }
 
     const { mode, customerData } = await req.json();
     logStep("Request received", { mode, customerData: !!customerData });
@@ -139,11 +166,8 @@ serve(async (req) => {
         customer_document: customerData?.document || '',
       },
       customer_update: {
-        name: customerData?.name || user.user_metadata?.name || user.email,
-        address: customerData?.company ? { 
-          line1: customerData.company,
-          country: 'BR'
-        } : undefined,
+        name: "auto",
+        address: "auto",
       },
     });
 
