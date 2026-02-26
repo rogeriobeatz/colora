@@ -22,6 +22,7 @@ import { ProjectListItem } from "@/components/simulator/ProjectDrawer";
 import { useAccessibleStyles } from "@/hooks/useAccessibleStyles";
 import MobileMenu from "@/components/MobileMenu";
 import { useMobile, useOrientation } from "@/hooks/useMobile";
+import { listSimulatorSessions, deleteSimulatorSession, checkSyncStatus, forceSyncFromSupabase, analyzeSupabaseTables } from "@/lib/simulator-db";
 
 // ─── helpers ────────────────────────────────────────────────────────────────
 
@@ -227,7 +228,6 @@ const Dashboard = () => {
     (async () => {
       try {
         setSessionsLoading(true);
-        const { listSimulatorSessions } = await import("@/lib/simulator-db");
         const list = await listSimulatorSessions();
         console.log("[Dashboard] Projetos carregados:", list); // Debug
         
@@ -584,7 +584,6 @@ const Dashboard = () => {
   };
 
   const handleDeleteSession = async (id: string) => {
-    const { deleteSimulatorSession } = await import("@/lib/simulator-db");
     await deleteSimulatorSession(id);
     setSessions((prev) => prev.filter((s) => s.id !== id));
     toast.success("Projeto excluído!");
@@ -594,7 +593,6 @@ const Dashboard = () => {
   const handleCheckSync = async () => {
     setCheckingSync(true);
     try {
-      const { checkSyncStatus } = await import("@/lib/simulator-db");
       const status = await checkSyncStatus();
       setSyncStatus(status);
       
@@ -616,7 +614,6 @@ const Dashboard = () => {
 
   const handleForceSync = async () => {
     try {
-      const { forceSyncFromSupabase } = await import("@/lib/simulator-db");
       await forceSyncFromSupabase();
     } catch (error) {
       toast.error("Erro ao forçar sincronização");
@@ -625,7 +622,6 @@ const Dashboard = () => {
 
   const handleAnalyzeDatabase = async () => {
     try {
-      const { analyzeSupabaseTables } = await import("@/lib/simulator-db");
       const result = await analyzeSupabaseTables();
       
       if (result) {
