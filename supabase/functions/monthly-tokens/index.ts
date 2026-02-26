@@ -61,6 +61,7 @@ serve(async (req) => {
     // 3. Processar cada usuário
     const now = new Date();
     const currentMonth = now.toISOString().slice(0, 7); // YYYY-MM
+    const firstDayOfCurrentMonth = `${currentMonth}-01`;
     const expiresAt = new Date(now.getTime() + 100 * 24 * 60 * 60 * 1000); // 100 dias
     
     let processed = 0;
@@ -82,7 +83,7 @@ serve(async (req) => {
             last_token_deposit: now.toISOString().slice(0, 10)
           })
           .eq('id', user.id)
-          .not('last_token_deposit', 'like', `${currentMonth}%`)
+          .or(`last_token_deposit.is.null,last_token_deposit.lt.${firstDayOfCurrentMonth}`)
           .select('id');
 
         if (updateError) {
