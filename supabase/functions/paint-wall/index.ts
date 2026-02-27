@@ -3,8 +3,10 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { decode as decodeBase64 } from "https://deno.land/std@0.224.0/encoding/base64.ts";
 
 const corsHeaders = {
-  "Access-Control-Allow-Origin": "https://colora.rogerio.work",
+  "Access-Control-Allow-Origin": "https://colora.rogerio.work, https://colora.app.br",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+  "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
+  "Vary": "Origin"
 };
 
 const KIE_BASE_URL = "https://api.kie.ai";
