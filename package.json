@@ -10,9 +10,7 @@
     "lint": "eslint .",
     "preview": "vite preview",
     "test": "vitest run",
-    "test:watch": "vitest",
-    "prebuild": "pnpm install --frozen-lockfile",
-    "postinstall": "pnpm install --frozen-lockfile"
+    "test:watch": "vitest"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.10.0",
