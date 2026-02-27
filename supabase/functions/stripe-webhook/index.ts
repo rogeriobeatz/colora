@@ -56,65 +56,100 @@ serve(async (req) => {
   );
 
   try {
-    if (event.type !== "invoice.paid") {
+    if (event.type !== "checkout.session.completed") {
       return new Response(JSON.stringify({ received: true, ignored: event.type }), {
         headers: { ...headers, "Content-Type": "application/json" },
         status: 200,
       });
     }
 
-    const invoice = event.data.object as Stripe.Invoice;
-    const customerId = typeof invoice.customer === "string" ? invoice.customer : invoice.customer?.id;
+    const session = event.data.object as Stripe.Checkout.Session;
+    const customerId = typeof session.customer === "string" ? session.customer : session.customer?.id;
+    const metadata = session.metadata || {};
 
-    if (!customerId) {
-      return new Response(JSON.stringify({ error: "Missing customer" }), {
-        headers: { ...headers, "Content-Type": "application/json" },
-        status: 400,
-      });
+    logStep("checkout.session.completed received", { sessionId: session.id, metadata });
+
+    if (metadata.create_user_on_success === 'true') {
+      const email = metadata.customer_email;
+      const name = metadata.customer_name;
+      
+      logStep("Processing guest checkout - creating user", { email });
+
+      // 1. Verificar se o usuário já existe no Supabase Auth
+      const { data: authUser, error: authCheckError } = await supabaseAdmin.auth.admin.listUsers();
+      const existingUser = authUser?.users.find(u => u.email === email);
+
+      let userId: string;
+
+      if (existingUser) {
+        userId = existingUser.id;
+        logStep("User already exists, updating existing profile", { userId });
+      } else {
+        // 2. Criar novo usuário se não existir
+        // Gerar uma senha temporária segura que o usuário deve trocar depois
+        const tempPassword = `Colora@${Math.random().toString(36).slice(-8)}${Date.now().toString().slice(-4)}`;
+        
+        const { data: newUser, error: createError } = await supabaseAdmin.auth.admin.createUser({
+          email: email,
+          password: tempPassword,
+          email_confirm: true, // Auto-confirmar e-mail já que o pagamento foi feito
+          user_metadata: {
+            full_name: name,
+            source: 'stripe_webhook_auto_create'
+          }
+        });
+
+        if (createError) {
+          logStep("Error creating user", { error: createError.message });
+          throw createError;
+        }
+
+        userId = newUser.user.id;
+        logStep("New user created successfully", { userId });
+
+        // Opcional: Enviar e-mail de "Bem-vindo" com link para resetar senha
+        await supabaseAdmin.auth.admin.generateLink({
+          type: 'recovery',
+          email: email
+        });
+      }
+
+      // 3. Atualizar Perfil com dados do checkout e ID do Stripe
+      const profileUpdate = {
+        id: userId,
+        full_name: name,
+        stripe_customer_id: customerId,
+        document_type: metadata.customer_document_type || 'cpf',
+        document_number: metadata.customer_document || '',
+        company_name: metadata.customer_company || name,
+        company_phone: metadata.customer_phone || '',
+        subscription_status: 'active',
+        tokens: 200, // Tokens iniciais da assinatura
+        updated_at: new Date().toISOString()
+      };
+
+      const { error: profileError } = await supabaseAdmin
+        .from('profiles')
+        .upsert(profileUpdate);
+
+      if (profileError) {
+        logStep("Error updating profile", { error: profileError.message });
+        throw profileError;
+      }
+
+      // 4. Registrar crédito de tokens inicial
+      await supabaseAdmin
+        .from('token_consumptions')
+        .insert({
+          user_id: userId,
+          amount: 200,
+          description: `Depósito inicial de assinatura - Sessão: ${session.id}`,
+          source: 'stripe:checkout.session.completed',
+          external_id: session.id
+        });
+
+      logStep("Guest checkout processing complete", { userId });
     }
-
-    if (invoice.billing_reason && !["subscription_cycle", "subscription_create"].includes(invoice.billing_reason)) {
-      return new Response(JSON.stringify({ received: true, ignored: "billing_reason" }), {
-        headers: { ...headers, "Content-Type": "application/json" },
-        status: 200,
-      });
-    }
-
-    const { data: profile } = await supabaseAdmin
-      .from("profiles")
-      .select("id, tokens, tokens_expires_at")
-      .eq("stripe_customer_id", customerId)
-      .single();
-
-    if (!profile) {
-      return new Response(JSON.stringify({ error: "Profile not found" }), {
-        headers: { ...headers, "Content-Type": "application/json" },
-        status: 404,
-      });
-    }
-
-    const now = new Date();
-    const newExpiresAt = new Date(now.getTime() + 100 * 24 * 60 * 60 * 1000);
-    const newTokens = (profile.tokens || 0) + 200;
-
-    await supabaseAdmin
-      .from("profiles")
-      .update({
-        tokens: newTokens,
-        tokens_expires_at: newExpiresAt.toISOString(),
-        subscription_status: "active",
-      })
-      .eq("id", profile.id);
-
-    await supabaseAdmin
-      .from("token_consumptions")
-      .insert({
-        user_id: profile.id,
-        amount: 200,
-        description: `Depósito mensal de tokens - ${invoice.id}`,
-        source: "stripe:invoice.paid",
-        external_id: invoice.id,
-      });
 
     return new Response(JSON.stringify({ received: true }), {
       headers: { ...headers, "Content-Type": "application/json" },
