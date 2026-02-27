@@ -1,74 +1,47 @@
 import { useState, useEffect } from "react";
-import { useNavigate, Link } from "react-router-dom";
+import { useNavigate, Link, useSearchParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Palette, Store, ArrowRight, ArrowLeft, Loader2, Mail, Lock, Building2 } from "lucide-react";
+import { Palette, Store, ArrowRight, ArrowLeft, Loader2, Mail, Lock, Building2, Eye, EyeOff, CheckCircle2 } from "lucide-react";
 import { toast } from "sonner";
 import logoSvg from "@/assets/colora-logo.svg";
 
-type Step = "info" | "credentials" | "login";
+type Step = "login" | "set-password" | "success";
 
 const Login = () => {
   const { session } = useAuth();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   
   const [step, setStep] = useState<Step>("login");
   const [loading, setLoading] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
   
   // Form State
-  const [fullName, setFullName] = useState("");
-  const [companyName, setCompanyName] = useState("");
-  const [email, setEmail] = useState("");
+  const [email, setEmail] = useState(searchParams.get("email") || "");
   const [password, setPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
 
   useEffect(() => {
-    if (session) {
+    // Se o usuário já estiver logado e não estiver no fluxo de definir senha, vai pro dashboard
+    if (session && step !== "set-password") {
       navigate("/dashboard");
     }
-  }, [session, navigate]);
+  }, [session, navigate, step]);
 
-  const generateSlug = (name: string) => {
-    return name
-      .toLowerCase()
-      .normalize("NFD")
-      .replace(/[\u0300-\u036f]/g, "")
-      .replace(/[^a-z0-9]+/g, "-")
-      .replace(/^-|-$/g, "");
-  };
-
-  const handleSignUp = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setLoading(true);
-    
-    try {
-      const { error } = await supabase.auth.signUp({
-        email,
-        password,
-        options: {
-          data: {
-            full_name: fullName,
-            user_type: 'company',
-            company_name: companyName,
-            company_slug: generateSlug(companyName),
-          }
-        }
+  useEffect(() => {
+    // Se vier do checkout com sucesso, incentiva a definição de senha ou login
+    const paymentStatus = searchParams.get("payment");
+    if (paymentStatus === "success") {
+      setStep("set-password");
+      toast.success("Pagamento confirmado!", {
+        description: "Agora defina uma senha para acessar sua conta.",
       });
-
-      if (error) throw error;
-      
-      toast.success("Conta criada com sucesso!", {
-        description: "Verifique seu e-mail para confirmar o cadastro.",
-      });
-      setStep("login");
-    } catch (error: any) {
-      toast.error("Erro ao criar conta", { description: error.message });
-    } finally {
-      setLoading(false);
     }
-  };
+  }, [searchParams]);
 
   const handleSignIn = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -89,102 +62,64 @@ const Login = () => {
     }
   };
 
+  const handleSetPassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    
+    if (password !== confirmPassword) {
+      toast.error("As senhas não coincidem");
+      return;
+    }
+
+    if (password.length < 6) {
+      toast.error("A senha deve ter pelo menos 6 caracteres");
+      return;
+    }
+
+    setLoading(true);
+    
+    try {
+      // 1. Tentar fazer login com a senha temporária enviada por e-mail ou gerada no webhook
+      // Mas como o usuário não sabe a senha temporária, o ideal é usar o fluxo de recuperação
+      // ou se o usuário acabou de ser criado, ele pode ter recebido um link.
+      
+      // No nosso fluxo simplificado, vamos tentar o resetPasswordForEmail que envia um link
+      // OU se o usuário já estiver logado (via link de confirmação), usamos updatePlayer
+      
+      const { data: { session: currentSession } } = await supabase.auth.getSession();
+      
+      if (currentSession) {
+        // Se já houver sessão (ex: veio de um link de confirmação auto-login)
+        const { error } = await supabase.auth.updateUser({ password });
+        if (error) throw error;
+      } else {
+        // Se não houver sessão, solicita link de recuperação
+        const { error } = await supabase.auth.resetPasswordForEmail(email, {
+          redirectTo: `${window.location.origin}/login?payment=success&email=${encodeURIComponent(email)}`,
+        });
+        if (error) throw error;
+        
+        toast.info("Link enviado!", {
+          description: "Enviamos um link para seu e-mail para você definir sua senha com segurança."
+        });
+        return;
+      }
+
+      setStep("success");
+      toast.success("Senha definida com sucesso!");
+    } catch (error: any) {
+      console.error("Erro ao definir senha:", error);
+      toast.error("Erro ao definir senha", { 
+        description: error.message.includes("sub claim") 
+          ? "Sua sessão expirou. Por favor, solicite um novo link de acesso." 
+          : error.message 
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const renderStep = () => {
     switch (step) {
-      case "info":
-        return (
-          <div className="space-y-6 animate-fade-in">
-            <button onClick={() => setStep("login")} className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors mb-4">
-              <ArrowLeft className="w-4 h-4" /> Voltar
-            </button>
-            <div className="text-center mb-6">
-              <h2 className="text-2xl font-display font-bold text-foreground">Comece a transformar sua loja</h2>
-              <p className="text-muted-foreground text-sm mt-1">Precisamos de algumas informações da sua empresa</p>
-            </div>
-            <div className="space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="companyName">Nome da Empresa / Loja</Label>
-                <div className="relative">
-                  <Building2 className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                  <Input 
-                    id="companyName" 
-                    placeholder="Ex: Tintas & Cores" 
-                    value={companyName} 
-                    onChange={(e) => setCompanyName(e.target.value)}
-                    className="h-12 pl-10"
-                  />
-                </div>
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="fullName">Seu Nome Completo</Label>
-                <Input 
-                  id="fullName" 
-                  placeholder="Ex: João Silva" 
-                  value={fullName} 
-                  onChange={(e) => setFullName(e.target.value)}
-                  className="h-12"
-                />
-              </div>
-              <Button 
-                className="w-full h-12 text-base shadow-soft" 
-                disabled={!fullName || !companyName}
-                onClick={() => setStep("credentials")}
-              >
-                Continuar <ArrowRight className="w-4 h-4 ml-2" />
-              </Button>
-            </div>
-          </div>
-        );
-
-      case "credentials":
-        return (
-          <form onSubmit={handleSignUp} className="space-y-6 animate-fade-in">
-            <button onClick={() => setStep("info")} className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors mb-4">
-              <ArrowLeft className="w-4 h-4" /> Voltar
-            </button>
-            <div className="text-center mb-6">
-              <h2 className="text-2xl font-display font-bold text-foreground">Para finalizar...</h2>
-              <p className="text-muted-foreground text-sm mt-1">Crie suas credenciais de acesso</p>
-            </div>
-            <div className="space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="email">E-mail Corporativo</Label>
-                <div className="relative">
-                  <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                  <Input 
-                    id="email" 
-                    type="email" 
-                    placeholder="seu@email.com" 
-                    value={email} 
-                    onChange={(e) => setEmail(e.target.value)}
-                    className="h-12 pl-10"
-                    required
-                  />
-                </div>
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="password">Senha</Label>
-                <div className="relative">
-                  <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                  <Input 
-                    id="password" 
-                    type="password" 
-                    placeholder="Mínimo 6 caracteres" 
-                    value={password} 
-                    onChange={(e) => setPassword(e.target.value)}
-                    className="h-12 pl-10"
-                    required
-                    minLength={6}
-                  />
-                </div>
-              </div>
-              <Button type="submit" className="w-full h-12 text-base shadow-soft" disabled={loading}>
-                {loading ? <Loader2 className="w-5 h-5 animate-spin mr-2" /> : "Criar Conta da Empresa"}
-              </Button>
-            </div>
-          </form>
-        );
-
       case "login":
         return (
           <form onSubmit={handleSignIn} className="space-y-6 animate-fade-in">
@@ -195,30 +130,56 @@ const Login = () => {
             <div className="space-y-4">
               <div className="space-y-2">
                 <Label htmlFor="login-email">E-mail</Label>
-                <Input 
-                  id="login-email" 
-                  type="email" 
-                  placeholder="seu@email.com" 
-                  value={email} 
-                  onChange={(e) => setEmail(e.target.value)}
-                  className="h-12"
-                  required
-                />
+                <div className="relative">
+                  <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                  <Input 
+                    id="login-email" 
+                    type="email" 
+                    placeholder="seu@email.com" 
+                    value={email} 
+                    onChange={(e) => setEmail(e.target.value)}
+                    className="h-12 pl-10"
+                    required
+                  />
+                </div>
               </div>
               <div className="space-y-2">
                 <div className="flex items-center justify-between">
                   <Label htmlFor="login-password">Senha</Label>
-                  <button type="button" className="text-xs text-primary hover:underline">Esqueceu a senha?</button>
+                  <button 
+                    type="button" 
+                    onClick={() => {
+                      if (!email) {
+                        toast.error("Digite seu e-mail primeiro");
+                        return;
+                      }
+                      supabase.auth.resetPasswordForEmail(email);
+                      toast.info("Link de recuperação enviado para seu e-mail");
+                    }}
+                    className="text-xs text-primary hover:underline"
+                  >
+                    Esqueceu a senha?
+                  </button>
                 </div>
-                <Input 
-                  id="login-password" 
-                  type="password" 
-                  placeholder="Sua senha" 
-                  value={password} 
-                  onChange={(e) => setPassword(e.target.value)}
-                  className="h-12"
-                  required
-                />
+                <div className="relative">
+                  <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                  <Input 
+                    id="login-password" 
+                    type={showPassword ? "text" : "password"} 
+                    placeholder="Sua senha" 
+                    value={password} 
+                    onChange={(e) => setPassword(e.target.value)}
+                    className="h-12 pl-10 pr-10"
+                    required
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                  >
+                    {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  </button>
+                </div>
               </div>
               <Button type="submit" className="w-full h-12 text-base shadow-soft" disabled={loading}>
                 {loading ? <Loader2 className="w-5 h-5 animate-spin mr-2" /> : "Entrar no Painel"}
@@ -230,6 +191,84 @@ const Login = () => {
               </div>
             </div>
           </form>
+        );
+
+      case "set-password":
+        return (
+          <form onSubmit={handleSetPassword} className="space-y-6 animate-fade-in">
+            <div className="text-center mb-8">
+              <h2 className="text-2xl font-display font-bold text-foreground">Defina sua Senha</h2>
+              <p className="text-muted-foreground text-sm mt-1">Crie uma senha para acessar seu painel</p>
+            </div>
+            <div className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="set-email">E-mail de Acesso</Label>
+                <Input id="set-email" value={email} disabled className="h-12 bg-muted" />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="new-password">Nova Senha</Label>
+                <div className="relative">
+                  <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                  <Input 
+                    id="new-password" 
+                    type={showPassword ? "text" : "password"} 
+                    placeholder="Mínimo 6 caracteres" 
+                    value={password} 
+                    onChange={(e) => setPassword(e.target.value)}
+                    className="h-12 pl-10 pr-10"
+                    required
+                    minLength={6}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                  >
+                    {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  </button>
+                </div>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="confirm-password">Confirmar Senha</Label>
+                <div className="relative">
+                  <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                  <Input 
+                    id="confirm-password" 
+                    type={showPassword ? "text" : "password"} 
+                    placeholder="Repita a senha" 
+                    value={confirmPassword} 
+                    onChange={(e) => setConfirmPassword(e.target.value)}
+                    className="h-12 pl-10 pr-10"
+                    required
+                  />
+                </div>
+              </div>
+              <Button type="submit" className="w-full h-12 text-base shadow-soft" disabled={loading}>
+                {loading ? <Loader2 className="w-5 h-5 animate-spin mr-2" /> : "Salvar Senha e Entrar"}
+              </Button>
+              <p className="text-xs text-center text-muted-foreground">
+                Se você não recebeu o link de confirmação, <button type="button" onClick={() => setStep("login")} className="text-primary hover:underline">tente fazer login</button> ou recupere sua senha.
+              </p>
+            </div>
+          </form>
+        );
+
+      case "success":
+        return (
+          <div className="text-center py-8 space-y-6 animate-fade-in">
+            <div className="flex justify-center">
+              <div className="w-20 h-20 bg-primary/10 rounded-full flex items-center justify-center">
+                <CheckCircle2 className="w-10 h-10 text-primary" />
+              </div>
+            </div>
+            <div>
+              <h2 className="text-2xl font-display font-bold text-foreground">Tudo pronto!</h2>
+              <p className="text-muted-foreground mt-2">Sua senha foi definida com sucesso.</p>
+            </div>
+            <Button onClick={() => navigate("/dashboard")} className="w-full h-12 text-base">
+              Ir para o Painel <ArrowRight className="w-4 h-4 ml-2" />
+            </Button>
+          </div>
         );
     }
   };
