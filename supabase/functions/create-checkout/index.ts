@@ -62,7 +62,7 @@ serve(async (req) => {
       ],
       mode: isSubscription ? "subscription" : "payment",
       // Redirecionar direto para o dashboard após sucesso
-      success_url: `${req.headers.get("origin")}/dashboard?payment=success&email=${encodeURIComponent(customerData.email)}&session_id={CHECKOUT_SESSION_ID}`,
+      success_url: `${req.headers.get("origin")}/dashboard?payment=success&email=${encodeURIComponent(customerData.email)}&session_id={CHECKOUT_SESSION_ID}&auto_login=true`,
       cancel_url: `${req.headers.get("origin")}/checkout?payment=canceled`,
       metadata: {
         type: mode,
@@ -72,7 +72,8 @@ serve(async (req) => {
         customer_company: customerData.company || '',
         customer_document: customerData.document || '',
         customer_document_type: customerData.documentType || 'cpf',
-        create_user_on_success: 'true'
+        create_user_on_success: 'true',
+        origin: req.headers.get("origin") || 'https://colora.rogerio.work'
       },
     });
 

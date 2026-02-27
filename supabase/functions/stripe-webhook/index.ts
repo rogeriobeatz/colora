@@ -156,23 +156,14 @@ serve(async (req) => {
         }
 
         logStep("Guest checkout processing complete", { userId });
-
-        // 5. Gerar link de login automático (Magic Link / Recovery Link)
-        const { data: recovery, error: recoveryError } = await supabaseAdmin.auth.admin.generateLink({
-          type: 'recovery',
-          email: email,
-          options: {
-            redirectTo: `${metadata.origin || 'https://colora.rogerio.work'}/dashboard?payment=success`
-          }
-        });
-        
-        if (recoveryError) {
-          logStep("WARNING: Failed to generate recovery link for auto-login", { error: recoveryError.message });
-        } else {
-          logStep("Recovery link generated for auto-login", { url: recovery.properties.action_link });
-          // Aqui poderíamos enviar o link por e-mail personalizado se quiséssemos
-        }
       }
+    }
+
+    // Escutar por customer.subscription.created para atualizar dados após pagamento
+    if (event.type === "customer.subscription.created") {
+      const subscription = event.data.object as Stripe.Subscription;
+      logStep("Processing customer.subscription.created", { subscriptionId: subscription.id });
+      // Aqui podemos fazer qualquer processamento adicional se necessário
     }
 
     // Escutar por invoice.paid para renovação de assinatura

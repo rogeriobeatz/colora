@@ -210,6 +210,30 @@ const Dashboard = () => {
     return amount.toLocaleString('pt-BR');
   };
 
+  // Handle auto-login from Stripe recovery link
+  useEffect(() => {
+    const handleAutoLogin = async () => {
+      const token = searchParams.get("token");
+      const type = searchParams.get("type");
+      
+      if (token && type === "recovery") {
+        try {
+          await new Promise(resolve => setTimeout(resolve, 500));
+          if (!user && authLoading === false) {
+            navigate("/login", { replace: true });
+          }
+        } catch (error) {
+          console.error("Auto-login error:", error);
+          navigate("/login", { replace: true });
+        }
+      }
+    };
+    
+    if (authLoading === false) {
+      handleAutoLogin();
+    }
+  }, [searchParams, authLoading, user, navigate]);
+
   useEffect(() => {
     if (!authLoading && !user) navigate("/login");
   }, [user, authLoading, navigate]);
