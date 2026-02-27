@@ -61,6 +61,28 @@ const Checkout = () => {
     setFormData(prev => ({ ...prev, documentType: type, document: '' }));
   };
 
+  const formatPhone = (phone: string) => {
+    const cleanPhone = phone.replace(/\D/g, '');
+    
+    if (cleanPhone.length <= 2) {
+      return cleanPhone;
+    } else if (cleanPhone.length <= 7) {
+      // (XX) XXXX
+      return `(${cleanPhone.slice(0, 2)}) ${cleanPhone.slice(2)}`;
+    } else if (cleanPhone.length <= 10) {
+      // (XX) XXXX-XXXX (fixo)
+      return `(${cleanPhone.slice(0, 2)}) ${cleanPhone.slice(2, 6)}-${cleanPhone.slice(6)}`;
+    } else {
+      // (XX) XXXXX-XXXX (celular)
+      return `(${cleanPhone.slice(0, 2)}) ${cleanPhone.slice(2, 7)}-${cleanPhone.slice(7, 11)}`;
+    }
+  };
+
+  const handlePhoneChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const value = formatPhone(e.target.value);
+    setFormData(prev => ({ ...prev, phone: value }));
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
@@ -176,9 +198,10 @@ const Checkout = () => {
                   type="tel"
                   name="phone"
                   value={formData.phone}
-                  onChange={handleInputChange}
+                  onChange={handlePhoneChange}
                   required
-                  placeholder="Telefone *"
+                  placeholder="(11) 99999-9999 ou (11) 3333-3333 *"
+                  maxLength={15}
                   className="w-full px-4 py-3 border border-border rounded-lg bg-background text-foreground"
                 />
               </div>
