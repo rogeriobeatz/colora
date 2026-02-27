@@ -27,13 +27,25 @@ serve(async (req) => {
     if (!stripeKey) throw new Error("STRIPE_SECRET_KEY is not set");
 
     const authHeader = req.headers.get("Authorization");
-    if (!authHeader) throw new Error("No authorization header");
+    if (!authHeader) {
+      return new Response(JSON.stringify({ subscribed: false, error: "No authorization header" }), {
+        headers: { ...headers, "Content-Type": "application/json" },
+        status: 200, // Retornamos 200 para não quebrar o frontend
+      });
+    }
 
     const token = authHeader.replace("Bearer ", "");
     const { data: userData, error: userError } = await supabaseClient.auth.getUser(token);
-    if (userError) throw new Error(`Auth error: ${userError.message}`);
+    
+    if (userError || !userData.user) {
+      logStep("Auth error or user not found", { error: userError?.message });
+      return new Response(JSON.stringify({ subscribed: false, error: "Auth failed" }), {
+        headers: { ...headers, "Content-Type": "application/json" },
+        status: 200,
+      });
+    }
+
     const user = userData.user;
-    if (!user?.email) throw new Error("User not authenticated");
     logStep("User authenticated", { userId: user.id, email: user.email });
 
     const stripe = new Stripe(stripeKey, { apiVersion: "2025-08-27.basil" });
@@ -41,10 +53,20 @@ serve(async (req) => {
 
     if (customers.data.length === 0) {
       logStep("No Stripe customer found");
-      await supabaseClient
+      
+      // Tentar atualizar o perfil apenas se ele existir
+      const { data: profile } = await supabaseClient
         .from('profiles')
-        .update({ subscription_status: 'inactive' })
-        .eq('id', user.id);
+        .select('id')
+        .eq('id', user.id)
+        .maybeSingle();
+
+      if (profile) {
+        await supabaseClient
+          .from('profiles')
+          .update({ subscription_status: 'inactive' })
+          .eq('id', user.id);
+      }
 
       return new Response(JSON.stringify({ subscribed: false }), {
         headers: { ...headers, "Content-Type": "application/json" },
@@ -75,16 +97,34 @@ serve(async (req) => {
         }
         logStep("Active subscription found", { subscriptionId: subscription.id, endDate: subscriptionEnd });
 
-        await supabaseClient
+        // Tentar atualizar o perfil apenas se ele existir
+        const { data: profile } = await supabaseClient
           .from('profiles')
-          .update({ subscription_status: 'active' })
-          .eq('id', user.id);
+          .select('id')
+          .eq('id', user.id)
+          .maybeSingle();
+
+        if (profile) {
+          await supabaseClient
+            .from('profiles')
+            .update({ subscription_status: 'active' })
+            .eq('id', user.id);
+        }
       } else {
         logStep("No active subscription");
-        await supabaseClient
+        
+        const { data: profile } = await supabaseClient
           .from('profiles')
-          .update({ subscription_status: 'inactive' })
-          .eq('id', user.id);
+          .select('id')
+          .eq('id', user.id)
+          .maybeSingle();
+
+        if (profile) {
+          await supabaseClient
+            .from('profiles')
+            .update({ subscription_status: 'inactive' })
+            .eq('id', user.id);
+        }
       }
     } catch (subError: any) {
       logStep("Error processing subscriptions", { error: subError.message });
@@ -99,9 +139,10 @@ serve(async (req) => {
     });
   } catch (error: any) {
     logStep("ERROR", { message: error.message });
-    return new Response(JSON.stringify({ error: error.message }), {
+    // Mesmo em erro crítico, retornamos 200 com subscribed: false para não travar o dashboard
+    return new Response(JSON.stringify({ subscribed: false, error: error.message }), {
       headers: { ...headers, "Content-Type": "application/json" },
-      status: 500,
+      status: 200,
     });
   }
 });

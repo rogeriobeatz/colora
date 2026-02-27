@@ -101,13 +101,16 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true);
 
   const refreshData = async () => {
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) {
-      setLoading(false);
-      return;
-    }
-
     try {
+      // Primeiro tentamos obter a sessão atual, que é mais rápido e menos propenso a erro 403 que getUser()
+      const { data: { session } } = await supabase.auth.getSession();
+      const user = session?.user;
+      
+      if (!user) {
+        setLoading(false);
+        return;
+      }
+
       // Usamos maybeSingle() para evitar erro 406 se o perfil não existir
       const { data: profile, error: profileError } = await supabase
         .from('profiles')
@@ -165,10 +168,12 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         setCompanyState(formattedCompany);
       } else {
         // Se não houver perfil, inicializamos com dados padrão para o dashboard não quebrar
-        setCompanyState(createDefaultCompany("Minha Loja"));
+        setCompanyState(createDefaultCompany(user?.user_metadata?.full_name || user?.user_metadata?.name || "Minha Loja"));
       }
     } catch (error) {
       console.error("Erro crítico no StoreContext:", error);
+      // Fallback para não travar a UI
+      setCompanyState(createDefaultCompany("Minha Loja"));
     } finally {
       setLoading(false);
     }
