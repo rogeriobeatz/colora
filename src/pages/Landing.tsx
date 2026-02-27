@@ -3,6 +3,7 @@ import { useState, useEffect } from "react";
 import {
   Upload, Palette, Eye, Layers, Sparkles, Monitor, ArrowRight, Check,
   Zap, Shield, Users, Star, ChevronRight, Store, FileDown, Smartphone, Play, Video, X,
+  Mail, Phone, MapPin, Instagram, Linkedin,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import heroRoom from "@/assets/hero-room.jpg";
@@ -507,12 +508,78 @@ const Landing = () => {
       <div className="h-1 w-full gradient-primary" />
 
       {/* Footer */}
-      <footer className="py-10 px-4 border-t border-border">
-        <div className="container mx-auto flex flex-col md:flex-row items-center justify-between gap-4">
-          <div className="flex items-center gap-2">
-            <img src={logoSvg} alt="Logotipo Colora" className="w-20" />
+      <footer className="bg-card pt-16 pb-8 px-4 border-t border-border">
+        <div className="container mx-auto">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-12 mb-12">
+            {/* Brand Column */}
+            <div className="space-y-6">
+              <Link to="/" className="flex items-center gap-2">
+                <img src={logoSvg} alt="Logotipo Colora" className="w-32" />
+              </Link>
+              <p className="text-muted-foreground text-sm leading-relaxed">
+                Transformando a experiência de compra de tintas com inteligência artificial. 
+                Simule cores reais em ambientes reais com precisão profissional.
+              </p>
+              <div className="flex items-center gap-4">
+                <a href="#" className="text-muted-foreground hover:text-primary transition-colors">
+                  <Instagram className="w-5 h-5" />
+                </a>
+                <a href="#" className="text-muted-foreground hover:text-primary transition-colors">
+                  <Linkedin className="w-5 h-5" />
+                </a>
+              </div>
+            </div>
+
+            {/* Product Column */}
+            <div>
+              <h4 className="font-display font-bold text-foreground mb-6">Produto</h4>
+              <ul className="space-y-4 text-sm text-muted-foreground">
+                <li><Link to="/checkout" className="hover:text-primary transition-colors">Assinar Agora</Link></li>
+                <li><Link to="/login" className="hover:text-primary transition-colors">Área da Loja</Link></li>
+                <li><a href="#features" className="hover:text-primary transition-colors">Funcionalidades</a></li>
+                <li><a href="#pricing" className="hover:text-primary transition-colors">Preços</a></li>
+              </ul>
+            </div>
+
+            {/* Legal Column */}
+            <div>
+              <h4 className="font-display font-bold text-foreground mb-6">Legal</h4>
+              <ul className="space-y-4 text-sm text-muted-foreground">
+                <li><Link to="/terms" className="hover:text-primary transition-colors">Termos de Uso</Link></li>
+                <li><Link to="/privacy" className="hover:text-primary transition-colors">Política de Privacidade</Link></li>
+                <li><a href="#" className="hover:text-primary transition-colors">Cookies</a></li>
+              </ul>
+            </div>
+
+            {/* Contact Column */}
+            <div>
+              <h4 className="font-display font-bold text-foreground mb-6">Contato</h4>
+              <ul className="space-y-4 text-sm text-muted-foreground">
+                <li className="flex items-center gap-3">
+                  <Mail className="w-4 h-4 text-primary" />
+                  <span>contato@colora.com.br</span>
+                </li>
+                <li className="flex items-center gap-3">
+                  <Phone className="w-4 h-4 text-primary" />
+                  <span>(11) 99999-9999</span>
+                </li>
+                <li className="flex items-center gap-3">
+                  <MapPin className="w-4 h-4 text-primary" />
+                  <span>São Paulo, SP</span>
+                </li>
+              </ul>
+            </div>
           </div>
-          <p className="text-sm text-muted-foreground">© 2026 Colora. Todos os direitos reservados.</p>
+
+          <div className="pt-8 border-t border-border flex flex-col md:flex-row items-center justify-between gap-4">
+            <p className="text-xs text-muted-foreground">
+              © 2026 Colora. Todos os direitos reservados. 
+              COLORA TECNOLOGIA LTDA - CNPJ: 00.000.000/0001-00
+            </p>
+            <div className="flex items-center gap-6">
+              <img src="https://stripe.com/img/v3/home/social.png" alt="Stripe" className="h-4 grayscale opacity-50" />
+            </div>
+          </div>
         </div>
       </footer>
     </div>
