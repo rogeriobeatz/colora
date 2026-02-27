@@ -1,13 +1,7 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import Stripe from "https://esm.sh/stripe@18.5.0";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-
-const corsHeaders = {
-  "Access-Control-Allow-Origin": "https://colora.rogerio.work, https://colora.app.br",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
-  "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
-  "Vary": "Origin"
-};
+import { corsHeaders } from "../_shared/cors.ts";
 
 const logStep = (step: string, details?: any) => {
   const detailsStr = details ? ` - ${JSON.stringify(details)}` : '';
@@ -15,8 +9,9 @@ const logStep = (step: string, details?: any) => {
 };
 
 serve(async (req) => {
+  const headers = corsHeaders(req);
   if (req.method === "OPTIONS") {
-    return new Response(null, { headers: corsHeaders });
+    return new Response(null, { headers });
   }
 
   // Client for user auth verification
@@ -36,38 +31,24 @@ serve(async (req) => {
     const authHeader = req.headers.get("Authorization");
     if (!authHeader || !authHeader.toLowerCase().startsWith("bearer ")) {
       return new Response(JSON.stringify({ error: "Unauthorized" }), {
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
+        headers: { ...headers, "Content-Type": "application/json" },
         status: 401,
       });
     }
 
     const token = authHeader.slice("Bearer ".length).trim();
-    if (!token) {
-      return new Response(JSON.stringify({ error: "Unauthorized" }), {
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-        status: 401,
-      });
-    }
-
     const { data, error: userError } = await supabaseClient.auth.getUser(token);
-    if (userError) {
-      logStep("Auth error", { message: userError.message });
+    if (userError || !data.user) {
+      logStep("Auth error", { message: userError?.message });
       return new Response(JSON.stringify({ error: "Unauthorized" }), {
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
+        headers: { ...headers, "Content-Type": "application/json" },
         status: 401,
       });
     }
 
     const user = data.user;
-    if (!user?.email) {
-      return new Response(JSON.stringify({ error: "Unauthorized" }), {
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-        status: 401,
-      });
-    }
-
     const { mode, customerData } = await req.json();
-    logStep("Request received", { mode, customerData: !!customerData });
+    logStep("Request received", { mode, userId: user.id });
 
     // Salvar dados do checkout no perfil ANTES de criar sessão Stripe
     if (customerData) {
@@ -82,7 +63,6 @@ serve(async (req) => {
         updated_at: new Date().toISOString(),
       };
 
-      // Se não tem company_name, usar o nome do usuário
       if (!user.user_metadata?.company_name) {
         profileUpdate.company_name = customerData.company || customerData.name || "Minha Loja";
       }
@@ -94,10 +74,7 @@ serve(async (req) => {
 
       if (profileError) {
         logStep("Error updating profile", { error: profileError.message });
-        throw new Error(`Erro ao salvar dados: ${profileError.message}`);
       }
-      
-      logStep("Profile updated successfully");
     }
 
     const stripe = new Stripe(Deno.env.get("STRIPE_SECRET_KEY") || "", {
@@ -111,14 +88,7 @@ serve(async (req) => {
     if (customers.data.length > 0) {
       customerId = customers.data[0].id;
       logStep("Found existing Stripe customer", { customerId });
-
-      // Garantir que o stripe_customer_id esteja persistido no perfil
-      await supabaseAdmin
-        .from('profiles')
-        .update({ stripe_customer_id: customerId })
-        .eq('id', user.id);
     } else {
-      // Criar novo cliente com dados do checkout
       const customerParams: any = {
         email: user.email,
         name: customerData?.name || user.user_metadata?.name || user.email,
@@ -127,34 +97,21 @@ serve(async (req) => {
           source: 'colora_checkout',
         },
       };
-
-      if (customerData?.phone) {
-        customerParams.phone = customerData.phone;
-      }
-
-      if (customerData?.company) {
-        customerParams.description = `Empresa: ${customerData.company}`;
-      }
-
+      if (customerData?.phone) customerParams.phone = customerData.phone;
       const newCustomer = await stripe.customers.create(customerParams);
       customerId = newCustomer.id;
-      
-      // Salvar stripe_customer_id no perfil
-      await supabaseAdmin
-        .from('profiles')
-        .update({ stripe_customer_id: customerId })
-        .eq('id', user.id);
-      
       logStep("Created new Stripe customer", { customerId });
     }
 
-    // Subscription: R$59,90/mês
-    // Token recharge: R$29,90 one-off (100 tokens)
-    const isSubscription = mode === "subscription";
+    // Persistir customerId
+    await supabaseAdmin
+      .from('profiles')
+      .update({ stripe_customer_id: customerId })
+      .eq('id', user.id);
 
+    const isSubscription = mode === "subscription";
     const session = await stripe.checkout.sessions.create({
       customer: customerId,
-      customer_email: customerId ? undefined : user.email,
       line_items: [
         {
           price: isSubscription
@@ -169,26 +126,19 @@ serve(async (req) => {
       metadata: {
         user_id: user.id,
         type: mode,
-        customer_name: customerData?.name || '',
-        customer_company: customerData?.company || '',
-        customer_document: customerData?.document || '',
-      },
-      customer_update: {
-        name: "auto",
-        address: "auto",
       },
     });
 
-    logStep("Checkout session created", { sessionId: session.id, url: session.url });
+    logStep("Checkout session created", { sessionId: session.id });
 
     return new Response(JSON.stringify({ url: session.url }), {
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
+      headers: { ...headers, "Content-Type": "application/json" },
       status: 200,
     });
   } catch (error: any) {
-    logStep("ERROR", { message: error.message, stack: error.stack });
+    logStep("ERROR", { message: error.message });
     return new Response(JSON.stringify({ error: error.message }), {
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
+      headers: { ...headers, "Content-Type": "application/json" },
       status: 500,
     });
   }

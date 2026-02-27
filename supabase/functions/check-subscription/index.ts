@@ -1,13 +1,7 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import Stripe from "https://esm.sh/stripe@18.5.0";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-
-const corsHeaders = {
-  "Access-Control-Allow-Origin": "https://colora.rogerio.work, https://colora.app.br",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
-  "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
-  "Vary": "Origin"
-};
+import { corsHeaders } from "../_shared/cors.ts";
 
 const logStep = (step: string, details?: any) => {
   const detailsStr = details ? ` - ${JSON.stringify(details)}` : '';
@@ -15,8 +9,9 @@ const logStep = (step: string, details?: any) => {
 };
 
 serve(async (req) => {
+  const headers = corsHeaders(req);
   if (req.method === "OPTIONS") {
-    return new Response(null, { headers: corsHeaders });
+    return new Response(null, { headers });
   }
 
   const supabaseClient = createClient(
@@ -46,15 +41,13 @@ serve(async (req) => {
 
     if (customers.data.length === 0) {
       logStep("No Stripe customer found");
-      
-      // Update profile to inactive
       await supabaseClient
         .from('profiles')
         .update({ subscription_status: 'inactive' })
         .eq('id', user.id);
 
       return new Response(JSON.stringify({ subscribed: false }), {
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
+        headers: { ...headers, "Content-Type": "application/json" },
         status: 200,
       });
     }
@@ -76,103 +69,38 @@ serve(async (req) => {
 
       if (hasActiveSub) {
         const subscription = subscriptions.data[0];
-        logStep("Subscription object keys", { keys: Object.keys(subscription) });
-        // Try multiple ways to get period end
-        const periodEnd = subscription.current_period_end 
-          ?? (subscription as any)['current_period_end']
-          ?? null;
-        logStep("Subscription period_end raw", { periodEnd, type: typeof periodEnd });
-        if (periodEnd && typeof periodEnd === 'number') {
+        const periodEnd = subscription.current_period_end;
+        if (periodEnd) {
           subscriptionEnd = new Date(periodEnd * 1000).toISOString();
-        } else if (periodEnd && typeof periodEnd === 'string') {
-          subscriptionEnd = periodEnd;
         }
         logStep("Active subscription found", { subscriptionId: subscription.id, endDate: subscriptionEnd });
 
-        // Token mensal via CRON:
-        // O depósito mensal é responsabilidade da edge function monthly-tokens.
-        // Aqui a gente só garante que o status da assinatura está correto.
         await supabaseClient
           .from('profiles')
           .update({ subscription_status: 'active' })
           .eq('id', user.id);
-    } else {
-      logStep("No active subscription");
-      await supabaseClient
-        .from('profiles')
-        .update({ subscription_status: 'inactive' })
-        .eq('id', user.id);
-    }
+      } else {
+        logStep("No active subscription");
+        await supabaseClient
+          .from('profiles')
+          .update({ subscription_status: 'inactive' })
+          .eq('id', user.id);
+      }
     } catch (subError: any) {
       logStep("Error processing subscriptions", { error: subError.message });
-      // Still continue to check recharges
-    }
-
-    // Also check recent one-off payments (token recharges)
-    try {
-      const recentSessions = await stripe.checkout.sessions.list({
-        customer: customerId,
-        limit: 10,
-      });
-
-      for (const session of recentSessions.data) {
-        try {
-          if (session.mode === 'payment' && session.payment_status === 'paid' && session.metadata?.type === 'recharge') {
-            const { data: existing } = await supabaseClient
-              .from('token_consumptions')
-              .select('id')
-              .eq('user_id', user.id)
-              .eq('description', `Recarga de tokens - ${session.id}`)
-              .limit(1);
-
-            if (!existing || existing.length === 0) {
-              const { data: profile } = await supabaseClient
-                .from('profiles')
-                .select('tokens, tokens_expires_at')
-                .eq('id', user.id)
-                .single();
-
-              if (profile) {
-                const newTokens = (profile.tokens || 0) + 100;
-                const expiresAt = profile.tokens_expires_at || new Date(Date.now() + 100 * 24 * 60 * 60 * 1000).toISOString();
-
-                await supabaseClient
-                  .from('profiles')
-                  .update({ tokens: newTokens, tokens_expires_at: expiresAt })
-                  .eq('id', user.id);
-
-                await supabaseClient
-                  .from('token_consumptions')
-                  .insert({
-                    user_id: user.id,
-                    amount: 100,
-                    description: `Recarga de tokens - ${session.id}`,
-                  });
-
-                logStep("Token recharge processed", { sessionId: session.id, newTokens });
-              }
-            }
-          }
-        } catch (sessionError: any) {
-          logStep("Error processing session", { sessionId: session.id, error: sessionError.message });
-          continue;
-        }
-      }
-    } catch (sessionsError: any) {
-      logStep("Error listing checkout sessions", { error: sessionsError.message });
     }
 
     return new Response(JSON.stringify({
       subscribed: hasActiveSub,
       subscription_end: subscriptionEnd,
     }), {
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
+      headers: { ...headers, "Content-Type": "application/json" },
       status: 200,
     });
   } catch (error: any) {
     logStep("ERROR", { message: error.message });
     return new Response(JSON.stringify({ error: error.message }), {
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
+      headers: { ...headers, "Content-Type": "application/json" },
       status: 500,
     });
   }
