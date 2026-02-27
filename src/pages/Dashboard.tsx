@@ -5,6 +5,14 @@ import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -121,6 +129,12 @@ const Dashboard = () => {
   const [tokenHistoryLoading, setTokenHistoryLoading] = useState(false);
   const [isCheckoutLoading, setIsCheckoutLoading] = useState(false);
 
+  const [passwordSetupOpen, setPasswordSetupOpen] = useState(false);
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [passwordError, setPasswordError] = useState("");
+  const [isSavingPassword, setIsSavingPassword] = useState(false);
+
   // Obter dados do usuário do metadata como fallback
   const userData = user?.user_metadata || {};
   const displayData = {
@@ -218,6 +232,67 @@ const Dashboard = () => {
       navigate("/dashboard", { replace: true });
     }
   }, [searchParams]);
+
+  useEffect(() => {
+    const needsPassword = !!user?.user_metadata?.needs_password;
+    if (!authLoading && user && needsPassword) {
+      setPasswordSetupOpen(true);
+    }
+  }, [user, authLoading]);
+
+  const validatePassword = (password: string) => {
+    if (password.length < 6) return "A senha precisa ter no mínimo 6 caracteres.";
+    if (!/[A-Z]/.test(password)) return "A senha precisa ter pelo menos 1 letra maiúscula.";
+    if (!/[0-9]/.test(password)) return "A senha precisa ter pelo menos 1 número.";
+    return "";
+  };
+
+  const passwordHasStarted = newPassword.length > 0 || confirmPassword.length > 0;
+  const passwordRules = {
+    minLength: newPassword.length >= 6,
+    hasUpper: /[A-Z]/.test(newPassword),
+    hasNumber: /[0-9]/.test(newPassword),
+    matches: newPassword.length > 0 && newPassword === confirmPassword,
+  };
+
+  const getRuleClass = (ok: boolean) => {
+    if (!passwordHasStarted) return "text-muted-foreground";
+    return ok ? "text-green-600" : "text-yellow-600";
+  };
+
+  const handleSetPassword = async () => {
+    setPasswordError("");
+
+    const validation = validatePassword(newPassword);
+    if (validation) {
+      setPasswordError(validation);
+      return;
+    }
+
+    if (newPassword !== confirmPassword) {
+      setPasswordError("As senhas não coincidem.");
+      return;
+    }
+
+    setIsSavingPassword(true);
+    try {
+      const { error } = await supabase.auth.updateUser({
+        password: newPassword,
+        data: { needs_password: false },
+      });
+
+      if (error) throw error;
+
+      toast.success("Senha criada com sucesso!");
+      setPasswordSetupOpen(false);
+      setNewPassword("");
+      setConfirmPassword("");
+    } catch (error: any) {
+      setPasswordError(error.message || "Não foi possível criar a senha.");
+    } finally {
+      setIsSavingPassword(false);
+    }
+  };
 
   useEffect(() => {
     if (!user) return;
@@ -1920,6 +1995,97 @@ const Dashboard = () => {
         onSave={handleSavePaint}
         isSaving={isSavingPaint}
       />
+
+      {/* Modal obrigatório para criar senha no primeiro acesso */}
+      <Dialog
+        open={passwordSetupOpen}
+        onOpenChange={(open) => {
+          if (open) setPasswordSetupOpen(true);
+        }}
+      >
+        <DialogContent
+          onEscapeKeyDown={(e) => {
+            e.preventDefault();
+          }}
+          onPointerDownOutside={(e) => {
+            e.preventDefault();
+          }}
+          onInteractOutside={(e) => {
+            e.preventDefault();
+          }}
+        >
+          <DialogHeader>
+            <DialogTitle>Crie sua senha de acesso</DialogTitle>
+            <DialogDescription>
+              Para proteger sua conta, crie uma senha para acessar o painel.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="new-password">Nova senha</Label>
+              <Input
+                id="new-password"
+                type="password"
+                value={newPassword}
+                onChange={(e) => {
+                  setNewPassword(e.target.value);
+                  setPasswordError("");
+                }}
+                placeholder="Digite sua nova senha"
+                className={
+                  passwordHasStarted
+                    ? (passwordRules.minLength && passwordRules.hasUpper && passwordRules.hasNumber
+                        ? "border-green-600 focus-visible:ring-green-600"
+                        : "border-yellow-600 focus-visible:ring-yellow-600")
+                    : undefined
+                }
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="confirm-password">Confirmar senha</Label>
+              <Input
+                id="confirm-password"
+                type="password"
+                value={confirmPassword}
+                onChange={(e) => {
+                  setConfirmPassword(e.target.value);
+                  setPasswordError("");
+                }}
+                placeholder="Repita a senha"
+                className={
+                  passwordHasStarted
+                    ? (passwordRules.matches
+                        ? "border-green-600 focus-visible:ring-green-600"
+                        : "border-yellow-600 focus-visible:ring-yellow-600")
+                    : undefined
+                }
+              />
+            </div>
+
+            <div className="text-xs">
+              <div className="text-muted-foreground mb-2">Regras:</div>
+              <div className={getRuleClass(passwordRules.minLength)}>- Mínimo de 6 caracteres</div>
+              <div className={getRuleClass(passwordRules.hasUpper)}>- Pelo menos 1 letra maiúscula</div>
+              <div className={getRuleClass(passwordRules.hasNumber)}>- Pelo menos 1 número</div>
+              <div className={getRuleClass(passwordRules.matches)}>- As senhas precisam ser iguais</div>
+            </div>
+
+            {passwordError && (
+              <div className="text-sm text-destructive">
+                {passwordError}
+              </div>
+            )}
+          </div>
+
+          <DialogFooter>
+            <Button onClick={handleSetPassword} disabled={isSavingPassword}>
+              {isSavingPassword ? "Salvando..." : "Salvar senha"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Diálogo de boas práticas para logo */}
       {logoGuidelinesOpen && (

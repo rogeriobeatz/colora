@@ -2,6 +2,14 @@ import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { ArrowRight, Shield, CreditCard, User, Mail, Phone, Building2, Lock, Check } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import logoSvg from "@/assets/colora-logo.svg";
 import { supabase } from "@/integrations/supabase/client";
 
@@ -10,7 +18,6 @@ const Checkout = () => {
   const [formData, setFormData] = useState({
     name: "",
     email: "",
-    password: "",
     phone: "",
     company: "",
     document: "", // CNPJ ou CPF
@@ -96,10 +103,12 @@ const Checkout = () => {
     setIsProcessing(true);
     
     try {
+      const tempPassword = `temp_${Date.now()}_${Math.random().toString(16).slice(2)}A1`;
+
       // 1. Criar usuário no Supabase Auth com metadata
       const { data: authData, error: authError } = await supabase.auth.signUp({
         email: formData.email,
-        password: formData.password,
+        password: tempPassword,
         options: {
           data: {
             name: formData.name,
@@ -109,6 +118,7 @@ const Checkout = () => {
             document_type: formData.documentType,
             full_name: formData.name,
             document_number: formData.document,
+            needs_password: true,
           }
         }
       });
@@ -127,19 +137,10 @@ const Checkout = () => {
         const alreadyRegistered = msg.toLowerCase().includes("already") || msg.toLowerCase().includes("registered") || (authError as any)?.status === 422;
 
         if (alreadyRegistered) {
-          // Perguntar ao usuário se deseja fazer login
-          const shouldGoToLogin = window.confirm(
-            "Este e-mail já está cadastrado. Deseja fazer login para continuar o checkout?"
-          );
-
-          if (shouldGoToLogin) {
-            navigate(`/login?email=${encodeURIComponent(formData.email)}`);
-            return;
-          } else {
-            setError("Use outro e-mail ou faça login para continuar.");
-            setIsProcessing(false);
-            return;
-          }
+          // Mostrar modal customizado
+          setShowLoginPrompt(true);
+          setIsProcessing(false);
+          return;
         }
 
         if (!alreadyRegistered) {
@@ -312,22 +313,6 @@ const Checkout = () => {
                     required
                     className="w-full px-4 py-3 border border-border rounded-lg bg-background text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
                     placeholder="seu@email.com"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-foreground mb-2">
-                    Senha *
-                  </label>
-                  <input
-                    type="password"
-                    name="password"
-                    value={formData.password}
-                    onChange={handleInputChange}
-                    required
-                    minLength={6}
-                    className="w-full px-4 py-3 border border-border rounded-lg bg-background text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
-                    placeholder="Mínimo 6 caracteres"
                   />
                 </div>
 
@@ -527,6 +512,26 @@ const Checkout = () => {
           </div>
         </div>
       </div>
+
+      {/* Modal para e-mail já cadastrado */}
+      <Dialog open={showLoginPrompt} onOpenChange={setShowLoginPrompt}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>E-mail já cadastrado</DialogTitle>
+            <DialogDescription>
+              Este e-mail já está cadastrado. Deseja fazer login para continuar o checkout?
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowLoginPrompt(false)}>
+              Cancelar
+            </Button>
+            <Button onClick={() => navigate(`/login?email=${encodeURIComponent(formData.email)}`)}>
+              Fazer login
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };

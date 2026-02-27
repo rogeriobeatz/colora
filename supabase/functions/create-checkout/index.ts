@@ -109,6 +109,12 @@ serve(async (req) => {
     if (customers.data.length > 0) {
       customerId = customers.data[0].id;
       logStep("Found existing Stripe customer", { customerId });
+
+      // Garantir que o stripe_customer_id esteja persistido no perfil
+      await supabaseAdmin
+        .from('profiles')
+        .update({ stripe_customer_id: customerId })
+        .eq('id', user.id);
     } else {
       // Criar novo cliente com dados do checkout
       const customerParams: any = {

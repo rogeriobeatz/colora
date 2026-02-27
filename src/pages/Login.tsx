@@ -224,9 +224,9 @@ const Login = () => {
                 {loading ? <Loader2 className="w-5 h-5 animate-spin mr-2" /> : "Entrar no Painel"}
               </Button>
               <div className="text-center pt-4">
-                <button type="button" onClick={() => setStep("info")} className="text-sm text-muted-foreground hover:text-primary transition-colors">
-                  Ainda não tem conta? <span className="font-bold">Cadastre sua loja</span>
-                </button>
+                <Link to="/checkout" className="text-sm text-muted-foreground hover:text-primary transition-colors">
+                  Ainda não tem conta? <span className="font-bold">Assine e cadastre sua loja</span>
+                </Link>
               </div>
             </div>
           </form>
