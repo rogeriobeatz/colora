@@ -223,8 +223,24 @@ const Dashboard = () => {
         ? "Assinatura realizada com sucesso! Seus tokens serão creditados." 
         : "Recarga de tokens realizada com sucesso!"
       );
-      // Re-check subscription status to update tokens
-      checkSubscription().then(() => refreshData());
+      
+      // Aguardar sincronização do Webhook com retry
+      let attempts = 0;
+      const maxAttempts = 10;
+      const retryInterval = setInterval(async () => {
+        attempts++;
+        try {
+          await checkSubscription();
+          await refreshData();
+          clearInterval(retryInterval);
+        } catch (error) {
+          if (attempts >= maxAttempts) {
+            clearInterval(retryInterval);
+            console.warn("Webhook sync timeout");
+          }
+        }
+      }, 500);
+      
       // Clean URL
       navigate("/dashboard", { replace: true });
     } else if (payment === "canceled") {
@@ -297,7 +313,7 @@ const Dashboard = () => {
   useEffect(() => {
     if (!user) return;
     refreshData().then(() => setIsInitialLoading(false));
-  }, [user]);
+  }, [user, refreshData]);
 
   useEffect(() => {
     (async () => {

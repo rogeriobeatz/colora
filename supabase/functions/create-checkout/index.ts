@@ -61,8 +61,8 @@ serve(async (req) => {
         },
       ],
       mode: isSubscription ? "subscription" : "payment",
-      // Redirecionar para uma página de sucesso que explique que a conta está sendo criada
-      success_url: `${req.headers.get("origin")}/login?payment=success&email=${encodeURIComponent(customerData.email)}`,
+      // Redirecionar direto para o dashboard após sucesso
+      success_url: `${req.headers.get("origin")}/dashboard?payment=success&email=${encodeURIComponent(customerData.email)}&session_id={CHECKOUT_SESSION_ID}`,
       cancel_url: `${req.headers.get("origin")}/checkout?payment=canceled`,
       metadata: {
         type: mode,
