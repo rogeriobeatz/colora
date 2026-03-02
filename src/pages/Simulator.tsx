@@ -158,7 +158,6 @@ const Simulator = ({ companySlug }: { companySlug?: string }) => {
   return (
     <div className="min-h-screen bg-background flex flex-col">
       <SimulatorHeader
-        company={company}
         companySlug={companySlug}
         hasSimulations={totalSimulations > 0}
         onGeneratePDF={handleGeneratePDF}

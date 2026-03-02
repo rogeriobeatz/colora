@@ -4,7 +4,7 @@ import { Paint } from "@/data/defaultColors";
 import { supabase } from "@/integrations/supabase/client";
 import { Room, DetectedWall, WallSimulation, SimulatorSessionData } from "./types";
 import { useStore } from "@/contexts/StoreContext";
-import { deleteSimulatorSession, getLastSessionId, getSimulatorSession, listSimulatorSessions, saveSimulatorSession, setLastSessionId, generateUUID, cleanInvalidLocalProjects } from "@/lib/simulator-db";
+import { deleteSimulatorSession, getLastSessionId, getSimulatorSession, listSimulatorSessions, saveSimulatorSession, setLastSessionId, generateUUID } from "@/lib/simulator-db";
 import { preprocessImageFile } from "@/lib/image-preprocess";
 
 // --- Helper Functions ---
@@ -201,9 +201,6 @@ export function useSimulator({ companySlug }: { companySlug?: string } = {}) {
   useEffect(() => {
     let mounted = true;
     (async () => {
-      // Limpar projetos locais com IDs inválidos antes de continuar
-      await cleanInvalidLocalProjects();
-      
       // Verificar se há um projeto pendente da dashboard
       const pendingSessionId = localStorage.getItem("colora_pending_session");
       if (pendingSessionId) {

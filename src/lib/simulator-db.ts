@@ -1,4 +1,4 @@
-import Dexie, { Table } from 'dexie';
+import { openDB, type IDBPDatabase } from 'idb';
 import { toast } from 'sonner';
 import { supabase } from "@/integrations/supabase/client";
 import { v4 as uuidv4 } from 'uuid';
@@ -12,31 +12,31 @@ export type SimulatorSessionRecord = {
 };
 
 type MetaRecord = {
-  key: 'lastSessionId';
+  key: string;
   value: string;
 };
 
 const DB_NAME = "colora_simulator";
+const DB_VERSION = 1;
 
-class SimulatorDB extends Dexie {
-  sessions!: Table<SimulatorSessionRecord, string>;
-  meta!: Table<MetaRecord, string>;
-
-  constructor() {
-    super(DB_NAME);
-    this.version(1).stores({
-      sessions: 'id, updatedAt',
-      meta: 'key',
-    });
-  }
+function getDB() {
+  return openDB(DB_NAME, DB_VERSION, {
+    upgrade(db) {
+      if (!db.objectStoreNames.contains('sessions')) {
+        const store = db.createObjectStore('sessions', { keyPath: 'id' });
+        store.createIndex('updatedAt', 'updatedAt');
+      }
+      if (!db.objectStoreNames.contains('meta')) {
+        db.createObjectStore('meta', { keyPath: 'key' });
+      }
+    },
+  });
 }
 
-const db = new SimulatorDB();
-
-// Wrapper para erros do IndexedDB (fallback local)
-async function handleLocalDB<T>(promise: Promise<T>, errorMessage: string): Promise<T | null> {
+// Wrapper for IndexedDB errors
+async function handleLocalDB<T>(fn: () => Promise<T>, errorMessage: string): Promise<T | null> {
   try {
-    return await promise;
+    return await fn();
   } catch (error: any) {
     console.error(`[SimulatorDB Local] ${errorMessage}:`, error);
     return null;
@@ -47,13 +47,12 @@ async function handleLocalDB<T>(promise: Promise<T>, errorMessage: string): Prom
 
 export async function saveSimulatorSession(record: SimulatorSessionRecord): Promise<string | null> {
   try {
-    console.log("[SimulatorDB] 💾 Salvando projeto:", record); // Debug
-    
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) {
       console.warn("[SimulatorDB] Usuário não autenticado, salvando localmente");
-      console.log("[SimulatorDB] 📱 Salvando no IndexedDB (offline)"); // Debug
-      return handleLocalDB(db.sessions.put(record), "Erro ao salvar localmente");
+      const db = await getDB();
+      await db.put('sessions', record);
+      return record.id;
     }
 
     const { data, error } = await (supabase as any)
@@ -69,16 +68,13 @@ export async function saveSimulatorSession(record: SimulatorSessionRecord): Prom
       .select('id, name, updated_at')
       .single();
 
-    console.log("[SimulatorDB] 🌐 Resultado do upsert no Supabase:", { data, error }); // Debug
-
     if (error) {
       console.error("[SimulatorDB] Erro ao salvar no Supabase:", error);
-      console.log("[SimulatorDB] 📱 Fallback: Salvando no IndexedDB"); // Debug
-      return handleLocalDB(db.sessions.put(record), "Erro no fallback local");
+      const db = await getDB();
+      await db.put('sessions', record);
+      return record.id;
     }
 
-    console.log("[SimulatorDB] 🌐 Projeto salvo no Supabase com sucesso:", data.id);
-    console.log(`[SimulatorDB] ✅ "${record.name}" persistido no banco de dados!`); // Debug
     return data?.id || record.id;
   } catch (error: any) {
     console.error("[SimulatorDB] Erro crítico ao salvar:", error);
@@ -91,9 +87,8 @@ export async function getSimulatorSession(id: string): Promise<SimulatorSessionR
   try {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) {
-      const result = await handleLocalDB(db.sessions.get(id), "Erro ao carregar localmente");
-      console.log("[SimulatorDB] Carregado do IndexedDB:", result); // Debug
-      return result;
+      const db = await getDB();
+      return (await db.get('sessions', id)) || null;
     }
 
     const { data, error } = await (supabase as any)
@@ -103,28 +98,22 @@ export async function getSimulatorSession(id: string): Promise<SimulatorSessionR
       .eq('user_id', user.id)
       .single();
 
-    console.log("[SimulatorDB] Dados brutos do Supabase:", { data, error }); // Debug
-
     if (error || !data) {
-      console.warn("[SimulatorDB] Projeto não encontrado no Supabase, buscando localmente");
-      const result = await handleLocalDB(db.sessions.get(id), "Erro no fallback local");
-      console.log("[SimulatorDB] Fallback para IndexedDB:", result); // Debug
-      return result;
+      const db = await getDB();
+      return (await db.get('sessions', id)) || null;
     }
 
-    const result = {
+    return {
       id: data.id,
       name: data.name,
       createdAt: data.created_at,
       updatedAt: data.updated_at,
       data: data.data,
     };
-    
-    console.log("[SimulatorDB] Dados processados:", result); // Debug
-    return result;
   } catch (error: any) {
     console.error("[SimulatorDB] Erro ao carregar projeto:", error);
-    return handleLocalDB(db.sessions.get(id), "Erro no fallback local");
+    const db = await getDB();
+    return (await db.get('sessions', id)) || null;
   }
 }
 
@@ -132,9 +121,9 @@ export async function listSimulatorSessions(): Promise<SimulatorSessionRecord[]>
   try {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) {
-      const result = await handleLocalDB(db.sessions.orderBy('updatedAt').reverse().toArray(), "Erro ao listar localmente");
-      console.log("[SimulatorDB] 📱 Lista do IndexedDB (offline):", result); // Debug
-      return result || [];
+      const db = await getDB();
+      const all = await db.getAllFromIndex('sessions', 'updatedAt');
+      return all.reverse();
     }
 
     const { data, error } = await (supabase as any)
@@ -143,31 +132,25 @@ export async function listSimulatorSessions(): Promise<SimulatorSessionRecord[]>
       .eq('user_id', user.id)
       .order('updated_at', { ascending: false });
 
-    console.log("[SimulatorDB] 🌐 Dados brutos da lista Supabase:", { data, error }); // Debug
-
     if (error) {
       console.warn("[SimulatorDB] Erro ao listar do Supabase:", error);
-      const result = await handleLocalDB(db.sessions.orderBy('updatedAt').reverse().toArray(), "Erro no fallback local");
-      console.log("[SimulatorDB] 📱 Fallback para IndexedDB:", result); // Debug
-      return result || [];
+      const db = await getDB();
+      const all = await db.getAllFromIndex('sessions', 'updatedAt');
+      return all.reverse();
     }
 
-    const result = (data || []).map((s) => ({
+    return (data || []).map((s: any) => ({
       id: s.id,
       name: s.name,
       createdAt: s.created_at,
       updatedAt: s.updated_at,
       data: s.data,
     }));
-    
-    console.log("[SimulatorDB] 🌐 Lista processada do Supabase:", result); // Debug
-    console.log(`[SimulatorDB] ✅ ${result.length} projetos carregados do banco de dados!`); // Debug
-    return result;
   } catch (error: any) {
     console.error("[SimulatorDB] Erro ao listar projetos:", error);
-    const result = await handleLocalDB(db.sessions.orderBy('updatedAt').reverse().toArray(), "Erro no fallback local");
-    console.log("[SimulatorDB] 📱 Fallback final para IndexedDB:", result); // Debug
-    return result || [];
+    const db = await getDB();
+    const all = await db.getAllFromIndex('sessions', 'updatedAt');
+    return all.reverse();
   }
 }
 
@@ -175,7 +158,9 @@ export async function deleteSimulatorSession(id: string): Promise<void | null> {
   try {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) {
-      return handleLocalDB(db.sessions.delete(id), "Erro ao excluir localmente");
+      const db = await getDB();
+      await db.delete('sessions', id);
+      return;
     }
 
     const { error } = await (supabase as any)
@@ -186,89 +171,45 @@ export async function deleteSimulatorSession(id: string): Promise<void | null> {
 
     if (error) {
       console.warn("[SimulatorDB] Erro ao excluir do Supabase:", error);
-      return handleLocalDB(db.sessions.delete(id), "Erro no fallback local");
     }
 
-    // Também remove do local
-    await db.sessions.delete(id);
-    
-    console.log("[SimulatorDB] Projeto excluído:", id);
+    // Also remove from local
+    const db = await getDB();
+    await db.delete('sessions', id);
   } catch (error: any) {
     console.error("[SimulatorDB] Erro ao excluir projeto:", error);
-    return handleLocalDB(db.sessions.delete(id), "Erro no fallback local");
+    return null;
   }
 }
 
 export async function setLastSessionId(id: string): Promise<string | null> {
-  return handleLocalDB(db.meta.put({ key: 'lastSessionId', value: id }), "Erro ao salvar projeto recente");
+  return handleLocalDB(async () => {
+    const db = await getDB();
+    await db.put('meta', { key: 'lastSessionId', value: id });
+    return id;
+  }, "Erro ao salvar projeto recente");
 }
 
 export async function getLastSessionId(): Promise<string | null> {
-  const res = await handleLocalDB(db.meta.get('lastSessionId'), "Erro ao buscar projeto recente");
+  const res = await handleLocalDB(async () => {
+    const db = await getDB();
+    return db.get('meta', 'lastSessionId') as Promise<MetaRecord | undefined>;
+  }, "Erro ao buscar projeto recente");
   return res?.value ?? null;
 }
 
-// Função para gerar UUID válido
 export function generateUUID(): string {
   return uuidv4();
 }
 
-// Função de análise completa do Supabase
 export async function analyzeSupabaseTables() {
-  const results = [];
-  console.log("🔍 Iniciando análise completa do Supabase...");
-
   try {
-    // 1. Contar registros de cada tabela
     const { data: profiles } = await supabase.from('profiles').select('id, company_name, document_number, tokens');
     const { data: catalogs } = await supabase.from('catalogs').select('id, name, company_id');
     const { data: paints } = await supabase.from('paints').select('id, name, hex, code, catalog_id');
     const { data: sessions } = await supabase.from('simulator_sessions').select('id, name, user_id, created_at');
     const { data: consumptions } = await supabase.from('token_consumptions').select('id, amount, user_id, created_at');
     const { data: cache } = await supabase.from('wall_cache').select('hash, created_at');
-
-    console.log("📊 RESULTADOS DA ANÁLISE:");
-    console.log(`👥 Profiles: ${profiles?.length || 0} registros`);
-    console.log(`📚 Catalogs: ${catalogs?.length || 0} registros`);
-    console.log(`🎨 Paints: ${paints?.length || 0} registros`);
-    console.log(`🏠 Simulator Sessions: ${sessions?.length || 0} registros`);
-    console.log(`💰 Token Consumptions: ${consumptions?.length || 0} registros`);
-    console.log(`🗄️ Wall Cache: ${cache?.length || 0} registros`);
-
-    // Verificar duplicatas
-    if (profiles) {
-      const docGroups = profiles.reduce((acc, p) => {
-        if (p.document_number) {
-          const key = p.document_number;
-          acc[key] = (acc[key] || 0) + 1;
-        }
-        return acc;
-      }, {} as Record<string, number>);
-
-      const duplicateDocs = Object.entries(docGroups).filter(([_, count]) => (count as number) > 1);
-      if (duplicateDocs.length > 0) {
-        console.log(`⚠️ DOCUMENTOS DUPLICADOS: ${duplicateDocs.length} casos`);
-      }
-    }
-
-    if (sessions) {
-      const emptyNames = sessions.filter(s => !s.name || s.name.trim() === '');
-      if (emptyNames.length > 0) {
-        console.log(`⚠️ SESSÕES SEM NOME: ${emptyNames.length}`);
-      }
-    }
-
-    if (paints) {
-      const hexGroups = paints.reduce((acc, p) => {
-        acc[p.hex] = (acc[p.hex] || 0) + 1;
-        return acc;
-      }, {} as Record<string, number>);
-
-      const duplicateHex = Object.entries(hexGroups).filter(([_, count]) => (count as number) > 1);
-      if (duplicateHex.length > 0) {
-        console.log(`⚠️ CORES DUPLICADAS (HEX): ${duplicateHex.length} casos`);
-      }
-    }
 
     return {
       profiles: profiles?.length || 0,
@@ -278,72 +219,39 @@ export async function analyzeSupabaseTables() {
       consumptions: consumptions?.length || 0,
       cache: cache?.length || 0
     };
-
   } catch (error) {
-    console.error("❌ Erro na análise:", error);
+    console.error("Erro na análise:", error);
     return null;
   }
 }
 
-// Função para limpar cache local e forçar sincronização
 export async function forceSyncFromSupabase(): Promise<void> {
   try {
-    console.log("[SimulatorDB] 🔄 Forçando sincronização com Supabase...");
-    
-    // Limpar IndexedDB local
-    await db.sessions.clear();
-    await db.meta.clear();
-    
-    console.log("[SimulatorDB] 🗑️ Cache local limpo, forçando reload do Supabase");
-    
-    // Forçar reload da página para buscar dados frescos
+    const db = await getDB();
+    await db.clear('sessions');
+    await db.clear('meta');
     window.location.reload();
   } catch (error) {
     console.error("[SimulatorDB] Erro ao limpar cache:", error);
   }
 }
 
-// Função para verificar sincronização
 export async function checkSyncStatus(): Promise<{local: number, remote: number}> {
   try {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return { local: 0, remote: 0 };
 
-    // Contar projetos locais
-    const localCount = await db.sessions.count();
-    
-    // Contar projetos remotos
-    const { data, error } = await (supabase as any)
+    const db = await getDB();
+    const localCount = (await db.getAll('sessions')).length;
+
+    const { data } = await (supabase as any)
       .from('simulator_sessions')
       .select('id')
       .eq('user_id', user.id);
 
-    const remoteCount = data?.length || 0;
-    
-    console.log(`[SimulatorDB] 📊 Status: Local=${localCount}, Remoto=${remoteCount}`);
-    
-    return { local: localCount, remote: remoteCount };
+    return { local: localCount, remote: data?.length || 0 };
   } catch (error) {
     console.error("[SimulatorDB] Erro ao verificar sincronização:", error);
     return { local: 0, remote: 0 };
-  }
-}
-
-// Função para limpar projetos locais com IDs inválidos
-export async function cleanInvalidLocalProjects(): Promise<void> {
-  try {
-    const allSessions = await db.sessions.toArray();
-    const invalidSessions = allSessions.filter(session => {
-      // Verifica se o ID é um UUID válido (formato xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx)
-      const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
-      return !uuidRegex.test(session.id);
-    });
-    
-    if (invalidSessions.length > 0) {
-      console.log(`[SimulatorDB] Limpando ${invalidSessions.length} projetos locais com IDs inválidos`);
-      await db.sessions.bulkDelete(invalidSessions.map(s => s.id));
-    }
-  } catch (error) {
-    console.error("[SimulatorDB] Erro ao limpar projetos inválidos:", error);
   }
 }

@@ -1,18 +1,16 @@
 export const corsHeaders = (req: Request) => {
-  const origin = req.headers.get("Origin");
-  const allowedOrigins = [
-    "https://colora.rogerio.work",
-    "https://colora.app.br",
-    "http://localhost:3000",
-    "http://localhost:5173",
-  ];
+  const origin = req.headers.get("Origin") || "";
 
-  const responseOrigin = allowedOrigins.includes(origin || "")
-    ? origin
-    : allowedOrigins[0];
+  // Allow Lovable preview URLs, production domains, and localhost
+  const isAllowed =
+    origin.endsWith(".lovableproject.com") ||
+    origin.endsWith(".lovable.app") ||
+    origin === "https://colora.rogerio.work" ||
+    origin === "https://colora.app.br" ||
+    origin.startsWith("http://localhost");
 
   return {
-    "Access-Control-Allow-Origin": responseOrigin || "*",
+    "Access-Control-Allow-Origin": isAllowed ? origin : "https://colora.rogerio.work",
     "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, stripe-signature, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
     "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
     "Vary": "Origin",

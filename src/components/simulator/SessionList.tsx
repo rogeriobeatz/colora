@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { FolderOpen, Trash2, Clock, Play, Plus, Loader2 } from "lucide-react";
-import { SessionListItem } from "./SessionDrawer";
+import { ProjectListItem as SessionListItem } from "./ProjectDrawer";
 
 interface SessionListProps {
   companyPrimaryColor?: string;
