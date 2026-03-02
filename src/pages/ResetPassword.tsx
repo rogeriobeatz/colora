@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { useNavigate, useSearchParams } from "react-router-dom";
+import { useNavigate, useSearchParams, useLocation } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -10,6 +10,7 @@ import logoSvg from "@/assets/colora-logo.svg";
 
 const ResetPassword = () => {
   const [searchParams] = useSearchParams();
+  const location = useLocation();
   const navigate = useNavigate();
   
   const [loading, setLoading] = useState(false);
@@ -21,8 +22,19 @@ const ResetPassword = () => {
   const [errorMsg, setErrorMsg] = useState("");
   const [passwordStrength, setPasswordStrength] = useState<"weak" | "medium" | "strong" | null>(null);
 
-  const token = searchParams.get("token");
-  const type = searchParams.get("type");
+  // Extrair parâmetros do hash (Supabase usa # para auth)
+  const getHashParams = () => {
+    const hash = location.hash;
+    const params = new URLSearchParams(hash.substring(1)); // Remove o #
+    return {
+      access_token: params.get("access_token"),
+      refresh_token: params.get("refresh_token"),
+      type: params.get("type")
+    };
+  };
+
+  const { access_token, refresh_token, type } = getHashParams();
+  const token = access_token;
 
   useEffect(() => {
     if (!token || type !== "recovery") {
@@ -34,12 +46,18 @@ const ResetPassword = () => {
     // Verify token validity
     const verifyToken = async () => {
       try {
-        const { error } = await supabase.auth.getUser(token);
-        if (error) {
-          setStatus("error");
-          setErrorMsg("Link de recuperação inválido ou expirado.");
+        // Para recovery tokens, precisamos usar o access_token do hash
+        if (access_token) {
+          const { error } = await supabase.auth.getUser(access_token);
+          if (error) {
+            setStatus("error");
+            setErrorMsg("Link de recuperação inválido ou expirado.");
+          } else {
+            setStatus("ready");
+          }
         } else {
-          setStatus("ready");
+          setStatus("error");
+          setErrorMsg("Token de recuperação não encontrado.");
         }
       } catch (error) {
         setStatus("error");
@@ -48,7 +66,7 @@ const ResetPassword = () => {
     };
 
     verifyToken();
-  }, [token, type]);
+  }, [token, type, access_token]);
 
   const validatePassword = (password: string): { isValid: boolean; strength: "weak" | "medium" | "strong" } => {
     let score = 0;
