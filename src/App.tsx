@@ -11,7 +11,7 @@ import Dashboard from "./pages/Dashboard";
 import Simulator from "./pages/Simulator";
 import Login from "./pages/Login";
 import Checkout from "./pages/Checkout";
-import AuthCallback from "./pages/AuthCallback";
+import CheckoutSuccess from "./pages/CheckoutSuccess";
 import Terms from "./pages/Terms";
 import Privacy from "./pages/Privacy";
 import NotFound from "./pages/NotFound";
@@ -41,7 +41,7 @@ const App = () => (
               <Route path="/" element={<Index />} />
               <Route path="/login" element={<Login />} />
               <Route path="/checkout" element={<Checkout />} />
-              <Route path="/auth/callback" element={<AuthCallback />} />
+              <Route path="/checkout/sucesso" element={<CheckoutSuccess />} />
               <Route path="/terms" element={<Terms />} />
               <Route path="/privacy" element={<Privacy />} />
               <Route 
