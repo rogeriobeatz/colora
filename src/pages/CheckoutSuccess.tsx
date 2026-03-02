@@ -24,8 +24,15 @@ const CheckoutSuccess = () => {
       try {
         setStatus("loading");
 
-        // Wait a moment for webhook to process
-        await new Promise(r => setTimeout(r, 3000 + retryCount * 2000));
+        // Exponential backoff: 3s, 6s, 12s, 24s (max 4 attempts)
+        const baseDelay = 3000;
+        const maxRetries = 4;
+        const currentDelay = baseDelay * Math.pow(2, retryCount);
+        
+        console.log(`[CheckoutSuccess] Attempt ${retryCount + 1}/${maxRetries}, waiting ${currentDelay}ms`);
+        
+        // Wait with exponential backoff
+        await new Promise(r => setTimeout(r, currentDelay));
 
         // Call edge function to get auto-login link (verified against Stripe)
         const { data, error } = await supabase.functions.invoke("generate-auth-link", {
@@ -37,16 +44,25 @@ const CheckoutSuccess = () => {
         }
 
         setStatus("redirecting");
+        console.log("[CheckoutSuccess] Auto-login successful, redirecting...");
         // Navigate to the auth link — Supabase will process it and redirect to /dashboard
         window.location.href = data.authLink;
       } catch (err: any) {
-        console.error("[CheckoutSuccess] Error:", err);
+        console.error(`[CheckoutSuccess] Error on attempt ${retryCount + 1}:`, err);
+        
         if (retryCount < 3) {
-          // Retry (webhook may not have processed yet)
+          // Retry with exponential backoff
           setRetryCount(prev => prev + 1);
         } else {
           setStatus("error");
-          setErrorMsg(err.message || "Erro ao acessar a plataforma.");
+          setErrorMsg(err.message || "Erro ao acessar a plataforma após múltiplas tentativas.");
+          
+          // Log for debugging
+          console.error("[CheckoutSuccess] All retry attempts failed", {
+            email: decodeURIComponent(email),
+            sessionId,
+            attempts: retryCount + 1
+          });
         }
       }
     };

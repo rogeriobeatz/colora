@@ -2,10 +2,161 @@ import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import Stripe from "https://esm.sh/stripe@18.5.0";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { corsHeaders } from "../_shared/cors.ts";
+import { sendWelcomeEmail, sendRenewalEmail } from "../_shared/email.ts";
+import { supabaseRetry, circuitBreakers } from "../_shared/retry.ts";
 
 const logStep = (step: string, details?: unknown) => {
   const detailsStr = details ? ` - ${JSON.stringify(details)}` : "";
   console.log(`[STRIPE-WEBHOOK] ${step}${detailsStr}`);
+};
+
+// Error notification helper
+const notifyError = async (error: string, context: any) => {
+  try {
+    // Log structured error for debugging
+    console.error(`[STRIPE-WEBHOOK] CRITICAL ERROR: ${error}`, context);
+    
+    // In production, you could send this to a monitoring service
+    // For now, we'll just log it with high visibility
+    console.error(`[WEBHOOK-FAILURE] Payment processed but user creation failed:`, {
+      error,
+      context,
+      timestamp: new Date().toISOString(),
+      requiresManualIntervention: true
+    });
+  } catch (logError) {
+    console.error("[STRIPE-WEBHOOK] Failed to notify error:", logError);
+  }
+};
+
+// User creation helper with better error handling
+const createOrUpdateUser = async (supabaseAdmin: any, session: any) => {
+  const metadata = session.metadata || {};
+  const customerId = typeof session.customer === "string" ? session.customer : session.customer?.id;
+  const email = metadata.customer_email;
+  const name = metadata.customer_name;
+  
+  if (!email) {
+    throw new Error("Missing customer_email in session metadata");
+  }
+
+  logStep("Processing user creation", { email, customerId });
+
+  try {
+    // 1. Check if user exists with retry
+    const { data: userList } = await supabaseRetry(
+      () => supabaseAdmin.auth.admin.listUsers(),
+      'listUsers',
+      { maxAttempts: 3, baseDelay: 1000 }
+    );
+    const existingUser = userList?.users.find(u => u.email?.toLowerCase() === email.toLowerCase());
+    let userId: string;
+
+    if (existingUser) {
+      userId = existingUser.id;
+      logStep("User already exists, updating", { userId });
+      
+      // Update existing user with payment metadata
+      await supabaseRetry(
+        () => supabaseAdmin.auth.admin.updateUserById(userId, {
+          user_metadata: { 
+            ...existingUser.user_metadata,
+            full_name: name, 
+            source: 'stripe_checkout',
+            needs_password: true,
+            last_payment_session: session.id
+          }
+        }),
+        'updateUserById',
+        { maxAttempts: 3, baseDelay: 1000 }
+      );
+    } else {
+      // 2. Create new user with secure random password
+      const tempPassword = `Colora@${crypto.randomUUID().slice(0, 12)}`;
+      const { data: newUser, error: createError } = await supabaseRetry(
+        () => supabaseAdmin.auth.admin.createUser({
+          email,
+          password: tempPassword,
+          email_confirm: true,
+          user_metadata: { 
+            full_name: name, 
+            source: 'stripe_checkout',
+            needs_password: true,
+            payment_session: session.id
+          }
+        }),
+        'createUser',
+        { maxAttempts: 3, baseDelay: 1000 }
+      );
+
+      if (createError) {
+        logStep("ERROR creating user", { error: createError.message });
+        throw new Error(`User creation failed: ${createError.message}`);
+      }
+      userId = newUser.user.id;
+      logStep("New user created successfully", { userId });
+    }
+
+    // 3. Upsert profile with better error handling
+    const profileData = {
+      id: userId,
+      full_name: name || email.split('@')[0],
+      stripe_customer_id: customerId,
+      document_type: metadata.customer_document_type || 'cpf',
+      document_number: metadata.customer_document || '',
+      company_name: metadata.customer_company || name || email.split('@')[0],
+      company_phone: metadata.customer_phone || '',
+      subscription_status: 'active',
+      tokens: 200,
+      updated_at: new Date().toISOString(),
+      last_payment_at: new Date().toISOString()
+    };
+
+    const { error: profileError } = await supabaseRetry(
+      () => supabaseAdmin
+        .from('profiles')
+        .upsert(profileData, { onConflict: 'id' }),
+      'upsertProfile',
+      { maxAttempts: 3, baseDelay: 1000 }
+    );
+
+    if (profileError) {
+      logStep("ERROR upserting profile", { error: profileError.message });
+      throw new Error(`Profile creation failed: ${profileError.message}`);
+    }
+
+    // 4. Record token credit (idempotent)
+    const { data: existingCredit } = await supabaseRetry(
+      () => supabaseAdmin
+        .from('token_consumptions')
+        .select('id')
+        .eq('user_id', userId)
+        .eq('description', `Crédito inicial - Sessão: ${session.id}`)
+        .maybeSingle(),
+      'checkExistingCredit',
+      { maxAttempts: 2, baseDelay: 500 }
+    );
+
+    if (!existingCredit) {
+      await supabaseRetry(
+        () => supabaseAdmin.from('token_consumptions').insert({
+          user_id: userId,
+          amount: 200,
+          description: `Crédito inicial - Sessão: ${session.id}`,
+        }),
+        'insertTokenCredit',
+        { maxAttempts: 3, baseDelay: 1000 }
+      );
+      logStep("Token credit recorded", { userId, amount: 200 });
+    }
+
+    logStep("User processing completed successfully", { userId, email });
+    return { userId, email, name };
+    
+  } catch (error) {
+    logStep("CRITICAL ERROR in user processing", { error: error.message, email });
+    throw error;
+  }
 };
 
 serve(async (req) => {
@@ -62,98 +213,44 @@ serve(async (req) => {
   try {
     if (event.type === "checkout.session.completed") {
       const session = event.data.object as Stripe.Checkout.Session;
-      const metadata = session.metadata || {};
       const customerId = typeof session.customer === "string" ? session.customer : session.customer?.id;
 
-      logStep("Processing checkout.session.completed", { sessionId: session.id, metadata });
+      logStep("Processing checkout.session.completed", { sessionId: session.id, metadata: session.metadata });
 
-      if (metadata.create_user_on_success === 'true') {
-        const email = metadata.customer_email;
-        const name = metadata.customer_name;
-        
-        if (!email) {
-          throw new Error("Missing customer_email in session metadata");
-        }
-
-        logStep("Processing guest checkout", { email });
-
-        // 1. Check if user exists
-        const { data: userList } = await supabaseAdmin.auth.admin.listUsers();
-        const existingUser = userList?.users.find(u => u.email?.toLowerCase() === email.toLowerCase());
-        let userId: string;
-
-        if (existingUser) {
-          userId = existingUser.id;
-          logStep("User already exists", { userId });
-          // Mark needs_password if they were created via checkout before
-          await supabaseAdmin.auth.admin.updateUserById(userId, {
-            user_metadata: { 
-              ...existingUser.user_metadata,
-              full_name: name, 
-              source: 'stripe_checkout',
-              needs_password: true 
-            }
+      if (session.metadata?.create_user_on_success === 'true') {
+        try {
+          const result = await createOrUpdateUser(supabaseAdmin, session);
+          logStep("Checkout processing completed successfully", result);
+          
+          // Send welcome email
+          const emailSent = await sendWelcomeEmail({
+            email: result.email,
+            name: result.name || result.email.split('@')[0],
+            companyName: session.metadata?.customer_company
           });
-        } else {
-          // 2. Create new user with a secure random password (user will set their own later)
-          const tempPassword = `Colora@${crypto.randomUUID().slice(0, 12)}`;
-          const { data: newUser, error: createError } = await supabaseAdmin.auth.admin.createUser({
-            email,
-            password: tempPassword,
-            email_confirm: true,
-            user_metadata: { 
-              full_name: name, 
-              source: 'stripe_checkout',
-              needs_password: true
-            }
-          });
-
-          if (createError) {
-            logStep("ERROR creating user", { error: createError.message });
-            throw createError;
+          
+          if (emailSent) {
+            logStep("Welcome email sent successfully", { email: result.email });
+          } else {
+            logStep("Welcome email failed to send", { email: result.email });
           }
-          userId = newUser.user.id;
-          logStep("User created", { userId });
-        }
-
-        // 3. Upsert profile
-        const { error: profileError } = await supabaseAdmin
-          .from('profiles')
-          .upsert({
-            id: userId,
-            full_name: name,
-            stripe_customer_id: customerId,
-            document_type: metadata.customer_document_type || 'cpf',
-            document_number: metadata.customer_document || '',
-            company_name: metadata.customer_company || name,
-            company_phone: metadata.customer_phone || '',
-            subscription_status: 'active',
-            tokens: 200,
-            updated_at: new Date().toISOString()
-          }, { onConflict: 'id' });
-
-        if (profileError) {
-          logStep("ERROR upserting profile", { error: profileError.message });
-          throw profileError;
-        }
-
-        // 4. Record token credit (idempotent)
-        const { data: existingCredit } = await supabaseAdmin
-          .from('token_consumptions')
-          .select('id')
-          .eq('user_id', userId)
-          .eq('description', `Crédito inicial - Sessão: ${session.id}`)
-          .maybeSingle();
-
-        if (!existingCredit) {
-          await supabaseAdmin.from('token_consumptions').insert({
-            user_id: userId,
-            amount: 200,
-            description: `Crédito inicial - Sessão: ${session.id}`,
+          
+        } catch (error: any) {
+          // Critical: Payment succeeded but user creation failed
+          await notifyError(error.message, {
+            sessionId: session.id,
+            customerId,
+            metadata: session.metadata,
+            paymentStatus: session.payment_status
+          });
+          
+          // Don't throw - we don't want Stripe to retry the webhook
+          // The payment was successful, we just need to handle the user creation manually
+          logStep("User creation failed but payment successful - manual intervention required", { 
+            sessionId: session.id,
+            error: error.message 
           });
         }
-
-        logStep("Checkout processing complete (no email sent, user will auto-login)", { userId, email });
       }
     }
 
@@ -165,24 +262,48 @@ serve(async (req) => {
       if (customerId) {
         logStep("Processing invoice.paid", { customerId });
         
-        const { data: profile } = await supabaseAdmin
-          .from("profiles")
-          .select("id, tokens")
-          .eq("stripe_customer_id", customerId)
-          .single();
-
-        if (profile) {
-          const newTokens = (profile.tokens || 0) + 200;
-          await supabaseAdmin
+        try {
+          const { data: profile } = await supabaseAdmin
             .from("profiles")
-            .update({
-              tokens: newTokens,
-              subscription_status: "active",
-              updated_at: new Date().toISOString()
-            })
-            .eq("id", profile.id);
+            .select("id, tokens, email")
+            .eq("stripe_customer_id", customerId)
+            .single();
 
-          logStep("Tokens renewed", { customerId, newTokens });
+          if (profile) {
+            const newTokens = (profile.tokens || 0) + 200;
+            await supabaseAdmin
+              .from("profiles")
+              .update({
+                tokens: newTokens,
+                subscription_status: "active",
+                updated_at: new Date().toISOString(),
+                last_renewal_at: new Date().toISOString()
+              })
+              .eq("id", profile.id);
+
+            logStep("Tokens renewed successfully", { customerId, newTokens, profileId: profile.id });
+            
+            // Send renewal notification email
+            const emailSent = await sendRenewalEmail({
+              email: profile.email,
+              name: profile.full_name || profile.email.split('@')[0],
+              tokens: newTokens
+            });
+            
+            if (emailSent) {
+              logStep("Renewal email sent successfully", { email: profile.email });
+            } else {
+              logStep("Renewal email failed to send", { email: profile.email });
+            }
+          } else {
+            logStep("No profile found for customer", { customerId });
+          }
+        } catch (error: any) {
+          await notifyError(`Invoice processing failed: ${error.message}`, {
+            customerId,
+            invoiceId: invoice.id,
+            amount: invoice.amount_paid
+          });
         }
       }
     }

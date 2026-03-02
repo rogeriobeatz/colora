@@ -134,6 +134,7 @@ const Dashboard = () => {
   const [confirmPassword, setConfirmPassword] = useState("");
   const [passwordError, setPasswordError] = useState("");
   const [isSavingPassword, setIsSavingPassword] = useState(false);
+  const [skipPasswordSetup, setSkipPasswordSetup] = useState(false);
 
   // Obter dados do usuário do metadata como fallback
   const userData = user?.user_metadata || {};
@@ -275,10 +276,10 @@ const Dashboard = () => {
 
   useEffect(() => {
     const needsPassword = !!user?.user_metadata?.needs_password;
-    if (!authLoading && user && needsPassword) {
+    if (!authLoading && user && needsPassword && !skipPasswordSetup) {
       setPasswordSetupOpen(true);
     }
-  }, [user, authLoading]);
+  }, [user, authLoading, skipPasswordSetup]);
 
   const validatePassword = (password: string) => {
     if (password.length < 6) return "A senha precisa ter no mínimo 6 caracteres.";
@@ -328,10 +329,21 @@ const Dashboard = () => {
       setNewPassword("");
       setConfirmPassword("");
     } catch (error: any) {
-      setPasswordError(error.message || "Não foi possível criar a senha.");
+      setPasswordError(error.message);
     } finally {
       setIsSavingPassword(false);
     }
+  };
+
+  const handleSkipPasswordSetup = () => {
+    // Mark that user has chosen to skip
+    setSkipPasswordSetup(true);
+    setPasswordSetupOpen(false);
+    
+    // Show a toast reminder
+    toast.info("Você pode definir sua senha mais tarde nas configurações do perfil.", {
+      description: "Acesse Configurações > Perfil para criar sua senha quando desejar."
+    });
   };
 
   useEffect(() => {
@@ -2053,15 +2065,30 @@ const Dashboard = () => {
           onInteractOutside={(e) => {
             e.preventDefault();
           }}
+          className="max-w-md"
         >
           <DialogHeader>
-            <DialogTitle>Crie sua senha de acesso</DialogTitle>
+            <DialogTitle>🔐 Proteja sua conta</DialogTitle>
             <DialogDescription>
-              Para proteger sua conta, crie uma senha para acessar o painel.
+              Crie uma senha para acessar o painel ou defina depois nas configurações.
             </DialogDescription>
           </DialogHeader>
 
           <div className="space-y-4">
+            <div className="bg-blue-50 dark:bg-blue-950/20 border border-blue-200 dark:border-blue-800 rounded-lg p-3">
+              <div className="flex items-start gap-2">
+                <div className="text-blue-600 dark:text-blue-400 mt-0.5">
+                  <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+                    <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
+                  </svg>
+                </div>
+                <div className="text-sm text-blue-800 dark:text-blue-200">
+                  <p className="font-medium">Por que criar uma senha?</p>
+                  <p className="text-xs mt-1">Protege seu acesso e permite login tradicional além do auto-login.</p>
+                </div>
+              </div>
+            </div>
+
             <div className="space-y-2">
               <Label htmlFor="new-password">Nova senha</Label>
               <Input
@@ -2105,7 +2132,7 @@ const Dashboard = () => {
             </div>
 
             <div className="text-xs">
-              <div className="text-muted-foreground mb-2">Regras:</div>
+              <div className="text-muted-foreground mb-2">Requisitos de senha:</div>
               <div className={getRuleClass(passwordRules.minLength)}>- Mínimo de 6 caracteres</div>
               <div className={getRuleClass(passwordRules.hasUpper)}>- Pelo menos 1 letra maiúscula</div>
               <div className={getRuleClass(passwordRules.hasNumber)}>- Pelo menos 1 número</div>
@@ -2113,15 +2140,26 @@ const Dashboard = () => {
             </div>
 
             {passwordError && (
-              <div className="text-sm text-destructive">
+              <div className="text-sm text-destructive bg-destructive/10 border border-destructive/20 rounded p-2">
                 {passwordError}
               </div>
             )}
           </div>
 
-          <DialogFooter>
-            <Button onClick={handleSetPassword} disabled={isSavingPassword}>
-              {isSavingPassword ? "Salvando..." : "Salvar senha"}
+          <DialogFooter className="flex-col sm:flex-row gap-2">
+            <Button 
+              variant="outline" 
+              onClick={handleSkipPasswordSetup}
+              className="w-full sm:w-auto"
+            >
+              Definir depois
+            </Button>
+            <Button 
+              onClick={handleSetPassword} 
+              disabled={isSavingPassword || !passwordRules.minLength || !passwordRules.hasUpper || !passwordRules.hasNumber || !passwordRules.matches}
+              className="w-full sm:w-auto"
+            >
+              {isSavingPassword ? "Salvando..." : "Criar senha agora"}
             </Button>
           </DialogFooter>
         </DialogContent>

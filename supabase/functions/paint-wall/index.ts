@@ -3,7 +3,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { decodeBase64 } from "https://deno.land/std@0.224.0/encoding/base64.ts";
 
 const corsHeaders = {
-  "Access-Control-Allow-Origin": "https://colora.rogerio.work, https://colora.app.br",
+  "Access-Control-Allow-Origin": "https://colora.rogerio.work",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
   "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
   "Vary": "Origin"
@@ -96,7 +96,18 @@ serve(async (req) => {
     if (uploadError) throw new Error(`Upload failed: ${uploadError.message}`);
     const { data: { publicUrl } } = serviceRoleClient.storage.from('images').getPublicUrl(fileName);
 
-    const prompt = `Change ONLY the **${technicalWallName}** color to "${paintColor}". ...`; // Prompt truncated
+    const prompt = `Change ONLY the **${technicalWallName}** color to "${paintColor}". 
+
+**KEEP EXACTLY UNCHANGED:**
+- ALL people, faces, clothing, poses
+- animals and pets 
+- furniture positions and shapes
+- shadows and lighting direction  
+- floor, ceiling, other walls
+- textures and materials
+- camera angle and perspective
+
+Photorealistic interior design photography, professional lighting, high resolution.`;
     
     const payload = { model: "flux-2/pro-image-to-image", input: { input_urls: [publicUrl], prompt, aspect_ratio: aspectRatio, resolution: "1K" }};
     

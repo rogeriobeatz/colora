@@ -14,6 +14,7 @@ import Checkout from "./pages/Checkout";
 import CheckoutSuccess from "./pages/CheckoutSuccess";
 import Terms from "./pages/Terms";
 import Privacy from "./pages/Privacy";
+import ResetPassword from "./pages/ResetPassword";
 import NotFound from "./pages/NotFound";
 import ProtectedRoute from "@/components/ProtectedRoute";
 import BrandingApplier from "@/components/BrandingApplier";
@@ -42,6 +43,7 @@ const App = () => (
               <Route path="/login" element={<Login />} />
               <Route path="/checkout" element={<Checkout />} />
               <Route path="/checkout/sucesso" element={<CheckoutSuccess />} />
+              <Route path="/reset-password" element={<ResetPassword />} />
               <Route path="/terms" element={<Terms />} />
               <Route path="/privacy" element={<Privacy />} />
               <Route 

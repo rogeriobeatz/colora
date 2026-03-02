@@ -6,7 +6,6 @@ export const corsHeaders = (req: Request) => {
     origin.endsWith(".lovableproject.com") ||
     origin.endsWith(".lovable.app") ||
     origin === "https://colora.rogerio.work" ||
-    origin === "https://colora.app.br" ||
     origin.startsWith("http://localhost");
 
   return {

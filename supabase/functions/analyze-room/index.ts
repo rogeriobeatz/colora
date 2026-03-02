@@ -2,7 +2,7 @@ import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient, SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 const corsHeaders = {
-  "Access-Control-Allow-Origin": "https://colora.rogerio.work, https://colora.app.br",
+  "Access-Control-Allow-Origin": "https://colora.rogerio.work",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
   "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
   "Vary": "Origin"
@@ -57,7 +57,7 @@ serve(async (req) => {
     console.log(`[analyze-room] Cache desabilitado - forçando análise nova para user ${user.id}`);
     
     // Comentado temporariamente para debug
-    /*
+    
     const { data: cached } = await serviceRoleClient.from('wall_cache').select('surfaces, room_name, room_type').eq('hash', imageHash).single();
 
     if (cached) {
@@ -74,7 +74,6 @@ serve(async (req) => {
         total: cached.surfaces.length 
       });
     }
-    */
 
     console.log(`[analyze-room] Cache MISS for user ${user.id}. Processing analysis...`);
 

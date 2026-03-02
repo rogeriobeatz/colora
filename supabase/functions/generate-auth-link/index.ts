@@ -8,6 +8,11 @@ const logStep = (step: string, details?: any) => {
   console.log(`[GENERATE-AUTH-LINK] ${step}${detailsStr}`);
 };
 
+// Helper function to normalize email for consistent comparison
+const normalizeEmail = (email: string): string => {
+  return email.trim().toLowerCase();
+};
+
 serve(async (req) => {
   const headers = corsHeaders(req);
   if (req.method === "OPTIONS") {
@@ -23,7 +28,9 @@ serve(async (req) => {
 
   try {
     const { email, sessionId } = await req.json();
-    logStep("Request received", { email, sessionId });
+    const normalizedEmail = normalizeEmail(email);
+    
+    logStep("Request received", { email: normalizedEmail, sessionId });
 
     if (!email || !sessionId) {
       throw new Error("Email e sessionId são obrigatórios");
@@ -40,10 +47,17 @@ serve(async (req) => {
       throw new Error("Pagamento não confirmado");
     }
 
-    // Verify email matches
+    // Verify email matches with normalized comparison
     const sessionEmail = stripeSession.metadata?.customer_email || stripeSession.customer_email;
-    if (sessionEmail?.toLowerCase() !== email.toLowerCase()) {
-      logStep("Email mismatch", { sessionEmail, requestEmail: email });
+    const normalizedSessionEmail = normalizeEmail(sessionEmail || "");
+    
+    if (normalizedSessionEmail !== normalizedEmail) {
+      logStep("Email mismatch", { 
+        sessionEmail: normalizedSessionEmail, 
+        requestEmail: normalizedEmail,
+        originalSessionEmail: sessionEmail,
+        originalRequestEmail: email
+      });
       throw new Error("Email não corresponde à sessão de pagamento");
     }
 
