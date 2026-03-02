@@ -14,60 +14,44 @@ serve(async (req) => {
     return new Response(null, { headers });
   }
 
-  const supabaseClient = createClient(
+  const supabaseAdmin = createClient(
     Deno.env.get("SUPABASE_URL") ?? "",
     Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "",
     { auth: { persistSession: false } }
   );
 
   try {
-    logStep("Function started");
-
     const stripeKey = Deno.env.get("STRIPE_SECRET_KEY");
     if (!stripeKey) throw new Error("STRIPE_SECRET_KEY is not set");
 
     const authHeader = req.headers.get("Authorization");
     if (!authHeader) {
-      return new Response(JSON.stringify({ subscribed: false, error: "No authorization header" }), {
+      return new Response(JSON.stringify({ subscribed: false }), {
         headers: { ...headers, "Content-Type": "application/json" },
-        status: 200, // Retornamos 200 para não quebrar o frontend
+        status: 200,
       });
     }
 
     const token = authHeader.replace("Bearer ", "");
-    const { data: userData, error: userError } = await supabaseClient.auth.getUser(token);
+    const { data: userData, error: userError } = await supabaseAdmin.auth.getUser(token);
     
-    if (userError || !userData.user) {
-      logStep("Auth error or user not found", { error: userError?.message });
-      return new Response(JSON.stringify({ subscribed: false, error: "Auth failed" }), {
+    if (userError || !userData.user?.email) {
+      logStep("Auth failed", { error: userError?.message });
+      return new Response(JSON.stringify({ subscribed: false }), {
         headers: { ...headers, "Content-Type": "application/json" },
         status: 200,
       });
     }
 
     const user = userData.user;
-    logStep("User authenticated", { userId: user.id, email: user.email });
+    logStep("User authenticated", { email: user.email });
 
     const stripe = new Stripe(stripeKey, { apiVersion: "2025-08-27.basil" });
     const customers = await stripe.customers.list({ email: user.email, limit: 1 });
 
     if (customers.data.length === 0) {
       logStep("No Stripe customer found");
-      
-      // Tentar atualizar o perfil apenas se ele existir
-      const { data: profile } = await supabaseClient
-        .from('profiles')
-        .select('id')
-        .eq('id', user.id)
-        .maybeSingle();
-
-      if (profile) {
-        await supabaseClient
-          .from('profiles')
-          .update({ subscription_status: 'inactive' })
-          .eq('id', user.id);
-      }
-
+      await updateProfileStatus(supabaseAdmin, user.id, 'inactive');
       return new Response(JSON.stringify({ subscribed: false }), {
         headers: { ...headers, "Content-Type": "application/json" },
         status: 200,
@@ -77,57 +61,37 @@ serve(async (req) => {
     const customerId = customers.data[0].id;
     logStep("Found customer", { customerId });
 
-    let hasActiveSub = false;
-    let subscriptionEnd = null;
+    // Ensure stripe_customer_id is linked in profile
+    await supabaseAdmin
+      .from('profiles')
+      .update({ stripe_customer_id: customerId })
+      .eq('id', user.id);
 
-    try {
-      const subscriptions = await stripe.subscriptions.list({
-        customer: customerId,
-        status: "active",
-        limit: 1,
-      });
+    // Check active subscriptions
+    const subscriptions = await stripe.subscriptions.list({
+      customer: customerId,
+      status: "active",
+      limit: 1,
+    });
 
-      hasActiveSub = subscriptions.data.length > 0;
+    const hasActiveSub = subscriptions.data.length > 0;
+    let subscriptionEnd: string | null = null;
 
-      if (hasActiveSub) {
-        const subscription = subscriptions.data[0];
-        const periodEnd = subscription.current_period_end;
-        if (periodEnd) {
-          subscriptionEnd = new Date(periodEnd * 1000).toISOString();
+    if (hasActiveSub) {
+      const sub = subscriptions.data[0];
+      // Safely handle current_period_end - it may be a number (unix timestamp) or nested
+      try {
+        const rawEnd = (sub as any).current_period_end;
+        if (typeof rawEnd === 'number') {
+          subscriptionEnd = new Date(rawEnd * 1000).toISOString();
         }
-        logStep("Active subscription found", { subscriptionId: subscription.id, endDate: subscriptionEnd });
-
-        // Tentar atualizar o perfil apenas se ele existir
-        const { data: profile } = await supabaseClient
-          .from('profiles')
-          .select('id')
-          .eq('id', user.id)
-          .maybeSingle();
-
-        if (profile) {
-          await supabaseClient
-            .from('profiles')
-            .update({ subscription_status: 'active' })
-            .eq('id', user.id);
-        }
-      } else {
-        logStep("No active subscription");
-        
-        const { data: profile } = await supabaseClient
-          .from('profiles')
-          .select('id')
-          .eq('id', user.id)
-          .maybeSingle();
-
-        if (profile) {
-          await supabaseClient
-            .from('profiles')
-            .update({ subscription_status: 'inactive' })
-            .eq('id', user.id);
-        }
-      }
-    } catch (subError: any) {
-      logStep("Error processing subscriptions", { error: subError.message });
+      } catch { /* ignore date parsing errors */ }
+      
+      logStep("Active subscription", { subscriptionId: sub.id, end: subscriptionEnd });
+      await updateProfileStatus(supabaseAdmin, user.id, 'active');
+    } else {
+      logStep("No active subscription");
+      await updateProfileStatus(supabaseAdmin, user.id, 'inactive');
     }
 
     return new Response(JSON.stringify({
@@ -139,10 +103,24 @@ serve(async (req) => {
     });
   } catch (error: any) {
     logStep("ERROR", { message: error.message });
-    // Mesmo em erro crítico, retornamos 200 com subscribed: false para não travar o dashboard
     return new Response(JSON.stringify({ subscribed: false, error: error.message }), {
       headers: { ...headers, "Content-Type": "application/json" },
       status: 200,
     });
   }
 });
+
+async function updateProfileStatus(supabase: any, userId: string, status: string) {
+  const { data: profile } = await supabase
+    .from('profiles')
+    .select('id')
+    .eq('id', userId)
+    .maybeSingle();
+
+  if (profile) {
+    await supabase
+      .from('profiles')
+      .update({ subscription_status: status, updated_at: new Date().toISOString() })
+      .eq('id', userId);
+  }
+}
