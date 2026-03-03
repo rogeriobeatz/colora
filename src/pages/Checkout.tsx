@@ -261,9 +261,9 @@ const Checkout = () => {
               </h4>
               <ul className="space-y-3 text-sm text-muted-foreground">
                 <li>1. Você será redirecionado para o Stripe (Pagamento Seguro).</li>
-                <li>2. Após o pagamento, nossa IA cria sua conta automaticamente.</li>
-                <li>3. Você receberá um e-mail com seus dados de acesso.</li>
-                <li>4. O acesso ao simulador é liberado instantaneamente.</li>
+                <li>2. Após o pagamento, sua conta é criada automaticamente.</li>
+                <li>3. Você será redirecionado direto para o painel, já autenticado.</li>
+                <li>4. Basta criar sua senha e começar a usar!</li>
               </ul>
             </div>
             <div className="flex items-center gap-2 text-sm text-muted-foreground">

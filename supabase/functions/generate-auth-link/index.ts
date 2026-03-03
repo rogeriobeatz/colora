@@ -1,4 +1,5 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
+import Stripe from "https://esm.sh/stripe@18.5.0";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { corsHeaders } from "../_shared/cors.ts";
 
@@ -21,38 +22,78 @@ serve(async (req) => {
   }
 
   try {
-    const { email, redirectTo } = await req.json();
-    logStep("Request received", { email, redirectTo });
+    const { email, sessionId } = await req.json();
+    logStep("Request received", { email, sessionId });
 
-    if (!email) {
-      throw new Error("Email é obrigatório");
+    if (!email || !sessionId) {
+      throw new Error("Email e sessionId são obrigatórios");
     }
 
+    // 1. Verify the Stripe session is actually paid
+    const stripe = new Stripe(Deno.env.get("STRIPE_SECRET_KEY") || "", {
+      apiVersion: "2025-08-27.basil",
+    });
+
+    const stripeSession = await stripe.checkout.sessions.retrieve(sessionId);
+    if (stripeSession.payment_status !== "paid") {
+      logStep("Payment not confirmed", { status: stripeSession.payment_status });
+      throw new Error("Pagamento não confirmado");
+    }
+
+    // Verify email matches
+    const sessionEmail = stripeSession.metadata?.customer_email || stripeSession.customer_email;
+    if (sessionEmail?.toLowerCase() !== email.toLowerCase()) {
+      logStep("Email mismatch", { sessionEmail, requestEmail: email });
+      throw new Error("Email não corresponde à sessão de pagamento");
+    }
+
+    logStep("Stripe session verified", { paymentStatus: stripeSession.payment_status });
+
+    // 2. Generate a magic link (programmatic, no email sent)
     const supabaseAdmin = createClient(
       Deno.env.get("SUPABASE_URL") ?? "",
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "",
       { auth: { persistSession: false } },
     );
 
-    // Gerar um link de recuperação que funciona como auto-login
+    const origin = req.headers.get("origin") || "https://colora.rogerio.work";
+
     const { data, error } = await supabaseAdmin.auth.admin.generateLink({
-      type: 'recovery',
+      type: 'magiclink',
       email: email,
       options: {
-        redirectTo: redirectTo || `${req.headers.get("origin")}/dashboard?payment=success`
+        redirectTo: `${origin}/dashboard?payment=success`
       }
     });
 
     if (error) {
       logStep("ERROR generating link", { error: error.message });
-      throw error;
+      // Fallback: try recovery link
+      const { data: recoveryData, error: recoveryError } = await supabaseAdmin.auth.admin.generateLink({
+        type: 'recovery',
+        email: email,
+        options: {
+          redirectTo: `${origin}/dashboard?payment=success`
+        }
+      });
+
+      if (recoveryError) throw recoveryError;
+
+      logStep("Recovery link generated as fallback");
+      return new Response(JSON.stringify({ 
+        authLink: recoveryData.properties.action_link,
+        email 
+      }), {
+        headers: { ...headers, "Content-Type": "application/json" },
+        status: 200,
+      });
     }
 
     logStep("Auth link generated successfully", { email });
 
     return new Response(JSON.stringify({ 
       authLink: data.properties.action_link,
-      email: email 
+      email 
     }), {
       headers: { ...headers, "Content-Type": "application/json" },
       status: 200,
