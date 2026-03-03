@@ -90,8 +90,7 @@ export default defineConfig(({ mode }) => ({
             'lucide-react',
             'date-fns',
             'uuid',
-            'dexie',
-            'dexie-react-hooks',
+            'idb',
             'zod',
             '@tanstack/react-query'
           ],
