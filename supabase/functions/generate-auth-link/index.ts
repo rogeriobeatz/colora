@@ -57,12 +57,24 @@ serve(async (req) => {
     );
 
     const origin = req.headers.get("origin") || "https://colora.rogerio.work";
+    const redirectTo = `${origin}/dashboard?payment=success`;
+
+    // Helper: fix the action_link to use the correct redirect_to (Supabase defaults to Site URL which may be localhost)
+    const fixActionLink = (actionLink: string): string => {
+      try {
+        const url = new URL(actionLink);
+        url.searchParams.set("redirect_to", redirectTo);
+        return url.toString();
+      } catch {
+        return actionLink;
+      }
+    };
 
     const { data, error } = await supabaseAdmin.auth.admin.generateLink({
       type: 'magiclink',
       email: email,
       options: {
-        redirectTo: `${origin}/dashboard?payment=success`
+        redirectTo
       }
     });
 
@@ -73,15 +85,16 @@ serve(async (req) => {
         type: 'recovery',
         email: email,
         options: {
-          redirectTo: `${origin}/dashboard?payment=success`
+          redirectTo
         }
       });
 
       if (recoveryError) throw recoveryError;
 
-      logStep("Recovery link generated as fallback");
+      const fixedLink = fixActionLink(recoveryData.properties.action_link);
+      logStep("Recovery link generated as fallback", { fixedLink });
       return new Response(JSON.stringify({ 
-        authLink: recoveryData.properties.action_link,
+        authLink: fixedLink,
         email 
       }), {
         headers: { ...headers, "Content-Type": "application/json" },
@@ -89,10 +102,11 @@ serve(async (req) => {
       });
     }
 
-    logStep("Auth link generated successfully", { email });
+    const fixedLink = fixActionLink(data.properties.action_link);
+    logStep("Auth link generated successfully", { email, fixedLink });
 
     return new Response(JSON.stringify({ 
-      authLink: data.properties.action_link,
+      authLink: fixedLink,
       email 
     }), {
       headers: { ...headers, "Content-Type": "application/json" },
