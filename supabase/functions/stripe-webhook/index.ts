@@ -70,7 +70,6 @@ serve(async (req) => {
       if (metadata.create_user_on_success === 'true') {
         const email = metadata.customer_email;
         const name = metadata.customer_name;
-        const origin = metadata.origin || 'https://colora.rogerio.work';
         
         if (!email) {
           throw new Error("Missing customer_email in session metadata");
@@ -86,14 +85,27 @@ serve(async (req) => {
         if (existingUser) {
           userId = existingUser.id;
           logStep("User already exists", { userId });
+          // Mark needs_password if they were created via checkout before
+          await supabaseAdmin.auth.admin.updateUserById(userId, {
+            user_metadata: { 
+              ...existingUser.user_metadata,
+              full_name: name, 
+              source: 'stripe_checkout',
+              needs_password: true 
+            }
+          });
         } else {
-          // 2. Create new user with a secure random password
+          // 2. Create new user with a secure random password (user will set their own later)
           const tempPassword = `Colora@${crypto.randomUUID().slice(0, 12)}`;
           const { data: newUser, error: createError } = await supabaseAdmin.auth.admin.createUser({
             email,
             password: tempPassword,
             email_confirm: true,
-            user_metadata: { full_name: name, source: 'stripe_checkout' }
+            user_metadata: { 
+              full_name: name, 
+              source: 'stripe_checkout',
+              needs_password: true
+            }
           });
 
           if (createError) {
@@ -125,7 +137,7 @@ serve(async (req) => {
           throw profileError;
         }
 
-        // 4. Record token credit (idempotent check)
+        // 4. Record token credit (idempotent)
         const { data: existingCredit } = await supabaseAdmin
           .from('token_consumptions')
           .select('id')
@@ -141,41 +153,7 @@ serve(async (req) => {
           });
         }
 
-        // 5. Send magic link email so user can access the platform
-        try {
-          const { data: linkData, error: linkError } = await supabaseAdmin.auth.admin.generateLink({
-            type: 'magiclink',
-            email,
-            options: {
-              redirectTo: `${origin}/dashboard`
-            }
-          });
-
-          if (linkError) {
-            logStep("WARNING: Could not generate magic link", { error: linkError.message });
-            // Fallback: send recovery link
-            await supabaseAdmin.auth.admin.generateLink({
-              type: 'recovery',
-              email,
-              options: { redirectTo: `${origin}/dashboard` }
-            });
-            logStep("Sent recovery link as fallback");
-          } else {
-            logStep("Magic link generated", { email });
-            
-            // Send the email via Supabase's built-in invite
-            await supabaseAdmin.auth.admin.inviteUserByEmail(email, {
-              redirectTo: `${origin}/dashboard`,
-            }).catch(() => {
-              // User already exists, use generateLink instead - already done above
-              logStep("Invite failed (user exists), magic link already generated");
-            });
-          }
-        } catch (emailErr: any) {
-          logStep("WARNING: Email sending failed", { error: emailErr.message });
-        }
-
-        logStep("Checkout processing complete", { userId, email });
+        logStep("Checkout processing complete (no email sent, user will auto-login)", { userId, email });
       }
     }
 
