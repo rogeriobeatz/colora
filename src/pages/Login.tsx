@@ -45,7 +45,8 @@ const Login = () => {
     setLoading(true);
     
     try {
-      const { error } = await supabase.auth.signUp({
+      // 1. Criar usuário no Supabase Auth
+      const { error: signUpError, data } = await supabase.auth.signUp({
         email,
         password,
         options: {
@@ -58,10 +59,43 @@ const Login = () => {
         }
       });
 
-      if (error) throw error;
+      if (signUpError) throw signUpError;
+      
+      // 2. Criar perfil na tabela profiles com saldo zerado
+      if (data.user?.id) {
+        console.log('[CADASTRO] Dados recebidos:', {
+          fullName,
+          companyName,
+          email
+        });
+
+        const { error: profileError } = await supabase
+          .from('profiles')
+          .insert({
+            id: data.user.id,
+            email: email,
+            full_name: fullName,
+            company_name: companyName, // CORRIGIDO: Usar companyName
+            company_slug: generateSlug(companyName),
+            tokens: 0, // Saldo zerado
+            ai_credits: 0, // Créditos zerados
+            subscription_status: 'inactive', // Sem assinatura
+            document_type: 'cpf',
+            document_number: '',
+            stripe_customer_id: null,
+            needs_password: false // Já definiu senha no cadastro
+          });
+
+        console.log('[CADASTRO] Perfil criado:', { profileError, success: !profileError });
+
+        if (profileError) {
+          console.error('Error creating profile:', profileError);
+          throw new Error('Erro ao criar perfil. Tente novamente.');
+        }
+      }
       
       toast.success("Conta criada com sucesso!", {
-        description: "Verifique seu e-mail para confirmar o cadastro.",
+        description: "Sua conta foi criada com saldo zerado. Assine um plano para obter tokens.",
       });
       setStep("login");
     } catch (error: any) {
@@ -99,8 +133,8 @@ const Login = () => {
               <ArrowLeft className="w-4 h-4" /> Voltar
             </button>
             <div className="text-center mb-6">
-              <h2 className="text-2xl font-display font-bold text-foreground">Comece a transformar sua loja</h2>
-              <p className="text-muted-foreground text-sm mt-1">Precisamos de algumas informações da sua empresa</p>
+              <h2 className="text-2xl font-display font-bold text-foreground">Criar Conta Gratuita</h2>
+              <p className="text-muted-foreground text-sm mt-1">Cadastre sua empresa e comece a usar o Colora</p>
             </div>
             <div className="space-y-4">
               <div className="space-y-2">
@@ -184,7 +218,7 @@ const Login = () => {
                 </div>
               </div>
               <Button type="submit" className="w-full h-12 text-base shadow-soft" disabled={loading}>
-                {loading ? <Loader2 className="w-5 h-5 animate-spin mr-2" /> : "Criar Conta da Empresa"}
+                {loading ? <Loader2 className="w-5 h-5 animate-spin mr-2" /> : "Criar Conta Gratuita"}
               </Button>
             </div>
           </form>
@@ -256,8 +290,17 @@ const Login = () => {
               </Button>
               <div className="text-center pt-4">
                 <Link to="/checkout" className="text-sm text-muted-foreground hover:text-primary transition-colors">
-                  Ainda não tem conta? <span className="font-bold">Assine e cadastre sua loja</span>
+                  Quer tokens? <span className="font-bold">Assine um plano</span>
                 </Link>
+                <div className="mt-2">
+                  <Link 
+                    to="#" 
+                    onClick={() => setStep("info")}
+                    className="text-xs text-muted-foreground hover:text-primary transition-colors"
+                  >
+                    Ou <span className="font-bold">crie conta gratuita</span>
+                  </Link>
+                </div>
               </div>
             </div>
           </form>

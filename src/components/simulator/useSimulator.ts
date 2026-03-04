@@ -9,7 +9,7 @@ import { preprocessImageFile } from "@/lib/image-preprocess";
 
 // --- Helper Functions ---
 const genId = () => Math.random().toString(36).substring(2, 10);
-const AUTOSAVE_DELAY = 2500;
+const AUTOSAVE_DELAY = 0; // 🔴 DESATIVADO - Auto-save causa sobrecarga massiva
 const nowIso = () => new Date().toISOString();
 
 const normalizeLoadedSession = (data: any): SimulatorSessionData => {

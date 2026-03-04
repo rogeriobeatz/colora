@@ -87,7 +87,7 @@ const Dashboard = () => {
   const [searchParams] = useSearchParams();
   const { user, loading: authLoading, signOut, checkSubscription } = useAuth();
   const {
-    company, updateCompany, addCatalog, updateCatalog, deleteCatalog,
+    company, updateCompany, updateCompanyLocal, addCatalog, updateCatalog, deleteCatalog,
     importPaintsCSV, exportPaintsCSV, refreshData,
     consumeToken, checkTokensAvailable, depositMonthlyTokens
   } = useStore();
@@ -256,15 +256,14 @@ const Dashboard = () => {
         attempts++;
         try {
           await checkSubscription();
-          await refreshData();
           clearInterval(retryInterval);
         } catch (error) {
           if (attempts >= maxAttempts) {
             clearInterval(retryInterval);
-            console.warn("Webhook sync timeout");
+            console.error("Falha ao verificar assinatura após múltiplas tentativas");
           }
         }
-      }, 500);
+      }, 5000);
       
       // Clean URL
       navigate("/dashboard", { replace: true });
@@ -349,7 +348,7 @@ const Dashboard = () => {
   useEffect(() => {
     if (!user) return;
     refreshData().then(() => setIsInitialLoading(false));
-  }, [user, refreshData]);
+  }, [user]); // ✅ Apenas user - evita loop infinito
 
   useEffect(() => {
     (async () => {
@@ -1013,10 +1012,10 @@ const Dashboard = () => {
                   <Coins className="w-5 h-5" /> Meus Tokens
                 </h3>
                 <Badge 
-                  variant={company.subscriptionStatus === 'active' ? 'default' : 'secondary'}
-                  style={company.subscriptionStatus === 'active' ? accessibleStyles.primary.primaryBadge : accessibleStyles.elements.inactiveStatus}
+                  variant={company?.subscriptionStatus === 'active' ? 'default' : 'secondary'}
+                  style={company?.subscriptionStatus === 'active' ? accessibleStyles.primary.primaryBadge : accessibleStyles.elements.inactiveStatus}
                 >
-                  {company.subscriptionStatus === 'active' ? 'Assinatura Ativa' : 'Assinatura Inativa'}
+                  {company?.subscriptionStatus === 'active' ? 'Assinatura Ativa' : 'Assinatura Inativa'}
                 </Badge>
               </div>
 
@@ -1090,7 +1089,7 @@ const Dashboard = () => {
 
               {/* Ações de pagamento */}
               <div className="flex flex-wrap gap-3">
-                {company.subscriptionStatus !== 'active' ? (
+                {company?.subscriptionStatus !== 'active' ? (
                   <Button
                     onClick={() => handleCheckout("subscription")}
                     disabled={isCheckoutLoading}
@@ -1136,7 +1135,7 @@ const Dashboard = () => {
                 </Button>
               </div>
 
-              {company.subscriptionStatus !== 'active' && (
+              {company?.subscriptionStatus !== 'active' && (
                 <div className="bg-orange-50 border border-orange-200 rounded-xl p-4">
                   <p className="text-sm text-orange-800">
                     <strong>Atenção:</strong> Sua assinatura está inativa. 
@@ -1198,7 +1197,7 @@ const Dashboard = () => {
               </div>
 
               {/* Diagnóstico de Sincronização */}
-              <div className="border-t border-border pt-4">
+              {/* <div className="border-t border-border pt-4">
                 <div className="flex items-center justify-between mb-3">
                   <h4 className="text-sm font-medium flex items-center gap-2">
                     <Database className="w-4 h-4" />
@@ -1247,7 +1246,7 @@ const Dashboard = () => {
                 <p className="text-xs text-muted-foreground mt-2">
                   Verifique sincronização, limpe cache ou analise todas as tabelas em busca de duplicatas e problemas
                 </p>
-              </div>
+              </div> */}
 
               {/* Painel lateral: catálogos */}
               <div className="space-y-4">
@@ -1515,7 +1514,7 @@ const Dashboard = () => {
                   <div className="grid sm:grid-cols-2 gap-4">
                     <div className="space-y-2">
                       <Label className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Nome da Loja</Label>
-                      <Input value={company.name} onChange={(e) => updateCompany({ name: e.target.value })} className="h-11" />
+                      <Input value={company.name} onChange={(e) => updateCompanyLocal({ name: e.target.value })} className="h-11" />
                     </div>
                     <div className="space-y-2">
                       <Label className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Slug (URL)</Label>
@@ -1525,7 +1524,7 @@ const Dashboard = () => {
                         </div>
                         <Input
                           value={company.slug}
-                          onChange={(e) => updateCompany({ slug: e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, "-") })}
+                          onChange={(e) => updateCompanyLocal({ slug: e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, "-") })}
                           className="h-11 font-mono text-sm"
                           placeholder="minha-loja"
                         />
@@ -1553,14 +1552,14 @@ const Dashboard = () => {
                             <input
                               type="color"
                               value={value}
-                              onChange={(e) => updateCompany({ [key]: e.target.value })}
+                              onChange={(e) => updateCompanyLocal({ [key]: e.target.value })}
                               className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
                             />
                             <div className="w-full h-full rounded-lg border-2 border-border shadow-sm" style={{ backgroundColor: value }} />
                           </div>
                           <Input
                             value={value}
-                            onChange={(e) => updateCompany({ [key]: e.target.value })}
+                            onChange={(e) => updateCompanyLocal({ [key]: e.target.value })}
                             className="h-11 font-mono text-sm uppercase"
                           />
                         </div>
@@ -1592,7 +1591,7 @@ const Dashboard = () => {
                       )}
                     </div>
                     {company.logo && (
-                      <Button variant="ghost" size="sm" className="text-destructive hover:text-destructive w-full" onClick={() => updateCompany({ logo: undefined })}>
+                      <Button variant="ghost" size="sm" className="text-destructive hover:text-destructive w-full" onClick={() => updateCompanyLocal({ logo: undefined })}>
                         <X className="w-3.5 h-3.5 mr-1" /> Remover logo
                       </Button>
                     )}
@@ -1612,7 +1611,7 @@ const Dashboard = () => {
                           <Phone className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
                           <Input
                             value={company.phone || ""}
-                            onChange={(e) => updateCompany({ phone: e.target.value })}
+                            onChange={(e) => updateCompanyLocal({ phone: e.target.value })}
                             placeholder="(11) 99999-9999"
                             className="h-11 pl-10"
                           />
@@ -1624,7 +1623,7 @@ const Dashboard = () => {
                           <Globe className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
                           <Input
                             value={company.website || ""}
-                            onChange={(e) => updateCompany({ website: e.target.value })}
+                            onChange={(e) => updateCompanyLocal({ website: e.target.value })}
                             placeholder="www.sualoja.com.br"
                             className="h-11 pl-10"
                           />
@@ -1636,7 +1635,7 @@ const Dashboard = () => {
                       <Label className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Endereço</Label>
                       <Input
                         value={company.address || ""}
-                        onChange={(e) => updateCompany({ address: e.target.value })}
+                        onChange={(e) => updateCompanyLocal({ address: e.target.value })}
                         placeholder="Rua Example, 123 - Cidade/UF"
                         className="h-11"
                       />
@@ -1661,7 +1660,7 @@ const Dashboard = () => {
                         ] as { value: HeaderStyleMode; label: string; desc: string }[]).map((opt) => (
                           <button
                             key={opt.value}
-                            onClick={() => updateCompany({ headerStyle: opt.value })}
+                            onClick={() => updateCompanyLocal({ headerStyle: opt.value })}
                             className={`p-3 rounded-xl border-2 text-left transition-all ${
                               company.headerStyle === opt.value
                                 ? "border-primary bg-primary/5"
@@ -1686,7 +1685,7 @@ const Dashboard = () => {
                         ] as { value: HeaderContentMode; label: string; icon: string }[]).map((opt) => (
                           <button
                             key={opt.value}
-                            onClick={() => updateCompany({ headerContent: opt.value })}
+                            onClick={() => updateCompanyLocal({ headerContent: opt.value })}
                             className={`p-3 rounded-xl border-2 text-center transition-all ${
                               company.headerContent === opt.value
                                 ? "border-primary bg-primary/5"
@@ -1717,7 +1716,7 @@ const Dashboard = () => {
                         ] as { value: FontSet; label: string; sample: string; desc: string }[]).map((opt) => (
                           <button
                             key={opt.value}
-                            onClick={() => updateCompany({ fontSet: opt.value })}
+                            onClick={() => updateCompanyLocal({ fontSet: opt.value })}
                             className={`p-3 rounded-xl border-2 text-left transition-all ${
                               company.fontSet === opt.value
                                 ? "border-primary bg-primary/5"

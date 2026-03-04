@@ -9,6 +9,7 @@ interface AuthContextType {
   signOut: () => Promise<void>;
   checkSubscription: () => Promise<void>;
   subscriptionChecked: boolean;
+  refreshCompanyData?: () => Promise<void>; // ✅ Adicionar referência
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -21,24 +22,42 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
 
   const checkSubscription = async () => {
     try {
+      console.log("[Auth] Verificando assinatura...");
       const { data, error } = await supabase.functions.invoke('check-subscription');
+      
       if (error) {
-        console.error("Error checking subscription:", error);
+        console.error("[Auth] Erro ao verificar assinatura:", error);
       } else {
-        console.log("[Auth] Subscription check:", data);
+        console.log("[Auth] Assinatura verificada:", data);
+        
+        // ✅ FORÇAR ATUALIZAÇÃO DO STORECONTEXT APÓS VERIFICAR ASSINATURA
+        if (data?.success) {
+          // Dispara evento customizado para o StoreContext ouvir
+          window.dispatchEvent(new CustomEvent('subscription-updated', { 
+            detail: { subscriptionStatus: data.subscriptionStatus, tokens: data.tokens } 
+          }));
+        }
       }
       setSubscriptionChecked(true);
     } catch (err) {
-      console.error("Error invoking check-subscription:", err);
+      console.error("[Auth] Erro ao invocar check-subscription:", err);
     }
   };
 
   useEffect(() => {
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setSession(session);
-      setUser(session?.user ?? null);
-      setLoading(false);
-    });
+    // Verificar sessão inicial
+    const initializeAuth = async () => {
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        setSession(session);
+        setUser(session?.user ?? null);
+      } finally {
+        // Só setta loading como false DEPOIS de verificar
+        setLoading(false);
+      }
+    };
+
+    initializeAuth();
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       setSession(session);

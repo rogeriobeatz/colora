@@ -69,6 +69,7 @@ interface StoreContextType {
   loading: boolean;
   setCompany: (company: Company) => void;
   updateCompany: (updates: Partial<Company>) => void;
+  updateCompanyLocal: (updates: Partial<Company>) => void;
   fetchCompanyBySlug: (slug: string) => Promise<void>;
   refreshData: () => Promise<void>;
   initCompany: (name: string) => void;
@@ -228,13 +229,25 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       }
     } catch (error) {
       console.error("Error fetching public company:", error);
-    } finally {
-      setLoading(false);
     }
   };
 
   useEffect(() => {
     refreshData();
+  }, []);
+
+  useEffect(() => {
+    const handleSubscriptionUpdate = (event: CustomEvent) => {
+      console.log('[StoreContext] Assinatura atualizada via evento:', event.detail);
+      // Força refresh dos dados quando assinatura for atualizada
+      refreshData();
+    };
+
+    window.addEventListener('subscription-updated', handleSubscriptionUpdate as EventListener);
+    
+    return () => {
+      window.removeEventListener('subscription-updated', handleSubscriptionUpdate as EventListener);
+    };
   }, []);
 
   const initCompany = (name: string) => {
@@ -246,14 +259,21 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const updateCompany = async (updates: Partial<Company>) => {
     if (!company) return;
     
+    console.log('[DASHBOARD] Atualizando empresa:', updates);
+    
     // Atualiza estado local imediatamente
     setCompanyState({ ...company, ...updates });
     
     // Persiste no banco de dados
     try {
+      // Obter usuário atual
       const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return;
-
+      if (!user) {
+        console.error('[DASHBOARD] Usuário não encontrado');
+        toast.error("Usuário não autenticado");
+        return;
+      }
+      
       // Prepara dados para atualização
       const updateData: any = {
         updated_at: new Date().toISOString(),
@@ -272,18 +292,32 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       if (updates.headerStyle !== undefined) updateData.header_style = updates.headerStyle;
       if (updates.fontSet !== undefined) updateData.font_set = updates.fontSet;
 
-      const { error } = await supabase
+      console.log('[DASHBOARD] Dados para salvar:', updateData);
+      console.log('[DASHBOARD] User ID:', user.id);
+
+      const { data, error } = await supabase
         .from('profiles')
         .update(updateData)
         .eq('id', user.id);
 
       if (error) {
-        console.error("Erro ao salvar no banco:", error);
+        console.error('[DASHBOARD] Erro ao salvar:', error);
         toast.error("Erro ao salvar alterações");
+      } else {
+        console.log('[DASHBOARD] Salvo com sucesso!');
+        toast.success("Alterações salvas com sucesso!");
       }
     } catch (error) {
-      console.error("Erro na sincronização:", error);
+      console.error('[DASHBOARD] Erro crítico:', error);
+      toast.error("Erro ao salvar alterações");
     }
+  };
+
+  const updateCompanyLocal = (updates: Partial<Company>) => {
+    if (!company) return;
+    
+    console.log('[DASHBOARD] Atualizando estado local:', updates);
+    setCompanyState({ ...company, ...updates });
   };
 
   const addCatalog = async (catalog: Omit<Catalog, "id" | "paints">) => {
@@ -524,7 +558,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
 
   return (
     <StoreContext.Provider value={{ 
-      company, loading, setCompany: setCompanyState, updateCompany, 
+      company, loading, setCompany: setCompanyState, updateCompany, updateCompanyLocal,
       fetchCompanyBySlug, refreshData, initCompany, addCatalog,
       updateCatalog, deleteCatalog, importPaintsCSV, exportPaintsCSV,
       consumeToken, checkTokensAvailable, depositMonthlyTokens

@@ -1,8 +1,10 @@
-/* Font Imports - Otimizados e sem duplicação */
 @import url('https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,100..1000;1,9..40,100..1000&family=Space+Grotesk:wght@300..700&display=swap');
+@import url("https://fonts.googleapis.com/css2?family=Space+Grotesk&display=swap");
+@import url("https://fonts.googleapis.com/css2?family=Lora&display=swap");
+@import url("https://fonts.googleapis.com/css2?family=Space+Mono&display=swap");
+@import url("https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap");
 @import url("https://fonts.googleapis.com/css2?family=Lora:wght@400;500;600;700&display=swap");
 @import url("https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&display=swap");
-@import url("https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap");
 @import url("https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700&display=swap");
 @import url("https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&display=swap");
 @import url("https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;800&display=swap");
@@ -53,15 +55,15 @@
     --sidebar-ring: 257 4% 70.4%;
 
     /* Custom tokens */
-    --gradient-primary: linear-gradient(90deg,
-      hsl(41, 68%, 55%),  /* Amarelo */
-      hsl(96, 42%, 41%),  /* Verde */
-      hsl(202, 86%, 58%), /* Azul */
-      hsl(0, 77%, 41%)  /* Roxo */
-    );
+--gradient-primary: linear-gradient(90deg,
+  hsl(41, 68%, 55%),  /* Amarelo */
+  hsl(96, 42%, 41%),  /* Verde */
+  hsl(202, 86%, 58%), /* Azul */
+  hsl(0, 77%, 41%)  /* Roxo */
+);
     --gradient-secondary: linear-gradient(90deg,
-      hsl(199, 50%, 74%), 
-      hsl(184, 74%, 70%)
+    hsl(199, 50%, 74%), 
+        hsl(184, 74%, 70%)
     );
     --gradient-accent: linear-gradient(135deg, hsl(18 90% 56%), hsl(30 95% 58%));
     --gradient-hero: linear-gradient(135deg, hsl(200 20% 12%), hsl(168 72% 22%));
@@ -93,7 +95,6 @@
     --spacing: 0.25rem;
   }
 
-  /* Font Sets - Corrigidos e funcionais */
   :root[data-font="grotesk"] {
     --font-sans: "Space Grotesk";
     --font-display: "Space Grotesk";
@@ -153,7 +154,9 @@
     --shadow-xl: 0 1px 3px 0px hsl(0 0% 0% / 0.1), 0 8px 10px -1px hsl(0 0% 0% / 0.1);
     --shadow-2xl: 0 1px 3px 0px hsl(0 0% 0% / 0.25);
   }
+}
 
+@layer base {
   * {
     border-color: hsl(var(--border));
   }

@@ -13,7 +13,18 @@ serve(async (req) => {
     return new Response(null, { headers });
   }
 
-  const stripe = new Stripe(Deno.env.get("STRIPE_SECRET_KEY") || "", {
+  const stripeKey = Deno.env.get("STRIPE_SECRET_KEY");
+  const webhookSecret = Deno.env.get("STRIPE_WEBHOOK_SECRET");
+  
+  if (!stripeKey) {
+    logStep("ERROR: STRIPE_SECRET_KEY not configured");
+    return new Response(JSON.stringify({ error: "Stripe configuration missing" }), {
+      headers: { ...headers, "Content-Type": "application/json" },
+      status: 500,
+    });
+  }
+
+  const stripe = new Stripe(stripeKey, {
     apiVersion: "2025-08-27.basil",
   });
 
@@ -51,13 +62,19 @@ serve(async (req) => {
     const successUrl = `${origin}/checkout/sucesso?email=${encodeURIComponent(customerData.email)}&session_id={CHECKOUT_SESSION_ID}`;
     const cancelUrl = `${origin}/checkout?payment=canceled`;
 
+    // Verificar se os preços existem antes de criar sessão
+    const subscriptionPrice = isSubscription ? "price_1T458zRjNIKJreFo2hsTiIKO" : null;
+    const rechargePrice = !isSubscription ? "price_1T459DRjNIKJreFoNCmabUQM" : null;
+    
+    if (!subscriptionPrice && !rechargePrice) {
+      throw new Error("Preço não configurado para o modo selecionado");
+    }
+
     const session = await stripe.checkout.sessions.create({
       customer: customerId,
       line_items: [
         {
-          price: isSubscription
-            ? "price_1T458zRjNIKJreFo2hsTiIKO"
-            : "price_1T459DRjNIKJreFoNCmabUQM",
+          price: subscriptionPrice || rechargePrice,
           quantity: 1,
         },
       ],

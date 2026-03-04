@@ -27,27 +27,40 @@ const CheckoutSuccess = () => {
         // Exponential backoff: 3s, 6s, 12s, 24s (max 4 attempts)
         const baseDelay = 3000;
         const maxRetries = 4;
-        const currentDelay = baseDelay * Math.pow(2, retryCount);
         
-        console.log(`[CheckoutSuccess] Attempt ${retryCount + 1}/${maxRetries}, waiting ${currentDelay}ms`);
-        
-        // Wait with exponential backoff
-        await new Promise(r => setTimeout(r, currentDelay));
+        for (let i = 0; i < maxRetries; i++) {
+          const currentDelay = baseDelay * Math.pow(2, i);
+          console.log(`[CheckoutSuccess] Attempt ${i + 1}/${maxRetries}, waiting ${currentDelay}ms`);
+          
+          // 🔴 OTIMIZADO: Adicionar timeout máximo para evitar loop infinito
+          const MAX_TOTAL_TIME = 30000; // 30 segundos máximo
+          const startTime = Date.now();
+          
+          // Wait with exponential backoff
+          await new Promise(r => setTimeout(r, currentDelay));
+          
+          // Verificar se excedeu tempo máximo
+          if (Date.now() - startTime > MAX_TOTAL_TIME) {
+            console.error("[CheckoutSuccess] Timeout máximo atingido");
+            break;
+          }
 
-        // Call edge function to get auto-login link (verified against Stripe)
-        const { data, error } = await supabase.functions.invoke("generate-auth-link", {
-          body: { email: decodeURIComponent(email), sessionId }
-        });
+          // Call edge function to get auto-login link (verified against Stripe)
+          const { data, error } = await supabase.functions.invoke("generate-auth-link", {
+            body: { email: decodeURIComponent(email), sessionId }
+          });
 
-        if (error || !data?.authLink) {
-          throw new Error(data?.error || error?.message || "Não foi possível gerar o link de acesso");
+          if (error || !data?.authLink) {
+            throw new Error(data?.error || error?.message || "Não foi possível gerar o link de acesso");
+          }
+
+          setStatus("redirecting");
+          console.log("[CheckoutSuccess] Auto-login successful, redirecting...");
+          // Navigate to the auth link — Supabase will process it and redirect to /dashboard
+          window.location.href = data.authLink;
+          return; // ✅ Adicionar return para sair do loop
         }
-
-        setStatus("redirecting");
-        console.log("[CheckoutSuccess] Auto-login successful, redirecting...");
-        // Navigate to the auth link — Supabase will process it and redirect to /dashboard
-        window.location.href = data.authLink;
-      } catch (err: any) {
+        } catch (err: any) {
         console.error(`[CheckoutSuccess] Error on attempt ${retryCount + 1}:`, err);
         
         if (retryCount < 3) {

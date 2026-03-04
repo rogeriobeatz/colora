@@ -112,9 +112,11 @@ const Landing = () => {
   // Auto-play carousel
   useEffect(() => {
     const interval = setInterval(() => {
+      // 🔴 OTIMIZADO: Pausar se página não estiver visível
+      if (document.hidden) return;
       setCurrentImage((prev) => (prev + 1) % roomImages.length);
-    }, 4000); // Muda a cada 4 segundos
-
+    }, 6000); // ✅ Aumentado de 4s para 6s - menos requisições
+    
     return () => clearInterval(interval);
   }, []);
 
@@ -130,13 +132,13 @@ const Landing = () => {
             <img src={logoSvg} alt="Logotipo Colora" className="w-32" />
           </Link>
           <div className="flex items-center gap-3">
-            <Button variant="ghost" size="sm" asChild>
+            <Button variant="ghost" size="sm" asChild className="z-99">
               <Link to="/login">Área da Loja</Link>
             </Button>
             <Button variant="gradient-secondary" size="lg" asChild className="button-glow button-pulse">
               <Link to="/checkout">
                 Assinar Agora <ArrowRight className="w-4 h-4 ml-2" />
-                <div className="button-shine" />
+                {/* <div className="button-shine" /> */}
               </Link>
             </Button>
           </div>
