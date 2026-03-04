@@ -9,6 +9,8 @@ const CheckoutSuccess = () => {
   const [searchParams] = useSearchParams();
   const email = searchParams.get("email") || "";
   const sessionId = searchParams.get("session_id") || "";
+  const mode = searchParams.get("mode") || "";
+  const origin = searchParams.get("origin") || "";
   const [status, setStatus] = useState<"loading" | "redirecting" | "error">("loading");
   const [errorMsg, setErrorMsg] = useState("");
   const [retryCount, setRetryCount] = useState(0);
@@ -24,59 +26,31 @@ const CheckoutSuccess = () => {
       try {
         setStatus("loading");
 
-        // Exponential backoff: 3s, 6s, 12s, 24s (max 4 attempts)
-        const baseDelay = 3000;
-        const maxRetries = 4;
+        // 🔧 CORREÇÃO: Redirecionamento direto baseado no origin
+        console.log("[CheckoutSuccess] Iniciando redirecionamento:", { email, sessionId, mode, origin });
         
-        for (let i = 0; i < maxRetries; i++) {
-          const currentDelay = baseDelay * Math.pow(2, i);
-          console.log(`[CheckoutSuccess] Attempt ${i + 1}/${maxRetries}, waiting ${currentDelay}ms`);
-          
-          // 🔴 OTIMIZADO: Adicionar timeout máximo para evitar loop infinito
-          const MAX_TOTAL_TIME = 30000; // 30 segundos máximo
-          const startTime = Date.now();
-          
-          // Wait with exponential backoff
-          await new Promise(r => setTimeout(r, currentDelay));
-          
-          // Verificar se excedeu tempo máximo
-          if (Date.now() - startTime > MAX_TOTAL_TIME) {
-            console.error("[CheckoutSuccess] Timeout máximo atingido");
-            break;
-          }
-
-          // Call edge function to get auto-login link (verified against Stripe)
-          const { data, error } = await supabase.functions.invoke("generate-auth-link", {
-            body: { email: decodeURIComponent(email), sessionId }
-          });
-
-          if (error || !data?.authLink) {
-            throw new Error(data?.error || error?.message || "Não foi possível gerar o link de acesso");
-          }
-
-          setStatus("redirecting");
-          console.log("[CheckoutSuccess] Auto-login successful, redirecting...");
-          // Navigate to the auth link — Supabase will process it and redirect to /dashboard
-          window.location.href = data.authLink;
-          return; // ✅ Adicionar return para sair do loop
-        }
-        } catch (err: any) {
-        console.error(`[CheckoutSuccess] Error on attempt ${retryCount + 1}:`, err);
+        // Esperar um pouco para o webhook processar
+        await new Promise(r => setTimeout(r, 3000));
         
-        if (retryCount < 3) {
-          // Retry with exponential backoff
-          setRetryCount(prev => prev + 1);
-        } else {
-          setStatus("error");
-          setErrorMsg(err.message || "Erro ao acessar a plataforma após múltiplas tentativas.");
-          
-          // Log for debugging
-          console.error("[CheckoutSuccess] All retry attempts failed", {
-            email: decodeURIComponent(email),
-            sessionId,
-            attempts: retryCount + 1
-          });
-        }
+        // Detectar URL base dinamicamente
+        const baseUrl = origin || window.location.origin;
+        const isLocalhost = baseUrl.includes('localhost') || baseUrl.includes('127.0.0.1');
+        
+        // Redirecionar diretamente para a dashboard com parâmetros de sucesso
+        const redirectUrl = isLocalhost 
+          ? `${baseUrl}/dashboard?payment=success&mode=${mode}&session_id=${sessionId}`
+          : `https://colora.rogerio.work/dashboard?payment=success&mode=${mode}&session_id=${sessionId}`;
+        
+        setStatus("redirecting");
+        console.log("[CheckoutSuccess] Redirecionando para:", redirectUrl);
+        
+        window.location.href = redirectUrl;
+        return;
+        
+      } catch (err: any) {
+        console.error("[CheckoutSuccess] Erro no redirecionamento:", err);
+        setStatus("error");
+        setErrorMsg("Erro ao redirecionar para a dashboard. Tente acessar manualmente.");
       }
     };
 

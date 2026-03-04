@@ -13,8 +13,28 @@ serve(async (req) => {
     return new Response(null, { headers });
   }
 
+  // 🔍 DEBUG: Log completo da requisição
+  const origin = req.headers.get("origin");
+  logStep("=== REQUEST DEBUG ===", {
+    method: req.method,
+    url: req.url,
+    origin: origin,
+    headers: {
+      origin: origin,
+      contentType: req.headers.get("content-type"),
+      authorization: req.headers.get("authorization") ? "***" : "missing",
+      userAgent: req.headers.get("user-agent")
+    }
+  });
+
   const stripeKey = Deno.env.get("STRIPE_SECRET_KEY");
   const webhookSecret = Deno.env.get("STRIPE_WEBHOOK_SECRET");
+  
+  logStep("ENV CHECK", {
+    hasStripeKey: !!stripeKey,
+    hasWebhookSecret: !!webhookSecret,
+    stripeKeyPrefix: stripeKey ? stripeKey.substring(0, 10) + "..." : "null"
+  });
   
   if (!stripeKey) {
     logStep("ERROR: STRIPE_SECRET_KEY not configured");
@@ -29,28 +49,55 @@ serve(async (req) => {
   });
 
   try {
-    const { mode, customerData } = await req.json();
+    // 🔍 DEBUG: Log do body parsing
+    const bodyText = await req.text();
+    logStep("RAW BODY", { bodyText, bodyLength: bodyText.length });
+    
+    let parsedBody;
+    try {
+      parsedBody = JSON.parse(bodyText);
+    } catch (parseError) {
+      logStep("JSON PARSE ERROR", { error: parseError.message, rawBody: bodyText });
+      throw new Error("Invalid JSON in request body");
+    }
+    
+    const { mode, customerData } = parsedBody;
     const origin = req.headers.get("origin") || "https://colora.rogerio.work";
-    logStep("Request received", { mode, email: customerData?.email });
+    
+    logStep("PARSED DATA", { 
+      mode, 
+      customerData,
+      hasEmail: !!customerData?.email,
+      hasName: !!customerData?.name,
+      origin
+    });
 
     if (!customerData?.email || !customerData?.name) {
       throw new Error("Dados do cliente incompletos (e-mail e nome são obrigatórios)");
     }
 
     // Find or create Stripe customer
+    logStep("FINDING CUSTOMER", { email: customerData.email });
     const customers = await stripe.customers.list({ email: customerData.email, limit: 1 });
     let customerId: string | undefined;
+    
+    logStep("CUSTOMER SEARCH RESULT", { 
+      found: customers.data.length > 0,
+      customerCount: customers.data.length
+    });
     
     if (customers.data.length > 0) {
       customerId = customers.data[0].id;
       logStep("Found existing customer", { customerId });
     } else {
+      logStep("CREATING NEW CUSTOMER", { email: customerData.email, name: customerData.name });
       const customerParams: any = {
         email: customerData.email,
         name: customerData.name,
         metadata: { source: 'colora_checkout' },
       };
       if (customerData.phone) customerParams.phone = customerData.phone;
+      
       const newCustomer = await stripe.customers.create(customerParams);
       customerId = newCustomer.id;
       logStep("Created new customer", { customerId });
@@ -58,17 +105,45 @@ serve(async (req) => {
 
     const isSubscription = mode === "subscription";
     
-    // Success URL → simple success page with email param
-    const successUrl = `${origin}/checkout/sucesso?email=${encodeURIComponent(customerData.email)}&session_id={CHECKOUT_SESSION_ID}`;
-    const cancelUrl = `${origin}/checkout?payment=canceled`;
+    // 🔧 CORREÇÃO: Success URL dinâmica baseada no frontend
+    // Detecta se está em localhost ou produção
+    const isLocalhost = origin?.includes('localhost') || origin?.includes('127.0.0.1');
+    const baseUrl = isLocalhost ? origin : "https://colora.rogerio.work";
+    
+    // Success URL → página de sucesso com redirecionamento dinâmico
+    const successUrl = `${baseUrl}/checkout/sucesso?email=${encodeURIComponent(customerData.email)}&session_id={CHECKOUT_SESSION_ID}&mode=${mode}&origin=${encodeURIComponent(origin || baseUrl)}`;
+    const cancelUrl = `${baseUrl}/checkout?payment=canceled`;
+    
+    logStep("URL CONFIG", {
+      origin,
+      isLocalhost,
+      baseUrl,
+      successUrl,
+      cancelUrl
+    });
 
     // Verificar se os preços existem antes de criar sessão
     const subscriptionPrice = isSubscription ? "price_1T458zRjNIKJreFo2hsTiIKO" : null;
     const rechargePrice = !isSubscription ? "price_1T459DRjNIKJreFoNCmabUQM" : null;
     
+    logStep("PRICE CHECK", {
+      isSubscription,
+      subscriptionPrice,
+      rechargePrice,
+      finalPrice: subscriptionPrice || rechargePrice
+    });
+    
     if (!subscriptionPrice && !rechargePrice) {
       throw new Error("Preço não configurado para o modo selecionado");
     }
+
+    logStep("CREATING CHECKOUT SESSION", {
+      customerId,
+      price: subscriptionPrice || rechargePrice,
+      mode: isSubscription ? "subscription" : "payment",
+      successUrl,
+      cancelUrl
+    });
 
     const session = await stripe.checkout.sessions.create({
       customer: customerId,
@@ -89,7 +164,8 @@ serve(async (req) => {
         customer_company: customerData.company || '',
         customer_document: customerData.document || '',
         customer_document_type: customerData.documentType || 'cpf',
-        create_user_on_success: 'true',
+        create_user_on_success: isSubscription ? 'true' : 'false', // 🔧 CORREÇÃO: Só para assinaturas
+        is_recharge: !isSubscription ? 'true' : 'false', // ✅ Identificar recargas
         origin: origin,
       },
     });

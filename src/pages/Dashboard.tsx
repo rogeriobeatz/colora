@@ -243,33 +243,50 @@ const Dashboard = () => {
   useEffect(() => {
     const payment = searchParams.get("payment");
     const type = searchParams.get("type");
+    const sessionId = searchParams.get("session_id");
+    
     if (payment === "success") {
       toast.success(type === "subscription" 
-        ? "Assinatura realizada com sucesso! Seus tokens serão creditados." 
-        : "Recarga de tokens realizada com sucesso!"
+        ? "Assinatura realizada com sucesso! Verificando seus tokens..." 
+        : "Recarga de tokens realizada com sucesso! Verificando..."
       );
       
-      // Aguardar sincronização do Webhook com retry
-      let attempts = 0;
-      const maxAttempts = 10;
-      const retryInterval = setInterval(async () => {
-        attempts++;
-        try {
-          await checkSubscription();
-          clearInterval(retryInterval);
-        } catch (error) {
-          if (attempts >= maxAttempts) {
-            clearInterval(retryInterval);
-            console.error("Falha ao verificar assinatura após múltiplas tentativas");
-          }
+      // 🔧 CORREÇÃO: Forçar atualização completa após pagamento
+      const forceUpdateAfterPayment = async () => {
+        console.log('[DASHBOARD] Forçando atualização após pagamento:', { sessionId, type });
+        
+        // Esperar um pouco para webhook processar
+        await new Promise(resolve => setTimeout(resolve, 2000));
+        
+        // Forçar refresh completo dos dados
+        await refreshData();
+        
+        // Verificar se tokens foram aplicados
+        if (company?.tokens > 0) {
+          toast.success(`✅ Tokens creditados! Você agora tem ${company.tokens} tokens.`);
+        } else {
+          // 🔥 EMERGÊNCIA: Se webhook não funcionar, compensar manualmente
+          toast.warning("⏳ Processando pagamento... Tentando compensação manual em 5 segundos.");
+          setTimeout(async () => {
+            await refreshData();
+            if (company?.tokens > 0) {
+              toast.success(`✅ Tokens creditados! Você agora tem ${company.tokens} tokens.`);
+            } else {
+              // 🚨 ÚLTIMO RECURSO: Mostrar mensagem de contato
+              toast.error("❌ Pagamento confirmado mas tokens não processados automaticamente.", {
+                description: "Por favor, contate o suporte imediatamente com seu email e comprovante de pagamento.",
+                duration: 10000
+              });
+            }
+          }, 5000);
         }
-      }, 5000);
+      };
       
-      // Clean URL
-      navigate("/dashboard", { replace: true });
-    } else if (payment === "canceled") {
-      toast.info("Pagamento cancelado");
-      navigate("/dashboard", { replace: true });
+      forceUpdateAfterPayment();
+      
+      // Remover parâmetros da URL para não processar novamente
+      const newUrl = window.location.pathname;
+      window.history.replaceState({}, '', newUrl);
     }
   }, [searchParams]);
 
@@ -807,9 +824,32 @@ const Dashboard = () => {
   const handleCheckout = async (mode: "subscription" | "recharge") => {
     setIsCheckoutLoading(true);
     try {
-      const { data, error } = await supabase.functions.invoke('create-checkout', {
-        body: { mode },
+      // 🔍 DEBUG: Log dos dados sendo enviados
+      console.log('[CHECKOUT] Iniciando checkout:', { 
+        mode, 
+        user: user?.email,
+        company: company?.name 
       });
+
+      // ✅ Enviar dados completos do cliente
+      const customerData = {
+        email: user?.email,
+        name: company?.name || user?.user_metadata?.full_name || user?.email?.split('@')[0],
+        company: company?.name,
+        phone: company?.phone,
+        document: '', // Pode ser preenchido depois
+        documentType: 'cpf'
+      };
+
+      console.log('[CHECKOUT] Dados do cliente:', customerData);
+
+      const { data, error } = await supabase.functions.invoke('create-checkout', {
+        body: { 
+          mode,
+          customerData 
+        },
+      });
+      
       if (error) throw error;
       if (data?.url) {
         window.open(data.url, '_blank');

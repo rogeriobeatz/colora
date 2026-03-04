@@ -10,6 +10,59 @@ const logStep = (step: string, details?: unknown) => {
   console.log(`[STRIPE-WEBHOOK] ${step}${detailsStr}`);
 };
 
+// Token recharge handler for existing users
+const handleTokenRecharge = async (supabaseAdmin: any, session: any) => {
+  const metadata = session.metadata || {};
+  const customerId = typeof session.customer === "string" ? session.customer : session.customer?.id;
+  const email = metadata.customer_email;
+  
+  logStep("Processing token recharge", { email, customerId, sessionId: session.id });
+
+  // Find user by customer ID
+  const { data: profile } = await supabaseAdmin
+    .from("profiles")
+    .select("id, email, tokens, full_name")
+    .eq("stripe_customer_id", customerId)
+    .single();
+
+  if (!profile) {
+    throw new Error(`Profile not found for customer: ${customerId}`);
+  }
+
+  logStep("Found profile for recharge", { profileId: profile.id, currentTokens: profile.tokens });
+
+  // Add 100 tokens for recharge
+  const newTokens = (profile.tokens || 0) + 100;
+  
+  const { error } = await supabaseAdmin
+    .from("profiles")
+    .update({
+      tokens: newTokens,
+      updated_at: new Date().toISOString(),
+      last_recharge_at: new Date().toISOString()
+    })
+    .eq("id", profile.id);
+
+  if (error) {
+    throw new Error(`Failed to update tokens: ${error.message}`);
+  }
+
+  // Record token consumption
+  await supabaseAdmin.from("token_consumptions").insert({
+    user_id: profile.id,
+    amount: 100,
+    description: `Recarga de tokens - Sessão: ${session.id}`,
+  });
+
+  logStep("Tokens recharged successfully", { 
+    profileId: profile.id, 
+    oldTokens: profile.tokens, 
+    newTokens: newTokens 
+  });
+
+  return { userId: profile.id, email: profile.email, newTokens };
+};
+
 // Error notification helper
 const notifyError = async (error: string, context: any) => {
   try {
@@ -55,6 +108,36 @@ const createOrUpdateUser = async (supabaseAdmin: any, session: any) => {
     if (existingUser) {
       userId = existingUser.id;
       logStep("User already exists, updating", { userId });
+      
+      // ✅ CORREÇÃO CRÍTICA: Atualizar profile existente com tokens e status
+      const profileData = {
+        id: userId,
+        full_name: name || email.split('@')[0],
+        stripe_customer_id: customerId,
+        document_type: metadata.customer_document_type || 'cpf',
+        document_number: metadata.customer_document || '',
+        company_name: metadata.customer_company || name || email.split('@')[0],
+        company_phone: metadata.customer_phone || '',
+        subscription_status: 'active',
+        tokens: 200, // ✅ SEMPRE creditar 200 tokens para assinatura
+        updated_at: new Date().toISOString(),
+        last_payment_at: new Date().toISOString()
+      };
+
+      const { error: profileError } = await supabaseRetry(
+        () => supabaseAdmin
+          .from('profiles')
+          .upsert(profileData, { onConflict: 'id' }),
+        'upsertExistingProfile',
+        { maxAttempts: 3, baseDelay: 1000 }
+      );
+
+      if (profileError) {
+        logStep("ERROR upserting existing profile", { error: profileError.message });
+        throw new Error(`Profile update failed: ${profileError.message}`);
+      }
+
+      logStep("Existing profile updated successfully", { userId, tokens: 200 });
       
       // Update existing user with payment metadata
       await supabaseRetry(
@@ -173,6 +256,13 @@ serve(async (req) => {
   const stripeKey = Deno.env.get("STRIPE_SECRET_KEY");
   const webhookSecret = Deno.env.get("STRIPE_WEBHOOK_SECRET");
   
+  // 🔍 DEBUG: Verificar configuração
+  logStep("WEBHOOK CONFIG CHECK", {
+    hasStripeKey: !!stripeKey,
+    hasWebhookSecret: !!webhookSecret,
+    stripeKeyPrefix: stripeKey ? stripeKey.substring(0, 10) + "..." : "null"
+  });
+  
   if (!stripeKey || !webhookSecret) {
     logStep("ERROR: Stripe keys not configured");
     return new Response(JSON.stringify({ error: "Stripe keys not configured" }), {
@@ -183,6 +273,7 @@ serve(async (req) => {
 
   const stripeSignature = req.headers.get("Stripe-Signature");
   if (!stripeSignature) {
+    logStep("ERROR: Missing stripe-signature");
     return new Response(JSON.stringify({ error: "Missing stripe-signature" }), {
       headers: { ...headers, "Content-Type": "application/json" },
       status: 400,
@@ -194,8 +285,13 @@ serve(async (req) => {
   let event: Stripe.Event;
   try {
     const rawBody = await req.text();
+    logStep("WEBHOOK BODY RECEIVED", { 
+      bodyLength: rawBody.length,
+      signature: stripeSignature.substring(0, 20) + "..."
+    });
+    
     event = stripe.webhooks.constructEvent(rawBody, stripeSignature, webhookSecret);
-    logStep("Event verified", { type: event.type });
+    logStep("Event verified", { type: event.type, id: event.id });
   } catch (err: any) {
     logStep("ERROR: Signature verification failed", { message: err?.message });
     return new Response(JSON.stringify({ error: "Invalid signature" }), {
@@ -215,9 +311,28 @@ serve(async (req) => {
       const session = event.data.object as Stripe.Checkout.Session;
       const customerId = typeof session.customer === "string" ? session.customer : session.customer?.id;
 
-      logStep("Processing checkout.session.completed", { sessionId: session.id, metadata: session.metadata });
+      logStep("Processing checkout.session.completed", { 
+        sessionId: session.id, 
+        metadata: session.metadata,
+        isRecharge: session.metadata?.is_recharge === 'true'
+      });
 
-      if (session.metadata?.create_user_on_success === 'true') {
+      // 🔧 CORREÇÃO: Separar lógica de assinatura vs recarga
+      if (session.metadata?.is_recharge === 'true') {
+        // 🔄 LÓGICA DE RECARGA DE TOKENS
+        try {
+          await handleTokenRecharge(supabaseAdmin, session);
+          logStep("Token recharge completed successfully", { sessionId: session.id });
+        } catch (error: any) {
+          await notifyError(`Token recharge failed: ${error.message}`, {
+            sessionId: session.id,
+            customerId,
+            metadata: session.metadata,
+            paymentStatus: session.payment_status
+          });
+        }
+      } else if (session.metadata?.create_user_on_success === 'true') {
+        // 🔄 LÓGICA DE ASSINATURA NOVA
         try {
           const result = await createOrUpdateUser(supabaseAdmin, session);
           logStep("Checkout processing completed successfully", result);
@@ -236,21 +351,15 @@ serve(async (req) => {
           }
           
         } catch (error: any) {
-          // Critical: Payment succeeded but user creation failed
           await notifyError(error.message, {
             sessionId: session.id,
             customerId,
             metadata: session.metadata,
             paymentStatus: session.payment_status
           });
-          
-          // Don't throw - we don't want Stripe to retry the webhook
-          // The payment was successful, we just need to handle the user creation manually
-          logStep("User creation failed but payment successful - manual intervention required", { 
-            sessionId: session.id,
-            error: error.message 
-          });
         }
+      } else {
+        logStep("Session completed but no action needed", { sessionId: session.id });
       }
     }
 
