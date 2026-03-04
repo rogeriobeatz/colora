@@ -57,7 +57,7 @@ serve(async (req) => {
     try {
       parsedBody = JSON.parse(bodyText);
     } catch (parseError) {
-      logStep("JSON PARSE ERROR", { error: parseError.message, rawBody: bodyText });
+      logStep("JSON PARSE ERROR", { error: (parseError as Error).message, rawBody: bodyText });
       throw new Error("Invalid JSON in request body");
     }
     

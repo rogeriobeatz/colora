@@ -22,39 +22,60 @@ const CheckoutSuccess = () => {
       return;
     }
 
+    let cancelled = false;
+
     const autoLogin = async () => {
       try {
         setStatus("loading");
+        console.log("[CheckoutSuccess] Iniciando auto-login:", { email, sessionId, mode, origin, attempt: retryCount + 1 });
 
-        // 🔧 CORREÇÃO: Redirecionamento direto baseado no origin
-        console.log("[CheckoutSuccess] Iniciando redirecionamento:", { email, sessionId, mode, origin });
+        // Wait for webhook to process (longer on first try)
+        const delay = retryCount === 0 ? 4000 : 2000;
+        await new Promise(r => setTimeout(r, delay));
+        if (cancelled) return;
+
+        // Call generate-auth-link to get a programmatic auth link
+        console.log("[CheckoutSuccess] Chamando generate-auth-link...");
+        const { data, error } = await supabase.functions.invoke("generate-auth-link", {
+          body: { email: decodeURIComponent(email), sessionId },
+        });
+
+        if (error) {
+          console.error("[CheckoutSuccess] Erro na function:", error);
+          throw new Error(error.message || "Erro ao gerar link de autenticação");
+        }
+
+        if (!data?.authLink) {
+          console.error("[CheckoutSuccess] Resposta sem authLink:", data);
+          throw new Error(data?.error || "Link de autenticação não gerado");
+        }
+
+        console.log("[CheckoutSuccess] Auth link recebido, redirecionando...");
         
-        // Esperar um pouco para o webhook processar
-        await new Promise(r => setTimeout(r, 3000));
-        
-        // Detectar URL base dinamicamente
-        const baseUrl = origin || window.location.origin;
-        const isLocalhost = baseUrl.includes('localhost') || baseUrl.includes('127.0.0.1');
-        
-        // Redirecionar diretamente para a dashboard com parâmetros de sucesso
-        const redirectUrl = isLocalhost 
-          ? `${baseUrl}/dashboard?payment=success&mode=${mode}&session_id=${sessionId}`
-          : `https://colora.rogerio.work/dashboard?payment=success&mode=${mode}&session_id=${sessionId}`;
-        
+        if (cancelled) return;
         setStatus("redirecting");
-        console.log("[CheckoutSuccess] Redirecionando para:", redirectUrl);
-        
-        window.location.href = redirectUrl;
-        return;
+
+        // Redirect to the auth link which will authenticate and redirect to dashboard
+        window.location.href = data.authLink;
         
       } catch (err: any) {
-        console.error("[CheckoutSuccess] Erro no redirecionamento:", err);
+        console.error("[CheckoutSuccess] Erro:", err);
+        if (cancelled) return;
+        
+        // Auto-retry up to 3 times
+        if (retryCount < 3) {
+          console.log(`[CheckoutSuccess] Tentando novamente (${retryCount + 1}/3)...`);
+          setRetryCount(prev => prev + 1);
+          return;
+        }
+        
         setStatus("error");
-        setErrorMsg("Erro ao redirecionar para a dashboard. Tente acessar manualmente.");
+        setErrorMsg(err.message || "Erro ao autenticar. Tente fazer login manualmente.");
       }
     };
 
     autoLogin();
+    return () => { cancelled = true; };
   }, [email, sessionId, retryCount]);
 
   return (
@@ -80,7 +101,7 @@ const CheckoutSuccess = () => {
                   {status === "redirecting"
                     ? "Você será levado ao painel em instantes..."
                     : retryCount > 0
-                      ? `Aguardando processamento... (tentativa ${retryCount + 1})`
+                      ? `Aguardando processamento... (tentativa ${retryCount + 1}/4)`
                       : "Estamos preparando seu acesso à plataforma..."}
                 </p>
               </div>
