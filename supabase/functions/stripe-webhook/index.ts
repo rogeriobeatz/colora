@@ -2,8 +2,6 @@ import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import Stripe from "https://esm.sh/stripe@18.5.0";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { corsHeaders } from "../_shared/cors.ts";
-import { sendWelcomeEmail, sendRenewalEmail } from "../_shared/email.ts";
-import { supabaseRetry, circuitBreakers } from "../_shared/retry.ts";
 
 const logStep = (step: string, details?: unknown) => {
   const detailsStr = details ? ` - ${JSON.stringify(details)}` : "";
@@ -11,14 +9,13 @@ const logStep = (step: string, details?: unknown) => {
 };
 
 // Token recharge handler for existing users
-const handleTokenRecharge = async (supabaseAdmin: any, session: any) => {
+const handleTokenRecharge = async (supabaseAdmin: ReturnType<typeof createClient>, session: any) => {
   const metadata = session.metadata || {};
   const customerId = typeof session.customer === "string" ? session.customer : session.customer?.id;
   const email = metadata.customer_email;
   
   logStep("Processing token recharge", { email, customerId, sessionId: session.id });
 
-  // Find user by customer ID
   const { data: profile } = await supabaseAdmin
     .from("profiles")
     .select("id, email, tokens, full_name")
@@ -31,7 +28,6 @@ const handleTokenRecharge = async (supabaseAdmin: any, session: any) => {
 
   logStep("Found profile for recharge", { profileId: profile.id, currentTokens: profile.tokens });
 
-  // Add 100 tokens for recharge
   const newTokens = (profile.tokens || 0) + 100;
   
   const { error } = await supabaseAdmin
@@ -39,7 +35,6 @@ const handleTokenRecharge = async (supabaseAdmin: any, session: any) => {
     .update({
       tokens: newTokens,
       updated_at: new Date().toISOString(),
-      last_recharge_at: new Date().toISOString()
     })
     .eq("id", profile.id);
 
@@ -47,43 +42,18 @@ const handleTokenRecharge = async (supabaseAdmin: any, session: any) => {
     throw new Error(`Failed to update tokens: ${error.message}`);
   }
 
-  // Record token consumption
   await supabaseAdmin.from("token_consumptions").insert({
     user_id: profile.id,
     amount: 100,
     description: `Recarga de tokens - Sessão: ${session.id}`,
   });
 
-  logStep("Tokens recharged successfully", { 
-    profileId: profile.id, 
-    oldTokens: profile.tokens, 
-    newTokens: newTokens 
-  });
-
-  return { userId: profile.id, email: profile.email, newTokens };
+  logStep("Tokens recharged successfully", { profileId: profile.id, oldTokens: profile.tokens, newTokens });
+  return { userId: profile.id, newTokens };
 };
 
-// Error notification helper
-const notifyError = async (error: string, context: any) => {
-  try {
-    // Log structured error for debugging
-    console.error(`[STRIPE-WEBHOOK] CRITICAL ERROR: ${error}`, context);
-    
-    // In production, you could send this to a monitoring service
-    // For now, we'll just log it with high visibility
-    console.error(`[WEBHOOK-FAILURE] Payment processed but user creation failed:`, {
-      error,
-      context,
-      timestamp: new Date().toISOString(),
-      requiresManualIntervention: true
-    });
-  } catch (logError) {
-    console.error("[STRIPE-WEBHOOK] Failed to notify error:", logError);
-  }
-};
-
-// User creation helper with better error handling
-const createOrUpdateUser = async (supabaseAdmin: any, session: any) => {
+// User creation helper
+const createOrUpdateUser = async (supabaseAdmin: ReturnType<typeof createClient>, session: any) => {
   const metadata = session.metadata || {};
   const customerId = typeof session.customer === "string" ? session.customer : session.customer?.id;
   const email = metadata.customer_email;
@@ -95,151 +65,88 @@ const createOrUpdateUser = async (supabaseAdmin: any, session: any) => {
 
   logStep("Processing user creation", { email, customerId });
 
-  try {
-    // 1. Check if user exists with retry
-    const { data: userList } = await supabaseRetry(
-      () => supabaseAdmin.auth.admin.listUsers(),
-      'listUsers',
-      { maxAttempts: 3, baseDelay: 1000 }
-    );
-    const existingUser = userList?.users.find(u => u.email?.toLowerCase() === email.toLowerCase());
-    let userId: string;
+  // 1. Check if user exists
+  const { data: userList } = await supabaseAdmin.auth.admin.listUsers();
+  const existingUser = userList?.users.find((u: any) => u.email?.toLowerCase() === email.toLowerCase());
+  let userId: string;
 
-    if (existingUser) {
-      userId = existingUser.id;
-      logStep("User already exists, updating", { userId });
-      
-      // ✅ CORREÇÃO CRÍTICA: Atualizar profile existente com tokens e status
-      const profileData = {
-        id: userId,
-        full_name: name || email.split('@')[0],
-        stripe_customer_id: customerId,
-        document_type: metadata.customer_document_type || 'cpf',
-        document_number: metadata.customer_document || '',
-        company_name: metadata.customer_company || name || email.split('@')[0],
-        company_phone: metadata.customer_phone || '',
-        subscription_status: 'active',
-        tokens: 200, // ✅ SEMPRE creditar 200 tokens para assinatura
-        updated_at: new Date().toISOString(),
-        last_payment_at: new Date().toISOString()
-      };
+  if (existingUser) {
+    userId = existingUser.id;
+    logStep("User already exists, updating", { userId });
 
-      const { error: profileError } = await supabaseRetry(
-        () => supabaseAdmin
-          .from('profiles')
-          .upsert(profileData, { onConflict: 'id' }),
-        'upsertExistingProfile',
-        { maxAttempts: 3, baseDelay: 1000 }
-      );
-
-      if (profileError) {
-        logStep("ERROR upserting existing profile", { error: profileError.message });
-        throw new Error(`Profile update failed: ${profileError.message}`);
+    // Update existing user metadata
+    await supabaseAdmin.auth.admin.updateUserById(userId, {
+      user_metadata: { 
+        ...existingUser.user_metadata,
+        full_name: name, 
+        source: 'stripe_checkout',
+        needs_password: true,
+        last_payment_session: session.id
       }
-
-      logStep("Existing profile updated successfully", { userId, tokens: 200 });
-      
-      // Update existing user with payment metadata
-      await supabaseRetry(
-        () => supabaseAdmin.auth.admin.updateUserById(userId, {
-          user_metadata: { 
-            ...existingUser.user_metadata,
-            full_name: name, 
-            source: 'stripe_checkout',
-            needs_password: true,
-            last_payment_session: session.id
-          }
-        }),
-        'updateUserById',
-        { maxAttempts: 3, baseDelay: 1000 }
-      );
-    } else {
-      // 2. Create new user with secure random password
-      const tempPassword = `Colora@${crypto.randomUUID().slice(0, 12)}`;
-      const { data: newUser, error: createError } = await supabaseRetry(
-        () => supabaseAdmin.auth.admin.createUser({
-          email,
-          password: tempPassword,
-          email_confirm: true,
-          user_metadata: { 
-            full_name: name, 
-            source: 'stripe_checkout',
-            needs_password: true,
-            payment_session: session.id
-          }
-        }),
-        'createUser',
-        { maxAttempts: 3, baseDelay: 1000 }
-      );
-
-      if (createError) {
-        logStep("ERROR creating user", { error: createError.message });
-        throw new Error(`User creation failed: ${createError.message}`);
+    });
+  } else {
+    // 2. Create new user with secure random password
+    const tempPassword = `Colora@${crypto.randomUUID().slice(0, 12)}`;
+    const { data: newUser, error: createError } = await supabaseAdmin.auth.admin.createUser({
+      email,
+      password: tempPassword,
+      email_confirm: true,
+      user_metadata: { 
+        full_name: name, 
+        source: 'stripe_checkout',
+        needs_password: true,
+        payment_session: session.id
       }
-      userId = newUser.user.id;
-      logStep("New user created successfully", { userId });
+    });
+
+    if (createError) {
+      throw new Error(`User creation failed: ${createError.message}`);
     }
-
-    // 3. Upsert profile with better error handling
-    const profileData = {
-      id: userId,
-      full_name: name || email.split('@')[0],
-      stripe_customer_id: customerId,
-      document_type: metadata.customer_document_type || 'cpf',
-      document_number: metadata.customer_document || '',
-      company_name: metadata.customer_company || name || email.split('@')[0],
-      company_phone: metadata.customer_phone || '',
-      subscription_status: 'active',
-      tokens: 200,
-      updated_at: new Date().toISOString(),
-      last_payment_at: new Date().toISOString()
-    };
-
-    const { error: profileError } = await supabaseRetry(
-      () => supabaseAdmin
-        .from('profiles')
-        .upsert(profileData, { onConflict: 'id' }),
-      'upsertProfile',
-      { maxAttempts: 3, baseDelay: 1000 }
-    );
-
-    if (profileError) {
-      logStep("ERROR upserting profile", { error: profileError.message });
-      throw new Error(`Profile creation failed: ${profileError.message}`);
-    }
-
-    // 4. Record token credit (idempotent)
-    const { data: existingCredit } = await supabaseRetry(
-      () => supabaseAdmin
-        .from('token_consumptions')
-        .select('id')
-        .eq('user_id', userId)
-        .eq('description', `Crédito inicial - Sessão: ${session.id}`)
-        .maybeSingle(),
-      'checkExistingCredit',
-      { maxAttempts: 2, baseDelay: 500 }
-    );
-
-    if (!existingCredit) {
-      await supabaseRetry(
-        () => supabaseAdmin.from('token_consumptions').insert({
-          user_id: userId,
-          amount: 200,
-          description: `Crédito inicial - Sessão: ${session.id}`,
-        }),
-        'insertTokenCredit',
-        { maxAttempts: 3, baseDelay: 1000 }
-      );
-      logStep("Token credit recorded", { userId, amount: 200 });
-    }
-
-    logStep("User processing completed successfully", { userId, email });
-    return { userId, email, name };
-    
-  } catch (error) {
-    logStep("CRITICAL ERROR in user processing", { error: error.message, email });
-    throw error;
+    userId = newUser.user.id;
+    logStep("New user created successfully", { userId });
   }
+
+  // 3. Upsert profile
+  const profileData = {
+    id: userId,
+    full_name: name || email.split('@')[0],
+    stripe_customer_id: customerId,
+    document_type: metadata.customer_document_type || 'cpf',
+    document_number: metadata.customer_document || '',
+    company_name: metadata.customer_company || name || email.split('@')[0],
+    company_phone: metadata.customer_phone || '',
+    subscription_status: 'active',
+    tokens: 200,
+    updated_at: new Date().toISOString(),
+  };
+
+  const { error: profileError } = await supabaseAdmin
+    .from('profiles')
+    .upsert(profileData, { onConflict: 'id' });
+
+  if (profileError) {
+    throw new Error(`Profile creation failed: ${profileError.message}`);
+  }
+
+  // 4. Record token credit (idempotent)
+  const { data: existingCredit } = await supabaseAdmin
+    .from('token_consumptions')
+    .select('id')
+    .eq('user_id', userId)
+    .eq('description', `Crédito inicial - Sessão: ${session.id}`)
+    .maybeSingle();
+
+  if (!existingCredit) {
+    await supabaseAdmin.from('token_consumptions').insert({
+      user_id: userId,
+      amount: 200,
+      description: `Crédito inicial - Sessão: ${session.id}`,
+    });
+    logStep("Token credit recorded", { userId, amount: 200 });
+  }
+
+  logStep("User processing completed successfully", { userId, email });
+  return { userId, email, name };
 };
 
 serve(async (req) => {
@@ -256,13 +163,6 @@ serve(async (req) => {
   const stripeKey = Deno.env.get("STRIPE_SECRET_KEY");
   const webhookSecret = Deno.env.get("STRIPE_WEBHOOK_SECRET");
   
-  // 🔍 DEBUG: Verificar configuração
-  logStep("WEBHOOK CONFIG CHECK", {
-    hasStripeKey: !!stripeKey,
-    hasWebhookSecret: !!webhookSecret,
-    stripeKeyPrefix: stripeKey ? stripeKey.substring(0, 10) + "..." : "null"
-  });
-  
   if (!stripeKey || !webhookSecret) {
     logStep("ERROR: Stripe keys not configured");
     return new Response(JSON.stringify({ error: "Stripe keys not configured" }), {
@@ -273,7 +173,6 @@ serve(async (req) => {
 
   const stripeSignature = req.headers.get("Stripe-Signature");
   if (!stripeSignature) {
-    logStep("ERROR: Missing stripe-signature");
     return new Response(JSON.stringify({ error: "Missing stripe-signature" }), {
       headers: { ...headers, "Content-Type": "application/json" },
       status: 400,
@@ -285,15 +184,11 @@ serve(async (req) => {
   let event: Stripe.Event;
   try {
     const rawBody = await req.text();
-    logStep("WEBHOOK BODY RECEIVED", { 
-      bodyLength: rawBody.length,
-      signature: stripeSignature.substring(0, 20) + "..."
-    });
-    
     event = stripe.webhooks.constructEvent(rawBody, stripeSignature, webhookSecret);
     logStep("Event verified", { type: event.type, id: event.id });
-  } catch (err: any) {
-    logStep("ERROR: Signature verification failed", { message: err?.message });
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : String(err);
+    logStep("ERROR: Signature verification failed", { message });
     return new Response(JSON.stringify({ error: "Invalid signature" }), {
       headers: { ...headers, "Content-Type": "application/json" },
       status: 400,
@@ -309,7 +204,6 @@ serve(async (req) => {
   try {
     if (event.type === "checkout.session.completed") {
       const session = event.data.object as Stripe.Checkout.Session;
-      const customerId = typeof session.customer === "string" ? session.customer : session.customer?.id;
 
       logStep("Processing checkout.session.completed", { 
         sessionId: session.id, 
@@ -317,47 +211,12 @@ serve(async (req) => {
         isRecharge: session.metadata?.is_recharge === 'true'
       });
 
-      // 🔧 CORREÇÃO: Separar lógica de assinatura vs recarga
       if (session.metadata?.is_recharge === 'true') {
-        // 🔄 LÓGICA DE RECARGA DE TOKENS
-        try {
-          await handleTokenRecharge(supabaseAdmin, session);
-          logStep("Token recharge completed successfully", { sessionId: session.id });
-        } catch (error: any) {
-          await notifyError(`Token recharge failed: ${error.message}`, {
-            sessionId: session.id,
-            customerId,
-            metadata: session.metadata,
-            paymentStatus: session.payment_status
-          });
-        }
+        await handleTokenRecharge(supabaseAdmin, session);
+        logStep("Token recharge completed successfully");
       } else if (session.metadata?.create_user_on_success === 'true') {
-        // 🔄 LÓGICA DE ASSINATURA NOVA
-        try {
-          const result = await createOrUpdateUser(supabaseAdmin, session);
-          logStep("Checkout processing completed successfully", result);
-          
-          // Send welcome email
-          const emailSent = await sendWelcomeEmail({
-            email: result.email,
-            name: result.name || result.email.split('@')[0],
-            companyName: session.metadata?.customer_company
-          });
-          
-          if (emailSent) {
-            logStep("Welcome email sent successfully", { email: result.email });
-          } else {
-            logStep("Welcome email failed to send", { email: result.email });
-          }
-          
-        } catch (error: any) {
-          await notifyError(error.message, {
-            sessionId: session.id,
-            customerId,
-            metadata: session.metadata,
-            paymentStatus: session.payment_status
-          });
-        }
+        const result = await createOrUpdateUser(supabaseAdmin, session);
+        logStep("Checkout processing completed successfully", result);
       } else {
         logStep("Session completed but no action needed", { sessionId: session.id });
       }
@@ -371,48 +230,26 @@ serve(async (req) => {
       if (customerId) {
         logStep("Processing invoice.paid", { customerId });
         
-        try {
-          const { data: profile } = await supabaseAdmin
+        const { data: profile } = await supabaseAdmin
+          .from("profiles")
+          .select("id, tokens, email, full_name")
+          .eq("stripe_customer_id", customerId)
+          .single();
+
+        if (profile) {
+          const newTokens = (profile.tokens || 0) + 200;
+          await supabaseAdmin
             .from("profiles")
-            .select("id, tokens, email")
-            .eq("stripe_customer_id", customerId)
-            .single();
+            .update({
+              tokens: newTokens,
+              subscription_status: "active",
+              updated_at: new Date().toISOString(),
+            })
+            .eq("id", profile.id);
 
-          if (profile) {
-            const newTokens = (profile.tokens || 0) + 200;
-            await supabaseAdmin
-              .from("profiles")
-              .update({
-                tokens: newTokens,
-                subscription_status: "active",
-                updated_at: new Date().toISOString(),
-                last_renewal_at: new Date().toISOString()
-              })
-              .eq("id", profile.id);
-
-            logStep("Tokens renewed successfully", { customerId, newTokens, profileId: profile.id });
-            
-            // Send renewal notification email
-            const emailSent = await sendRenewalEmail({
-              email: profile.email,
-              name: profile.full_name || profile.email.split('@')[0],
-              tokens: newTokens
-            });
-            
-            if (emailSent) {
-              logStep("Renewal email sent successfully", { email: profile.email });
-            } else {
-              logStep("Renewal email failed to send", { email: profile.email });
-            }
-          } else {
-            logStep("No profile found for customer", { customerId });
-          }
-        } catch (error: any) {
-          await notifyError(`Invoice processing failed: ${error.message}`, {
-            customerId,
-            invoiceId: invoice.id,
-            amount: invoice.amount_paid
-          });
+          logStep("Tokens renewed successfully", { customerId, newTokens, profileId: profile.id });
+        } else {
+          logStep("No profile found for customer", { customerId });
         }
       }
     }
@@ -443,9 +280,10 @@ serve(async (req) => {
       headers: { ...headers, "Content-Type": "application/json" },
       status: 200,
     });
-  } catch (err: any) {
-    logStep("CRITICAL ERROR", { message: err?.message });
-    return new Response(JSON.stringify({ error: err?.message }), {
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : String(err);
+    logStep("CRITICAL ERROR", { message });
+    return new Response(JSON.stringify({ error: message }), {
       headers: { ...headers, "Content-Type": "application/json" },
       status: 500,
     });
