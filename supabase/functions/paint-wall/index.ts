@@ -96,19 +96,19 @@ serve(async (req) => {
     if (uploadError) throw new Error(`Upload failed: ${uploadError.message}`);
     const { data: { publicUrl } } = serviceRoleClient.storage.from('images').getPublicUrl(fileName);
 
-    const prompt = `Change ONLY the **${technicalWallName}** color to "${paintColor}". 
+    const prompt = `Repaint ONLY the "${technicalWallName}" surface to the exact color "${paintColor}".
 
-**KEEP EXACTLY UNCHANGED:**
-- ALL people, faces, clothing, poses
-- animals and pets 
-- furniture positions and shapes
-- shadows and lighting direction  
-- floor, ceiling, other walls
-- textures and materials
-- camera angle and perspective
+STRICT RULES — DO NOT VIOLATE:
+1. NEVER add, remove, move, or reshape ANY architectural element (walls, columns, beams, arches, doors, windows, stairs, pillars). The building structure must remain PIXEL-PERFECT identical.
+2. NEVER add, remove, or move ANY object (furniture, decor, plants, appliances, people, pets). Every item stays exactly where it is.
+3. NEVER change the camera angle, perspective, field of view, or crop.
+4. NEVER alter lighting direction, shadow positions, or ambient light color.  
+5. ONLY change the paint color of the specified surface. Preserve its original texture (matte, satin, glossy, rough, smooth).
+6. Keep ALL other surfaces (floor, ceiling, other walls, trim, molding) at their original colors.
+7. Maintain exact same image resolution, sharpness, and photographic quality.
 
-Photorealistic interior design photography, professional lighting, high resolution.`;
-    
+Style: Photorealistic interior photograph, natural lighting, high resolution.`;
+
     const payload = { model: "flux-2/pro-image-to-image", input: { input_urls: [publicUrl], prompt, aspect_ratio: aspectRatio, resolution: "1K" }};
     
     const createRes = await fetch(`${KIE_BASE_URL}/api/v1/jobs/createTask`, {

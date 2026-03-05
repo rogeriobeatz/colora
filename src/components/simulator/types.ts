@@ -22,6 +22,7 @@ export interface Room {
   name: string;
   imageUrl: string; // imagem atualmente selecionada (principal)
   originalImageUrl: string;
+  currentBaseImage?: string; // base64 da última simulação aplicada (para acumular pinturas)
   walls: DetectedWall[];
   isAnalyzing: boolean;
   isAnalyzed: boolean;
