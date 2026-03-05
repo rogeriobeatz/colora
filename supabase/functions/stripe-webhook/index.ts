@@ -26,7 +26,7 @@ serve(async (req) => {
     logStep("Stripe keys not configured - webhook is backup only, skipping");
     return new Response(JSON.stringify({ error: "Webhook not configured (non-critical)" }), {
       headers: { ...headers, "Content-Type": "application/json" },
-      status: 200, // Return 200 so Stripe doesn't keep retrying
+      status: 200,
     });
   }
 
@@ -61,14 +61,65 @@ serve(async (req) => {
   );
 
   try {
-    // Handle invoice.paid for subscription RENEWALS (not initial payment)
+    // Handle invoice.paid for subscription RENEWALS only
     if (event.type === "invoice.paid") {
       const invoice = event.data.object as Stripe.Invoice;
       const customerId = typeof invoice.customer === "string" ? invoice.customer : invoice.customer?.id;
+      const invoiceId = invoice.id;
 
-      if (customerId) {
-        logStep("Processing invoice.paid", { customerId });
+      if (customerId && invoiceId) {
+        logStep("Processing invoice.paid", { customerId, invoiceId });
+
+        // IDEMPOTENCY CHECK: Skip if this invoice was already credited
+        const { data: existingCredit } = await supabaseAdmin
+          .from("token_consumptions")
+          .select("id")
+          .ilike("description", `%${invoiceId}%`)
+          .maybeSingle();
+
+        if (existingCredit) {
+          logStep("Invoice already credited, skipping", { invoiceId });
+          return new Response(JSON.stringify({ received: true, skipped: true }), {
+            headers: { ...headers, "Content-Type": "application/json" },
+            status: 200,
+          });
+        }
+
+        // Also check if this is the INITIAL invoice (billing_reason)
+        // For initial payments, generate-auth-link already handles crediting
+        const billingReason = (invoice as any).billing_reason;
+        logStep("Invoice billing reason", { billingReason });
+
+        if (billingReason === "subscription_create") {
+          // Check if generate-auth-link already credited via session ID
+          const sessionId = (invoice as any).subscription_details?.metadata?.payment_session 
+            || (invoice as any).metadata?.payment_session;
+          
+          // For initial subscriptions, check if ANY credit exists for this customer recently
+          const { data: recentCredit } = await supabaseAdmin
+            .from("token_consumptions")
+            .select("id")
+            .ilike("description", `%Sessão:%`)
+            .gte("created_at", new Date(Date.now() - 5 * 60 * 1000).toISOString()) // last 5 minutes
+            .limit(1);
+
+          // Look up profile by stripe_customer_id
+          const { data: profile } = await supabaseAdmin
+            .from("profiles")
+            .select("id, tokens")
+            .eq("stripe_customer_id", customerId)
+            .single();
+
+          if (profile && recentCredit && recentCredit.length > 0) {
+            logStep("Initial invoice - tokens already credited by generate-auth-link, skipping", { customerId });
+            return new Response(JSON.stringify({ received: true, skipped: true }), {
+              headers: { ...headers, "Content-Type": "application/json" },
+              status: 200,
+            });
+          }
+        }
         
+        // This is a RENEWAL or a missed initial credit - proceed
         const { data: profile } = await supabaseAdmin
           .from("profiles")
           .select("id, tokens")
@@ -86,7 +137,14 @@ serve(async (req) => {
             })
             .eq("id", profile.id);
 
-          logStep("Tokens renewed", { customerId, newTokens });
+          // Record the credit with invoice ID for idempotency
+          await supabaseAdmin.from("token_consumptions").insert({
+            user_id: profile.id,
+            amount: 200,
+            description: `Renovação de assinatura - Invoice: ${invoiceId}`,
+          });
+
+          logStep("Tokens renewed", { customerId, newTokens, invoiceId });
         } else {
           logStep("No profile found for customer", { customerId });
         }
