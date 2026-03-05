@@ -300,8 +300,8 @@ export function useSimulator({ companySlug }: { companySlug?: string } = {}) {
 
     dispatch({ type: 'APPLY_COLOR_START' });
     try {
-      // Extrair base64 da data URL do ambiente
-      const base64Only = activeRoom.imageUrl.replace(/^data:image\/[a-z]+;base64,/, '');
+      // Sempre usar a imagem ORIGINAL para pintar (não a URL de simulações anteriores)
+      const base64Only = activeRoom.originalImageUrl.replace(/^data:image\/[a-z]+;base64,/, '');
       
       const { data, error } = await supabase.functions.invoke("paint-wall", { 
         body: { 
