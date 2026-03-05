@@ -54,7 +54,7 @@ type Action =
   | { type: 'SET_SELECTED_WALL'; payload: string | null }
   | { type: 'SET_SELECTED_PAINT'; payload: Paint | null }
   | { type: 'APPLY_COLOR_START' }
-  | { type: 'APPLY_COLOR_SUCCESS'; payload: { roomId: string; simulation: WallSimulation } }
+  | { type: 'APPLY_COLOR_SUCCESS'; payload: { roomId: string; simulation: WallSimulation; currentBaseImage?: string } }
   | { type: 'APPLY_COLOR_FAILURE' }
   | { type: 'SELECT_SIMULATION'; payload: { roomId: string; simId: string | null } }
   | { type: 'REMOVE_SIMULATION'; payload: { roomId: string; simId: string } }
@@ -94,15 +94,16 @@ function simulatorReducer(state: SimulatorState, action: Action): SimulatorState
     case 'SET_SELECTED_PAINT': return { ...state, selectedPaint: action.payload };
     case 'APPLY_COLOR_START': return { ...state, isPainting: true };
     case 'APPLY_COLOR_SUCCESS': {
-        const { roomId, simulation } = action.payload;
-        return { ...state, isPainting: false, hasUnsavedChanges: true, rooms: state.rooms.map(r => r.id === roomId ? { ...r, imageUrl: simulation.imageUrl, simulations: [...r.simulations, simulation], activeSimulationId: simulation.id } : r )};
+        const { roomId, simulation, currentBaseImage } = action.payload;
+        return { ...state, isPainting: false, hasUnsavedChanges: true, rooms: state.rooms.map(r => r.id === roomId ? { ...r, imageUrl: simulation.imageUrl, currentBaseImage: currentBaseImage || r.currentBaseImage, simulations: [...r.simulations, simulation], activeSimulationId: simulation.id } : r )};
     }
     case 'APPLY_COLOR_FAILURE': return { ...state, isPainting: false };
     case 'SELECT_SIMULATION': {
         const { roomId, simId } = action.payload;
         return { ...state, hasUnsavedChanges: true, rooms: state.rooms.map(r => {
             if (r.id !== roomId) return r;
-            const sim = simId ? r.simulations.find(s => s.id === simId) : null;
+            if (!simId) return { ...r, activeSimulationId: null, imageUrl: r.originalImageUrl, currentBaseImage: undefined };
+            const sim = r.simulations.find(s => s.id === simId);
             return { ...r, activeSimulationId: simId, imageUrl: sim ? sim.imageUrl : r.originalImageUrl };
         })};
     }
@@ -300,8 +301,9 @@ export function useSimulator({ companySlug }: { companySlug?: string } = {}) {
 
     dispatch({ type: 'APPLY_COLOR_START' });
     try {
-      // Sempre usar a imagem ORIGINAL para pintar (não a URL de simulações anteriores)
-      const base64Only = activeRoom.originalImageUrl.replace(/^data:image\/[a-z]+;base64,/, '');
+      // Usar a base acumulada (última simulação) se existir, senão a original
+      const baseImage = activeRoom.currentBaseImage || activeRoom.originalImageUrl;
+      const base64Only = baseImage.replace(/^data:image\/[a-z]+;base64,/, '');
       
       const { data, error } = await supabase.functions.invoke("paint-wall", { 
         body: { 
@@ -317,9 +319,25 @@ export function useSimulator({ companySlug }: { companySlug?: string } = {}) {
       if (!data?.imageUrl) throw new Error("Image URL not returned");
 
       await refreshData();
+      
+      // Converter a imagem resultado para base64 para acumular pinturas futuras
+      let newBaseImage: string | undefined;
+      try {
+        const imgRes = await fetch(data.imageUrl);
+        const blob = await imgRes.blob();
+        newBaseImage = await new Promise<string>((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onload = () => resolve(reader.result as string);
+          reader.onerror = reject;
+          reader.readAsDataURL(blob);
+        });
+      } catch (e) {
+        console.warn("[useSimulator] Não foi possível converter imagem para base64, próximas pinturas usarão a base anterior", e);
+      }
+      
       const simId = genId();
       const simulation: WallSimulation = { id: simId, wallId: selectedWallId, wallLabel: wall.label, paint: selectedPaint, imageUrl: data.imageUrl, createdAt: nowIso(), isPainting: false };
-      dispatch({ type: 'APPLY_COLOR_SUCCESS', payload: { roomId: activeRoom.id, simulation }});
+      dispatch({ type: 'APPLY_COLOR_SUCCESS', payload: { roomId: activeRoom.id, simulation, currentBaseImage: newBaseImage }});
       toast.success("Cor aplicada com sucesso!");
     } catch (err: any) {
       const errorMessage = (err as any)?.data?.error || (err as any)?.message || "Tente novamente";
