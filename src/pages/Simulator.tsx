@@ -283,20 +283,20 @@ const Simulator = ({ companySlug }: { companySlug?: string }) => {
                 />
               </div>
             </div>
-          </div>
 
-          {/* Mobile ColorPanel - rendered outside grid */}
-          <div className="lg:hidden">
-            <ColorPanel
-              catalogs={company.catalogs}
-              selectedPaint={selectedPaint}
-              onSelectPaint={setSelectedPaint}
-              onApplyColor={applyColor}
-              canApply={!!activeRoom?.isAnalyzed && !!selectedWallId && !!selectedPaint}
-              isPainting={isPainting}
-              selectedWallLabel={selectedWall?.label}
-              primaryColor={company.primaryColor}
-            />
+            {/* Mobile ColorPanel - rendered outside grid */}
+            <div className="lg:hidden">
+              <ColorPanel
+                catalogs={company.catalogs}
+                selectedPaint={selectedPaint}
+                onSelectPaint={setSelectedPaint}
+                onApplyColor={applyColor}
+                canApply={!!activeRoom?.isAnalyzed && !!selectedWallId && !!selectedPaint}
+                isPainting={isPainting}
+                selectedWallLabel={selectedWall?.label}
+                primaryColor={company.primaryColor}
+              />
+            </div>
           </div>
         )}
       </div>
