@@ -805,24 +805,17 @@ const Dashboard = () => {
   const isColoredHeader = isGradientHeader || isMinimalHeader || isPrimaryHeader;
 
   const getButtonStyle = (isPrimary = true) => {
-      // Se estiver em modo gradiente, usar estilo primário acessível
-      if (isGradientHeader) {
+      if (isColoredHeader) {
         return accessibleStyles.primary.primaryButton;
       }
-      // Se estiver em modo criativo, usar contraste inteligente
-      if (isMinimalHeader) {
-        return accessibleStyles.primary.primaryButton;
-      }
-      // Caso contrário, usar lógica normal
       return companyStyles.getButtonStyle(isPrimary);
     };
 
   const getHeaderTextColor = () => {
-    // Se estiver em modo gradiente ou criativo, usar texto acessível
-    if (isGradientHeader || isMinimalHeader) {
+    if (isColoredHeader) {
       return accessibleStyles.primary.primaryText.color;
     }
-    return undefined; // Usa cores padrão do Tailwind
+    return undefined;
   };
 
   const handleCheckout = async (mode: "subscription" | "recharge") => {
