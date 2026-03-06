@@ -1697,6 +1697,9 @@ const Dashboard = () => {
                           { value: "gradient", label: "Gradiente", desc: "Degrade intenso" },
                           { value: "card", label: "Cartão", desc: "Com linha gradient" },
                           { value: "minimal", label: "Criativo", desc: "Divisor animado" },
+                          { value: "primary", label: "Sólido", desc: "Cor primária sólida" },
+                          { value: "white", label: "Branco", desc: "Fundo branco limpo" },
+                          { value: "white-accent", label: "Branco Accent", desc: "Branco com linha colorida" },
                         ] as { value: HeaderStyleMode; label: string; desc: string }[]).map((opt) => (
                           <button
                             key={opt.value}
