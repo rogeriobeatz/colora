@@ -11,8 +11,8 @@ import {
   DialogDescription,
   DialogFooter,
   DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
+  DialogTitle } from
+"@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -20,8 +20,8 @@ import {
   FileUp, FileDown, Trash2, Image as ImageIcon,
   Check, Upload, Pencil, X, FolderOpen, Clock, Play, Link as LinkIcon,
   TrendingUp, Layers, Sparkles, ExternalLink, Copy, Globe, Phone, MapPin, Coins, CreditCard, RefreshCw,
-  User, FileText, Building2, Menu, Database, RefreshCw as Sync
-} from "lucide-react";
+  User, FileText, Building2, Menu, Database, RefreshCw as Sync } from
+"lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import PaintDialog from "@/components/simulator/PaintDialog";
@@ -38,7 +38,7 @@ function formatDate(iso: string) {
   const d = new Date(iso);
   return d.toLocaleDateString("pt-BR", {
     day: "2-digit", month: "short", year: "numeric",
-    hour: "2-digit", minute: "2-digit",
+    hour: "2-digit", minute: "2-digit"
   });
 }
 
@@ -73,9 +73,9 @@ function hexToCmyk(hex: string): string {
   const b = parseInt(hex.slice(5, 7), 16) / 255;
   const k = 1 - Math.max(r, g, b);
   if (k === 1) return "0, 0, 0, 100";
-  const c = Math.round(((1 - r - k) / (1 - k)) * 100);
-  const m = Math.round(((1 - g - k) / (1 - k)) * 100);
-  const y = Math.round(((1 - b - k) / (1 - k)) * 100);
+  const c = Math.round((1 - r - k) / (1 - k) * 100);
+  const m = Math.round((1 - g - k) / (1 - k) * 100);
+  const y = Math.round((1 - b - k) / (1 - k) * 100);
   return `${c}, ${m}, ${y}, ${Math.round(k * 100)}`;
 }
 
@@ -91,25 +91,25 @@ const Dashboard = () => {
     importPaintsCSV, exportPaintsCSV, refreshData,
     consumeToken, checkTokensAvailable, depositMonthlyTokens
   } = useStore();
-  
+
   // Hook de estilos acessíveis - sempre depois dos hooks principais
   const accessibleStyles = useAccessibleStyles();
-  
+
   // Hooks para detectar dispositivos móveis
   const { isMobile, isTablet, isDesktop, isSmallMobile } = useMobile();
   const orientation = useOrientation();
-  
+
   // Estado para menu mobile
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  
+
   // Estado para diagnóstico
-  const [syncStatus, setSyncStatus] = useState<{local: number, remote: number} | null>(null);
+  const [syncStatus, setSyncStatus] = useState<{local: number;remote: number;} | null>(null);
   const [checkingSync, setCheckingSync] = useState(false);
-  
+
   // Refs
   const fileInputRef = useRef<HTMLInputElement>(null);
   const logoInputRef = useRef<HTMLInputElement>(null);
-  
+
   // Estados em ordem consistente
   const [selectedCatalogId, setSelectedCatalogId] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState("");
@@ -146,14 +146,14 @@ const Dashboard = () => {
     documentNumber: userData?.document_number || userData?.document || "Não informado",
     companyName: company?.name || userData?.company || "Não informado",
     website: company?.website || "Não informado",
-    address: company?.address || userData?.company || "Não informado",
+    address: company?.address || userData?.company || "Não informado"
   };
 
   // Estilos dinâmicos baseados nas cores da empresa
   const companyStyles = {
     primaryColor: company?.primaryColor || '#1a8a6a',
     secondaryColor: company?.secondaryColor || '#e87040',
-    
+
     // Função para determinar se uma cor é clara ou escura
     isColorLight: (color: string) => {
       // Converter hex para RGB
@@ -161,49 +161,49 @@ const Dashboard = () => {
       const r = parseInt(hex.substr(0, 2), 16);
       const g = parseInt(hex.substr(2, 2), 16);
       const b = parseInt(hex.substr(4, 2), 16);
-      
+
       // Calcular luminosidade (fórmula W3C)
       const luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
-      
+
       // Retornar true se for clara (> 0.5)
       return luminance > 0.5;
     },
-    
+
     getButtonStyle: (isPrimary = true, backgroundColor?: string) => {
       const color = backgroundColor || (isPrimary ? company?.primaryColor : company?.secondaryColor);
       const isLight = companyStyles.isColorLight(color);
-      
+
       return {
         backgroundColor: color,
         color: isLight ? '#000000' : '#FFFFFF', // Preto se fundo claro, branco se fundo escuro
-        border: 'none',
+        border: 'none'
       };
     },
     getAccentStyle: () => ({
       backgroundColor: `${company?.secondaryColor}10`,
       borderColor: `${company?.secondaryColor}30`,
-      color: company?.secondaryColor,
-    }),
+      color: company?.secondaryColor
+    })
   };
 
   // Funções auxiliares para tokens
   const getTokenStatus = () => {
     if (!company) return { status: 'loading', color: 'gray', text: 'Carregando...' };
-    
+
     if (company.tokens <= 0) {
       return { status: 'empty', color: 'red', text: 'Sem tokens' };
     }
-    
+
     if (company.tokensExpiresAt) {
       const expiryDate = new Date(company.tokensExpiresAt);
       const now = new Date();
       const daysLeft = Math.ceil((expiryDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
-      
+
       if (daysLeft <= 7) {
         return { status: 'expiring', color: 'orange', text: `Expira em ${daysLeft} dias` };
       }
     }
-    
+
     return { status: 'available', color: 'green', text: 'Disponíveis' };
   };
 
@@ -216,10 +216,10 @@ const Dashboard = () => {
     const handleAutoLogin = async () => {
       const token = searchParams.get("token");
       const type = searchParams.get("type");
-      
+
       if (token && type === "recovery") {
         try {
-          await new Promise(resolve => setTimeout(resolve, 500));
+          await new Promise((resolve) => setTimeout(resolve, 500));
           if (!user && authLoading === false) {
             navigate("/login", { replace: true });
           }
@@ -229,7 +229,7 @@ const Dashboard = () => {
         }
       }
     };
-    
+
     if (authLoading === false) {
       handleAutoLogin();
     }
@@ -244,23 +244,23 @@ const Dashboard = () => {
     const payment = searchParams.get("payment");
     const type = searchParams.get("type");
     const sessionId = searchParams.get("session_id");
-    
+
     if (payment === "success") {
-      toast.success(type === "subscription" 
-        ? "Assinatura realizada com sucesso! Verificando seus tokens..." 
-        : "Recarga de tokens realizada com sucesso! Verificando..."
+      toast.success(type === "subscription" ?
+      "Assinatura realizada com sucesso! Verificando seus tokens..." :
+      "Recarga de tokens realizada com sucesso! Verificando..."
       );
-      
+
       // 🔧 CORREÇÃO: Forçar atualização completa após pagamento
       const forceUpdateAfterPayment = async () => {
         console.log('[DASHBOARD] Forçando atualização após pagamento:', { sessionId, type });
-        
+
         // Esperar um pouco para webhook processar
-        await new Promise(resolve => setTimeout(resolve, 2000));
-        
+        await new Promise((resolve) => setTimeout(resolve, 2000));
+
         // Forçar refresh completo dos dados
         await refreshData();
-        
+
         // Verificar se tokens foram aplicados
         if (company?.tokens > 0) {
           toast.success(`✅ Tokens creditados! Você agora tem ${company.tokens} tokens.`);
@@ -281,9 +281,9 @@ const Dashboard = () => {
           }, 5000);
         }
       };
-      
+
       forceUpdateAfterPayment();
-      
+
       // Remover parâmetros da URL para não processar novamente
       const newUrl = window.location.pathname;
       window.history.replaceState({}, '', newUrl);
@@ -309,7 +309,7 @@ const Dashboard = () => {
     minLength: newPassword.length >= 6,
     hasUpper: /[A-Z]/.test(newPassword),
     hasNumber: /[0-9]/.test(newPassword),
-    matches: newPassword.length > 0 && newPassword === confirmPassword,
+    matches: newPassword.length > 0 && newPassword === confirmPassword
   };
 
   const getRuleClass = (ok: boolean) => {
@@ -335,7 +335,7 @@ const Dashboard = () => {
     try {
       const { error } = await supabase.auth.updateUser({
         password: newPassword,
-        data: { needs_password: false },
+        data: { needs_password: false }
       });
 
       if (error) throw error;
@@ -355,7 +355,7 @@ const Dashboard = () => {
     // Mark that user has chosen to skip
     setSkipPasswordSetup(true);
     setPasswordSetupOpen(false);
-    
+
     // Show a toast reminder
     toast.info("Você pode definir sua senha mais tarde nas configurações do perfil.", {
       description: "Acesse Configurações > Perfil para criar sua senha quando desejar."
@@ -373,12 +373,12 @@ const Dashboard = () => {
         setSessionsLoading(true);
         const list = await listSimulatorSessions();
         console.log("[Dashboard] Projetos carregados:", list); // Debug
-        
+
         // Melhorar o mapeamento com fallbacks robustos
         setSessions(list.map((r) => {
           // Tentar extrair nome de múltiplas fontes
           let name = "Projeto sem nome";
-          
+
           if (r.name && typeof r.name === 'string' && r.name.trim()) {
             name = r.name.trim();
           } else if (r.data && typeof r.data === 'object' && r.data !== null && 'name' in r.data) {
@@ -386,10 +386,10 @@ const Dashboard = () => {
           } else if (r.data && typeof r.data === 'object' && r.data !== null && 'data' in r.data && (r.data as any).data && 'name' in (r.data as any).data) {
             name = String((r.data as any).data.name).trim();
           }
-          
-          return { 
-            id: r.id, 
-            name: name || "Projeto sem nome", 
+
+          return {
+            id: r.id,
+            name: name || "Projeto sem nome",
             updatedAt: r.updatedAt || r.createdAt || new Date().toISOString()
           };
         }));
@@ -402,17 +402,17 @@ const Dashboard = () => {
   // Buscar histórico de tokens
   useEffect(() => {
     if (!user) return;
-    
+
     const fetchTokenHistory = async () => {
       try {
         setTokenHistoryLoading(true);
-        const { data } = await (supabase as any)
-          .from('token_consumptions')
-          .select('*')
-          .eq('user_id', user.id)
-          .order('created_at', { ascending: false })
-          .limit(10);
-        
+        const { data } = await (supabase as any).
+        from('token_consumptions').
+        select('*').
+        eq('user_id', user.id).
+        order('created_at', { ascending: false }).
+        limit(10);
+
         setTokenHistory(data || []);
       } catch (error) {
         console.error("Erro ao buscar histórico de tokens:", error);
@@ -431,8 +431,8 @@ const Dashboard = () => {
           <Palette className="w-6 h-6 text-primary-foreground" />
         </div>
         <p className="text-sm text-muted-foreground animate-pulse">Carregando painel...</p>
-      </div>
-    );
+      </div>);
+
   }
 
   if (!user || !company) {
@@ -442,8 +442,8 @@ const Dashboard = () => {
           <p className="text-muted-foreground">Não conseguimos carregar os dados da sua loja.</p>
           <Button onClick={() => window.location.reload()}>Tentar Novamente</Button>
         </div>
-      </div>
-    );
+      </div>);
+
   }
 
   const handleSignOut = async () => {
@@ -454,28 +454,28 @@ const Dashboard = () => {
 
   // Gerar slug único baseado no nome da empresa
   const generateUniqueSlug = async (baseName: string): Promise<string> => {
-    const baseSlug = baseName
-      .toLowerCase()
-      .replace(/[^a-z0-9\s-]/g, '')
-      .replace(/\s+/g, '-')
-      .substring(0, 30);
-    
+    const baseSlug = baseName.
+    toLowerCase().
+    replace(/[^a-z0-9\s-]/g, '').
+    replace(/\s+/g, '-').
+    substring(0, 30);
+
     let slug = baseSlug;
     let counter = 1;
-    
+
     while (true) {
-      const { data: existing } = await supabase
-        .from('profiles')
-        .select('id')
-        .eq('company_slug', slug)
-        .neq('id', user.id)
-        .maybeSingle();
-      
+      const { data: existing } = await supabase.
+      from('profiles').
+      select('id').
+      eq('company_slug', slug).
+      neq('id', user.id).
+      maybeSingle();
+
       if (!existing) return slug;
-      
+
       slug = `${baseSlug}-${counter}`;
       counter++;
-      
+
       // Limitar tentativas para evitar loop infinito
       if (counter > 100) {
         throw new Error('Não foi possível gerar um slug único');
@@ -487,19 +487,19 @@ const Dashboard = () => {
     setIsSaving(true);
     try {
       let finalSlug = company.slug;
-      
+
       // Se não tiver slug, gerar um automático
       if (!finalSlug) {
         finalSlug = await generateUniqueSlug(company.name);
       } else {
         // Verificar se o slug atual já existe em outra empresa
-        const { data: existingSlug, error: slugCheckError } = await supabase
-          .from('profiles')
-          .select('id, company_slug')
-          .eq('company_slug', finalSlug)
-          .neq('id', user.id)
-          .maybeSingle();
-        
+        const { data: existingSlug, error: slugCheckError } = await supabase.
+        from('profiles').
+        select('id, company_slug').
+        eq('company_slug', finalSlug).
+        neq('id', user.id).
+        maybeSingle();
+
         // Se existir, gerar um novo baseado no nome
         if (existingSlug && !slugCheckError) {
           finalSlug = await generateUniqueSlug(company.name);
@@ -522,22 +522,22 @@ const Dashboard = () => {
         header_style: company.headerStyle || "glass",
         font_set: company.fontSet || "grotesk",
 
-        updated_at: new Date().toISOString(),
+        updated_at: new Date().toISOString()
       }, {
         onConflict: 'id',
         ignoreDuplicates: false
       });
-      
+
       if (error) {
         console.error('Erro ao salvar perfil:', error);
         throw error;
       }
-      
+
       // Atualizar o estado local com o slug usado
       if (finalSlug !== company.slug) {
         updateCompany({ slug: finalSlug });
       }
-      
+
       toast.success("Identidade visual salva!");
     } catch (error: any) {
       console.error('Erro detalhado:', error);
@@ -557,13 +557,13 @@ const Dashboard = () => {
   const handleLogoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    if (file.size > 2 * 1024 * 1024) { toast.error("Logo deve ter menos de 2MB"); return; }
-    
+    if (file.size > 2 * 1024 * 1024) {toast.error("Logo deve ter menos de 2MB");return;}
+
     // Verifica se o arquivo é PNG
     if (!file.type.includes('png')) {
       toast.error("Por favor, envie o logo em formato PNG para melhor qualidade");
     }
-    
+
     setPendingLogoFile(file);
     setLogoGuidelinesOpen(true);
     e.target.value = "";
@@ -571,7 +571,7 @@ const Dashboard = () => {
 
   const handleLogoConfirm = () => {
     if (!pendingLogoFile) return;
-    
+
     const reader = new FileReader();
     reader.onload = (ev) => {
       updateCompany({
@@ -580,7 +580,7 @@ const Dashboard = () => {
       toast.success("Logo atualizado com sucesso!");
     };
     reader.readAsDataURL(pendingLogoFile);
-    
+
     setLogoGuidelinesOpen(false);
     setPendingLogoFile(null);
   };
@@ -595,7 +595,7 @@ const Dashboard = () => {
     const file = e.target.files?.[0];
     if (!file || !selectedCatalogId) return;
     const reader = new FileReader();
-    reader.onload = (ev) => { importPaintsCSV(selectedCatalogId, ev.target?.result as string); toast.success("Tintas importadas!"); };
+    reader.onload = (ev) => {importPaintsCSV(selectedCatalogId, ev.target?.result as string);toast.success("Tintas importadas!");};
     reader.readAsText(file);
     e.target.value = "";
   };
@@ -606,13 +606,13 @@ const Dashboard = () => {
     const csv = exportPaintsCSV(id);
     const a = Object.assign(document.createElement("a"), {
       href: URL.createObjectURL(new Blob([csv], { type: "text/csv" })),
-      download: `catalogo-${id}.csv`,
+      download: `catalogo-${id}.csv`
     });
-    document.body.appendChild(a); a.click(); document.body.removeChild(a);
+    document.body.appendChild(a);a.click();document.body.removeChild(a);
   };
 
-  const handleAddPaint = () => { setEditingPaint(null); setPaintDialogOpen(true); };
-  const handleEditPaint = (paint: Paint) => { setEditingPaint(paint); setPaintDialogOpen(true); };
+  const handleAddPaint = () => {setEditingPaint(null);setPaintDialogOpen(true);};
+  const handleEditPaint = (paint: Paint) => {setEditingPaint(paint);setPaintDialogOpen(true);};
 
   const handleSavePaint = async (paintData: Omit<Paint, "id" | "rgb" | "cmyk">) => {
     const catalogId = selectedCatalogId || company.catalogs[0]?.id;
@@ -626,7 +626,7 @@ const Dashboard = () => {
       hex: paintData.hex,
       rgb: hexToRgb(paintData.hex),
       cmyk: hexToCmyk(paintData.hex),
-      category: paintData.category,
+      category: paintData.category
     };
 
     // Atualiza estado local
@@ -635,45 +635,45 @@ const Dashboard = () => {
         if (cat.id !== catalogId) return cat;
         return {
           ...cat,
-          paints: editingPaint
-            ? cat.paints.map((p) => p.id === editingPaint.id ? newPaint : p)
-            : [...cat.paints, newPaint],
+          paints: editingPaint ?
+          cat.paints.map((p) => p.id === editingPaint.id ? newPaint : p) :
+          [...cat.paints, newPaint]
         };
-      }),
+      })
     });
 
     // Salva no banco de dados
     try {
       if (editingPaint) {
         // Atualiza tinta existente
-        const { error } = await supabase
-          .from('paints')
-          .update({
-            name: newPaint.name,
-            code: newPaint.code,
-            hex: newPaint.hex,
-            rgb: newPaint.rgb,
-            cmyk: newPaint.cmyk,
-            category: newPaint.category
-          })
-          .eq('id', editingPaint.id);
+        const { error } = await supabase.
+        from('paints').
+        update({
+          name: newPaint.name,
+          code: newPaint.code,
+          hex: newPaint.hex,
+          rgb: newPaint.rgb,
+          cmyk: newPaint.cmyk,
+          category: newPaint.category
+        }).
+        eq('id', editingPaint.id);
 
         if (error) {
           console.error("Erro ao atualizar tinta:", error);
         }
       } else {
         // Insere nova tinta
-        const { error } = await supabase
-          .from('paints')
-          .insert({
-            catalog_id: catalogId,
-            name: newPaint.name,
-            code: newPaint.code,
-            hex: newPaint.hex,
-            rgb: newPaint.rgb,
-            cmyk: newPaint.cmyk,
-            category: newPaint.category
-          });
+        const { error } = await supabase.
+        from('paints').
+        insert({
+          catalog_id: catalogId,
+          name: newPaint.name,
+          code: newPaint.code,
+          hex: newPaint.hex,
+          rgb: newPaint.rgb,
+          cmyk: newPaint.cmyk,
+          category: newPaint.category
+        });
 
         if (error) {
           console.error("Erro ao salvar tinta:", error);
@@ -691,20 +691,20 @@ const Dashboard = () => {
   const handleDeletePaint = async (paintId: string) => {
     const catalogId = selectedCatalogId || company.catalogs[0]?.id;
     if (!catalogId || !company) return;
-    
+
     // Atualiza estado local
     updateCompany({
       catalogs: company.catalogs.map((cat) =>
-        cat.id === catalogId ? { ...cat, paints: cat.paints.filter((p) => p.id !== paintId) } : cat
-      ),
+      cat.id === catalogId ? { ...cat, paints: cat.paints.filter((p) => p.id !== paintId) } : cat
+      )
     });
 
     // Remove do banco de dados
     try {
-      const { error } = await supabase
-        .from('paints')
-        .delete()
-        .eq('id', paintId);
+      const { error } = await supabase.
+      from('paints').
+      delete().
+      eq('id', paintId);
 
       if (error) {
         console.error("Erro ao excluir tinta:", error);
@@ -712,7 +712,7 @@ const Dashboard = () => {
     } catch (error) {
       console.error("Erro na exclusão de tinta:", error);
     }
-    
+
     toast.success("Cor excluída!");
   };
 
@@ -738,7 +738,7 @@ const Dashboard = () => {
     try {
       const status = await checkSyncStatus();
       setSyncStatus(status);
-      
+
       if (status.local === status.remote) {
         toast.success("✅ Sincronização perfeita!", {
           description: `Local: ${status.local} | Remoto: ${status.remote}`
@@ -766,7 +766,7 @@ const Dashboard = () => {
   const handleAnalyzeDatabase = async () => {
     try {
       const result = await analyzeSupabaseTables();
-      
+
       if (result) {
         toast.success("✅ Análise concluída! Verifique o console.", {
           description: `Profiles: ${result.profiles} | Sessions: ${result.sessions}`
@@ -782,13 +782,13 @@ const Dashboard = () => {
   // ─── derived ───────────────────────────────────────────────────────────────
 
   const activeCatalog =
-    company.catalogs.find((c) => c.id === (selectedCatalogId || company.catalogs[0]?.id)) ||
-    company.catalogs[0];
+  company.catalogs.find((c) => c.id === (selectedCatalogId || company.catalogs[0]?.id)) ||
+  company.catalogs[0];
 
   const filteredPaints = activeCatalog?.paints.filter(
     (p) =>
-      p.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      p.code.toLowerCase().includes(searchTerm.toLowerCase())
+    p.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    p.code.toLowerCase().includes(searchTerm.toLowerCase())
   ) || [];
 
   const categories = activeCatalog ? [...new Set(activeCatalog.paints.map((p) => p.category))] : [];
@@ -805,11 +805,11 @@ const Dashboard = () => {
   const isColoredHeader = isGradientHeader || isMinimalHeader || isPrimaryHeader;
 
   const getButtonStyle = (isPrimary = true) => {
-      if (isColoredHeader) {
-        return accessibleStyles.primary.primaryButton;
-      }
-      return companyStyles.getButtonStyle(isPrimary);
-    };
+    if (isColoredHeader) {
+      return accessibleStyles.primary.primaryButton;
+    }
+    return companyStyles.getButtonStyle(isPrimary);
+  };
 
   const getHeaderTextColor = () => {
     if (isColoredHeader) {
@@ -822,10 +822,10 @@ const Dashboard = () => {
     setIsCheckoutLoading(true);
     try {
       // 🔍 DEBUG: Log dos dados sendo enviados
-      console.log('[CHECKOUT] Iniciando checkout:', { 
-        mode, 
+      console.log('[CHECKOUT] Iniciando checkout:', {
+        mode,
         user: user?.email,
-        company: company?.name 
+        company: company?.name
       });
 
       // ✅ Enviar dados completos do cliente
@@ -841,12 +841,12 @@ const Dashboard = () => {
       console.log('[CHECKOUT] Dados do cliente:', customerData);
 
       const { data, error } = await supabase.functions.invoke('create-checkout', {
-        body: { 
+        body: {
           mode,
-          customerData 
-        },
+          customerData
+        }
       });
-      
+
       if (error) throw error;
       if (data?.url) {
         window.open(data.url, '_blank');
@@ -879,79 +879,79 @@ const Dashboard = () => {
       {/* Header */}
       <header
         className={`sticky top-0 z-50 ${
-          headerStyle === "glass"
-            ? "bg-background/80 backdrop-blur-lg border-b border-border"
-            : isColoredHeader
-              ? "border-b border-transparent"
-              : isCardHeader
-                ? "bg-card border-b border-border shadow-xl"
-                : (isWhiteHeader || isWhiteAccentHeader)
-                  ? "bg-white border-b border-border"
-                  : "bg-background/80 backdrop-blur-lg border-b border-border"
-        }`}
-        style={
-          isGradientHeader ? { 
-            background: `linear-gradient(135deg, ${company.primaryColor} 0%, ${company.secondaryColor} 100%)`
-          } : (isMinimalHeader || isPrimaryHeader) ? {
-            backgroundColor: company.primaryColor,
-            opacity: isPrimaryHeader ? 1 : 0.95
-          } : undefined
+        headerStyle === "glass" ?
+        "bg-background/80 backdrop-blur-lg border-b border-border" :
+        isColoredHeader ?
+        "border-b border-transparent" :
+        isCardHeader ?
+        "bg-card border-b border-border shadow-xl" :
+        isWhiteHeader || isWhiteAccentHeader ?
+        "bg-white border-b border-border" :
+        "bg-background/80 backdrop-blur-lg border-b border-border"}`
         }
-      >
+        style={
+        isGradientHeader ? {
+          background: `linear-gradient(135deg, ${company.primaryColor} 0%, ${company.secondaryColor} 100%)`
+        } : isMinimalHeader || isPrimaryHeader ? {
+          backgroundColor: company.primaryColor,
+          opacity: isPrimaryHeader ? 1 : 0.95
+        } : undefined
+        }>
+        
         {/* Linha gradient para o estilo cartão ou white-accent */}
-        {(isCardHeader || isWhiteAccentHeader) && (
-          <div 
-            className="h-1 w-full"
-            style={{ 
-              background: `linear-gradient(90deg, ${company.primaryColor}, ${company.secondaryColor})`
-            }}
-          />
-        )}
+        {(isCardHeader || isWhiteAccentHeader) &&
+        <div
+          className="h-1 w-full"
+          style={{
+            background: `linear-gradient(90deg, ${company.primaryColor}, ${company.secondaryColor})`
+          }} />
+
+        }
 
         <div className="container mx-auto flex items-center justify-between h-16 px-4 max-w-7xl">
           <div className="flex items-center gap-3 min-w-0">
-            {(company.headerContent === "logo+name" || company.headerContent === "logo") && (
-              <div
-                className="h-8 rounded-lg flex items-center justify-center overflow-hidden shrink-0"
-                style={{ 
-                  backgroundColor: company.logo ? "transparent" : isColoredHeader ? "rgba(255,255,255,0.15)" : undefined,
-                  width: company.logo ? "auto" : "2rem",
-                  maxWidth: "120px",
-                  border: isColoredHeader ? "1px solid rgba(255,255,255,0.2)" : undefined,
-                }}
-              >
-                {company.logo ? (
-                  <img src={company.logo} alt="Logo" className="w-full h-full object-contain" />
-                ) : (
-                  <Palette className="w-4 h-4" style={{ color: isColoredHeader ? "#FFFFFF" : company.primaryColor }} />
-                )}
-              </div>
-            )}
+            {(company.headerContent === "logo+name" || company.headerContent === "logo") &&
+            <div
+              className="h-8 rounded-lg flex items-center justify-center overflow-hidden shrink-0"
+              style={{
+                backgroundColor: company.logo ? "transparent" : isColoredHeader ? "rgba(255,255,255,0.15)" : undefined,
+                width: company.logo ? "auto" : "2rem",
+                maxWidth: "120px",
+                border: isColoredHeader ? "1px solid rgba(255,255,255,0.2)" : undefined
+              }}>
+              
+                {company.logo ?
+              <img src={company.logo} alt="Logo" className="w-full h-full object-contain" /> :
 
-            {(company.headerContent === "logo+name" || company.headerContent === "name" || !company.headerContent) && (
-              <div className="leading-tight">
-                <span 
-                  className={`font-display text-base font-bold block`}
-                  style={getHeaderTextColor() ? { color: getHeaderTextColor() } : {}}
-                >
+              <Palette className="w-4 h-4" style={{ color: isColoredHeader ? "#FFFFFF" : company.primaryColor }} />
+              }
+              </div>
+            }
+
+            {(company.headerContent === "logo+name" || company.headerContent === "name" || !company.headerContent) &&
+            <div className="flex flex-col min-w-0">
+                <span
+                className={`font-display text-base font-bold block`}
+                style={getHeaderTextColor() ? { color: getHeaderTextColor() } : {}}>
+                
                   {company.name}
                 </span>
-                <span 
-                  className={`text-[10px]`}
-                  style={getHeaderTextColor() ? { color: getHeaderTextColor() + "80" } : {}}
-                >
+                <span
+                className={`text-[10px]`}
+                style={getHeaderTextColor() ? { color: getHeaderTextColor() + "80" } : {}}>
+                
                   Painel Administrativo
                 </span>
               </div>
-            )}
+            }
           </div>
 
           <div className="flex items-center gap-2">
             <Button
               size="sm"
               asChild
-              style={getButtonStyle()}
-            >
+              style={getButtonStyle()}>
+              
               <Link to="/simulator" className="gap-1.5">
                 <Sparkles className="w-3.5 h-3.5" /> Simulador
               </Link>
@@ -962,8 +962,8 @@ const Dashboard = () => {
               size="icon"
               onClick={handleSignOut}
               title="Sair"
-              style={getHeaderTextColor() ? { color: getHeaderTextColor() } : {}}
-            >
+              style={getHeaderTextColor() ? { color: getHeaderTextColor() } : {}}>
+              
               <LogOut className="w-4 h-4" />
             </Button>
           </div>
@@ -992,43 +992,43 @@ const Dashboard = () => {
             {/* KPIs */}
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
               {[
-                {
-                  label: "Tokens",
-                  value: formatTokenAmount(company.tokens),
-                  icon: Coins,
-                  color: getTokenStatus().color,
-                  sub: getTokenStatus().text,
-                },
-                {
-                  label: "Projetos Salvos",
-                  value: sessionsLoading ? "..." : sessions.length,
-                  icon: FolderOpen,
-                  color: accessibleStyles.primary.primaryIcon.color,
-                  sub: "no seu dispositivo",
-                },
-                {
-                  label: "Catálogos Ativos",
-                  value: activeCatalogs,
-                  icon: Layers,
-                  color: accessibleStyles.secondary.secondaryIcon.color,
-                  sub: `de ${company.catalogs.length} total`,
-                },
-                {
-                  label: "Total de Cores",
-                  value: totalPaints,
-                  icon: Palette,
-                  color: "#6366f1",
-                  sub: "em todos os catálogos",
-                },
-                // {
-                //   label: "Link Público",
-                //   value: company.slug ? "Ativo" : "Inativo",
-                //   icon: LinkIcon,
-                //   color: "#10b981",
-                //   sub: `/empresa/${company.slug || "–"}`,
-                // },
-              ].map(({ label, value, icon: Icon, color, sub }) => (
-                <div key={label} className="bg-card rounded-2xl border border-border p-5 shadow-soft">
+              {
+                label: "Tokens",
+                value: formatTokenAmount(company.tokens),
+                icon: Coins,
+                color: getTokenStatus().color,
+                sub: getTokenStatus().text
+              },
+              {
+                label: "Projetos Salvos",
+                value: sessionsLoading ? "..." : sessions.length,
+                icon: FolderOpen,
+                color: accessibleStyles.primary.primaryIcon.color,
+                sub: "no seu dispositivo"
+              },
+              {
+                label: "Catálogos Ativos",
+                value: activeCatalogs,
+                icon: Layers,
+                color: accessibleStyles.secondary.secondaryIcon.color,
+                sub: `de ${company.catalogs.length} total`
+              },
+              {
+                label: "Total de Cores",
+                value: totalPaints,
+                icon: Palette,
+                color: "#6366f1",
+                sub: "em todos os catálogos"
+              }
+              // {
+              //   label: "Link Público",
+              //   value: company.slug ? "Ativo" : "Inativo",
+              //   icon: LinkIcon,
+              //   color: "#10b981",
+              //   sub: `/empresa/${company.slug || "–"}`,
+              // },
+              ].map(({ label, value, icon: Icon, color, sub }) =>
+              <div key={label} className="bg-card rounded-2xl border border-border p-5 shadow-soft">
                   <div className="flex items-center justify-between mb-3">
                     <p className="text-xs font-bold text-muted-foreground uppercase tracking-wider">{label}</p>
                     <div className="w-8 h-8 rounded-lg flex items-center justify-center" style={{ backgroundColor: color + "20" }}>
@@ -1038,7 +1038,7 @@ const Dashboard = () => {
                   <p className="text-2xl font-display font-bold text-foreground">{value}</p>
                   <p className="text-[11px] text-muted-foreground mt-1">{sub}</p>
                 </div>
-              ))}
+              )}
             </div>
 
             {/* Seção de Tokens */}
@@ -1047,10 +1047,10 @@ const Dashboard = () => {
                 <h3 className="font-display font-bold text-foreground flex items-center gap-2">
                   <Coins className="w-5 h-5" /> Meus Tokens
                 </h3>
-                <Badge 
+                <Badge
                   variant={company?.subscriptionStatus === 'active' ? 'default' : 'secondary'}
-                  style={company?.subscriptionStatus === 'active' ? accessibleStyles.primary.primaryBadge : accessibleStyles.elements.inactiveStatus}
-                >
+                  style={company?.subscriptionStatus === 'active' ? accessibleStyles.primary.primaryBadge : accessibleStyles.elements.inactiveStatus}>
+                  
                   {company?.subscriptionStatus === 'active' ? 'Assinatura Ativa' : 'Assinatura Inativa'}
                 </Badge>
               </div>
@@ -1065,9 +1065,9 @@ const Dashboard = () => {
                 
                 <div className="text-center p-4 bg-background/50 rounded-xl">
                   <div className="text-2xl font-bold text-foreground">
-                    {company.tokensExpiresAt ? 
-                      new Date(company.tokensExpiresAt).toLocaleDateString('pt-BR') : 
-                      'Sem validade'
+                    {company.tokensExpiresAt ?
+                    new Date(company.tokensExpiresAt).toLocaleDateString('pt-BR') :
+                    'Sem validade'
                     }
                   </div>
                   <div className="text-sm text-muted-foreground">Validade</div>
@@ -1075,9 +1075,9 @@ const Dashboard = () => {
 
                 <div className="text-center p-4 bg-background/50 rounded-xl">
                   <div className="text-2xl font-bold text-foreground">
-                    {company.lastTokenDeposit ? 
-                      new Date(company.lastTokenDeposit).toLocaleDateString('pt-BR') : 
-                      'N/A'
+                    {company.lastTokenDeposit ?
+                    new Date(company.lastTokenDeposit).toLocaleDateString('pt-BR') :
+                    'N/A'
                     }
                   </div>
                   <div className="text-sm text-muted-foreground">Último Depósito</div>
@@ -1089,28 +1089,28 @@ const Dashboard = () => {
                 <h4 className="font-semibold text-foreground mb-3 flex items-center gap-2">
                   <Clock className="w-4 h-4" /> Histórico Recente
                 </h4>
-                {tokenHistoryLoading ? (
-                  <div className="flex justify-center py-4">
+                {tokenHistoryLoading ?
+                <div className="flex justify-center py-4">
                     <Loader2 className="w-4 h-4 animate-spin text-muted-foreground" />
-                  </div>
-                ) : tokenHistory.length === 0 ? (
-                  <div className="text-center py-4 text-muted-foreground text-sm">
+                  </div> :
+                tokenHistory.length === 0 ?
+                <div className="text-center py-4 text-muted-foreground text-sm">
                     Nenhuma movimentação recente
-                  </div>
-                ) : (
-                  <div className="space-y-2">
-                    {tokenHistory.slice(0, 5).map((item, index) => (
-                      <div key={index} className="flex items-center justify-between text-sm p-2 rounded-lg bg-background/50">
+                  </div> :
+
+                <div className="space-y-2">
+                    {tokenHistory.slice(0, 5).map((item, index) =>
+                  <div key={index} className="flex items-center justify-between text-sm p-2 rounded-lg bg-background/50">
                         <div className="flex items-center gap-2">
                           <div className={`w-2 h-2 rounded-full ${
-                            item.amount > 0 ? 'bg-green-500' : 'bg-red-500'
-                          }`} />
+                      item.amount > 0 ? 'bg-green-500' : 'bg-red-500'}`
+                      } />
                           <span className="text-foreground">{item.description}</span>
                         </div>
                         <div className="flex items-center gap-2">
                           <span className={`font-medium ${
-                            item.amount > 0 ? 'text-green-600' : 'text-red-600'
-                          }`}>
+                      item.amount > 0 ? 'text-green-600' : 'text-red-600'}`
+                      }>
                             {item.amount > 0 ? '+' : ''}{item.amount}
                           </span>
                           <span className="text-muted-foreground text-xs">
@@ -1118,41 +1118,41 @@ const Dashboard = () => {
                           </span>
                         </div>
                       </div>
-                    ))}
+                  )}
                   </div>
-                )}
+                }
               </div>
 
               {/* Ações de pagamento */}
               <div className="flex flex-wrap gap-3">
-                {company?.subscriptionStatus !== 'active' ? (
-                  <Button
-                    onClick={() => handleCheckout("subscription")}
-                    disabled={isCheckoutLoading}
-                    className="gap-2"
-                    style={accessibleStyles.elements.actionButton}
-                  >
+                {company?.subscriptionStatus !== 'active' ?
+                <Button
+                  onClick={() => handleCheckout("subscription")}
+                  disabled={isCheckoutLoading}
+                  className="gap-2"
+                  style={accessibleStyles.elements.actionButton}>
+                  
                     {isCheckoutLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <CreditCard className="w-4 h-4" />}
                     Assinar por R$ 59,90/mês
-                  </Button>
-                ) : (
-                  <Button
-                    variant="outline"
-                    onClick={handleManageSubscription}
-                    className="gap-2"
-                    style={accessibleStyles.elements.secondaryActionButton}
-                  >
+                  </Button> :
+
+                <Button
+                  variant="outline"
+                  onClick={handleManageSubscription}
+                  className="gap-2"
+                  style={accessibleStyles.elements.secondaryActionButton}>
+                  
                     <Settings className="w-4 h-4" /> Gerenciar Assinatura
                   </Button>
-                )}
+                }
 
                 <Button
                   variant="outline"
                   onClick={() => handleCheckout("recharge")}
                   disabled={isCheckoutLoading}
                   className="gap-2"
-                  style={accessibleStyles.elements.secondaryActionButton}
-                >
+                  style={accessibleStyles.elements.secondaryActionButton}>
+                  
                   {isCheckoutLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Coins className="w-4 h-4" />}
                   Recarregar 100 tokens — R$ 29,90
                 </Button>
@@ -1165,20 +1165,20 @@ const Dashboard = () => {
                     await refreshData();
                     toast.success("Status atualizado!");
                   }}
-                  className="gap-1.5"
-                >
+                  className="gap-1.5">
+                  
                   <RefreshCw className="w-3.5 h-3.5" /> Atualizar
                 </Button>
               </div>
 
-              {company?.subscriptionStatus !== 'active' && (
-                <div className="bg-orange-50 border border-orange-200 rounded-xl p-4">
+              {company?.subscriptionStatus !== 'active' &&
+              <div className="bg-orange-50 border border-orange-200 rounded-xl p-4">
                   <p className="text-sm text-orange-800">
                     <strong>Atenção:</strong> Sua assinatura está inativa. 
                     Assine o plano Colora Pro por R$ 59,90/mês e receba 200 tokens mensais para simulações!
                   </p>
                 </div>
-              )}
+              }
             </div>
 
             {/* Sessões recentes + Link público */}
@@ -1194,23 +1194,23 @@ const Dashboard = () => {
                     </Button>
                 </div>
 
-                {sessionsLoading ? (
-                  <div className="flex justify-center py-10">
+                {sessionsLoading ?
+                <div className="flex justify-center py-10">
                     <Loader2 className="w-5 h-5 animate-spin text-muted-foreground" />
-                  </div>
-                ) : sessions.length === 0 ? (
-                  <div className="py-12 text-center border-2 border-dashed border-border rounded-xl">
+                  </div> :
+                sessions.length === 0 ?
+                <div className="py-12 text-center border-2 border-dashed border-border rounded-xl">
                     <FolderOpen className="w-8 h-8 text-muted-foreground/30 mx-auto mb-2" />
                     <p className="text-sm text-muted-foreground">Nenhum projeto salvo ainda</p>
                     <p className="text-xs text-muted-foreground/60 mt-1">Inicie uma simulação e ela será salva automaticamente</p>
-                  </div>
-                ) : (
-                  <div className="space-y-2 max-h-[360px] overflow-y-auto pr-1">
-                    {sessions.map((s) => (
-                      <div
-                        key={s.id}
-                        className="group flex items-center justify-between gap-3 p-3 rounded-xl border border-border hover:border-primary/30 hover:bg-muted/30 transition-all"
-                      >
+                  </div> :
+
+                <div className="space-y-2 max-h-[360px] overflow-y-auto pr-1">
+                    {sessions.map((s) =>
+                  <div
+                    key={s.id}
+                    className="group flex items-center justify-between gap-3 p-3 rounded-xl border border-border hover:border-primary/30 hover:bg-muted/30 transition-all">
+                    
                         <button className="flex-1 text-left min-w-0" onClick={() => handleOpenProject(s.id)}>
                           <p className="text-sm font-semibold text-foreground truncate">{s.name}</p>
                           <div className="flex items-center gap-1 mt-0.5 text-xs text-muted-foreground">
@@ -1227,62 +1227,62 @@ const Dashboard = () => {
                           </Button>
                         </div>
                       </div>
-                    ))}
+                  )}
                   </div>
-                )}
+                }
               </div>
 
               {/* Diagnóstico de Sincronização */}
               {/* <div className="border-t border-border pt-4">
-                <div className="flex items-center justify-between mb-3">
-                  <h4 className="text-sm font-medium flex items-center gap-2">
-                    <Database className="w-4 h-4" />
-                    Diagnóstico de Sincronização
-                  </h4>
-                  {syncStatus && (
-                    <Badge variant={syncStatus.local === syncStatus.remote ? "default" : "destructive"} className="text-xs">
-                      Local: {syncStatus.local} | Remoto: {syncStatus.remote}
-                    </Badge>
-                  )}
-                </div>
-                
-                <div className="flex gap-2">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={handleCheckSync}
-                    disabled={checkingSync}
-                    className="gap-1.5"
-                  >
-                    {checkingSync ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Database className="w-3.5 h-3.5" />}
-                    Verificar Sync
-                  </Button>
+                  <div className="flex items-center justify-between mb-3">
+                    <h4 className="text-sm font-medium flex items-center gap-2">
+                      <Database className="w-4 h-4" />
+                      Diagnóstico de Sincronização
+                    </h4>
+                    {syncStatus && (
+                      <Badge variant={syncStatus.local === syncStatus.remote ? "default" : "destructive"} className="text-xs">
+                        Local: {syncStatus.local} | Remoto: {syncStatus.remote}
+                      </Badge>
+                    )}
+                  </div>
                   
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={handleForceSync}
-                    className="gap-1.5"
-                  >
-                    <Sync className="w-3.5 h-3.5" />
-                    Forçar Sync
-                  </Button>
+                  <div className="flex gap-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={handleCheckSync}
+                      disabled={checkingSync}
+                      className="gap-1.5"
+                    >
+                      {checkingSync ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Database className="w-3.5 h-3.5" />}
+                      Verificar Sync
+                    </Button>
+                    
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={handleForceSync}
+                      className="gap-1.5"
+                    >
+                      <Sync className="w-3.5 h-3.5" />
+                      Forçar Sync
+                    </Button>
+                    
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={handleAnalyzeDatabase}
+                      className="gap-1.5"
+                    >
+                      <Database className="w-3.5 h-3.5" />
+                      Analisar BD
+                    </Button>
+                  </div>
                   
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={handleAnalyzeDatabase}
-                    className="gap-1.5"
-                  >
-                    <Database className="w-3.5 h-3.5" />
-                    Analisar BD
-                  </Button>
-                </div>
-                
-                <p className="text-xs text-muted-foreground mt-2">
-                  Verifique sincronização, limpe cache ou analise todas as tabelas em busca de duplicatas e problemas
-                </p>
-              </div> */}
+                  <p className="text-xs text-muted-foreground mt-2">
+                    Verifique sincronização, limpe cache ou analise todas as tabelas em busca de duplicatas e problemas
+                  </p>
+                 </div> */}
 
               {/* Painel lateral: catálogos */}
               <div className="space-y-4">
@@ -1292,21 +1292,21 @@ const Dashboard = () => {
                     <Layers className="w-4 h-4" /> Seus Catálogos
                   </h3>
                   <div className="space-y-2">
-                    {company.catalogs.map((cat) => (
-                      <div key={cat.id} className="flex items-center justify-between py-1.5 border-b border-border last:border-0">
+                    {company.catalogs.map((cat) =>
+                    <div key={cat.id} className="flex items-center justify-between py-1.5 border-b border-border last:border-0">
                         <div>
                           <p className="text-xs font-semibold text-foreground">{cat.name}</p>
                           <p className="text-[10px] text-muted-foreground">{cat.paints.length} cores</p>
                         </div>
-                        <Badge 
-                          variant={cat.active ? "default" : "secondary"} 
-                          className="text-[10px]"
-                          style={cat.active ? accessibleStyles.primary.primaryBadge : accessibleStyles.elements.inactiveStatus}
-                        >
+                        <Badge
+                        variant={cat.active ? "default" : "secondary"}
+                        className="text-[10px]"
+                        style={cat.active ? accessibleStyles.primary.primaryBadge : accessibleStyles.elements.inactiveStatus}>
+                        
                           {cat.active ? "Ativo" : "Inativo"}
                         </Badge>
                       </div>
-                    ))}
+                    )}
                   </div>
                 </div>
               </div>
@@ -1323,70 +1323,70 @@ const Dashboard = () => {
                 </h3>
 
                 <div className="space-y-2">
-                  {company.catalogs.map((cat, index) => (
-                    <div
-                      key={cat.id}
-                      className={`group w-full p-4 rounded-xl border text-left transition-all ${
-                        activeCatalog?.id === cat.id
-                          ? "border-primary bg-primary/5 shadow-soft"
-                          : "border-border bg-card hover:border-primary/30"
-                      }`}
-                    >
-                      {editingCatalogId === cat.id ? (
-                        <div className="flex gap-2 items-center">
+                  {company.catalogs.map((cat, index) =>
+                  <div
+                    key={cat.id}
+                    className={`group w-full p-4 rounded-xl border text-left transition-all ${
+                    activeCatalog?.id === cat.id ?
+                    "border-primary bg-primary/5 shadow-soft" :
+                    "border-border bg-card hover:border-primary/30"}`
+                    }>
+                    
+                      {editingCatalogId === cat.id ?
+                    <div className="flex gap-2 items-center">
                           <Input
-                            value={editingCatalogName}
-                            onChange={(e) => setEditingCatalogName(e.target.value)}
-                            className="h-7 text-sm"
-                            autoFocus
-                            onKeyDown={(e) => {
-                              if (e.key === "Enter") { updateCatalog(cat.id, { name: editingCatalogName }); setEditingCatalogId(null); }
-                              if (e.key === "Escape") setEditingCatalogId(null);
-                            }}
-                          />
-                          <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => { updateCatalog(cat.id, { name: editingCatalogName }); setEditingCatalogId(null); }}>
+                        value={editingCatalogName}
+                        onChange={(e) => setEditingCatalogName(e.target.value)}
+                        className="h-7 text-sm"
+                        autoFocus
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter") {updateCatalog(cat.id, { name: editingCatalogName });setEditingCatalogId(null);}
+                          if (e.key === "Escape") setEditingCatalogId(null);
+                        }} />
+                      
+                          <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => {updateCatalog(cat.id, { name: editingCatalogName });setEditingCatalogId(null);}}>
                             <Check className="w-3.5 h-3.5 text-primary" />
                           </Button>
-                        </div>
-                      ) : (
-                        <button className="w-full text-left" onClick={() => setSelectedCatalogId(cat.id)}>
+                        </div> :
+
+                    <button className="w-full text-left" onClick={() => setSelectedCatalogId(cat.id)}>
                           <div className="flex items-center justify-between">
                             <span className={`font-bold text-sm truncate ${activeCatalog?.id === cat.id ? "text-primary" : "text-foreground"}`}>
                               {cat.name}
                             </span>
                             <div className="flex items-center gap-1 shrink-0">
                               <button
-                                onClick={(e) => { e.stopPropagation(); updateCatalog(cat.id, { active: !cat.active }); }}
-                                className={`p-1 rounded transition-colors ${cat.active ? "text-emerald-600 bg-emerald-50" : "text-muted-foreground bg-muted"}`}
-                                title={cat.active ? "Desativar" : "Ativar"}
-                              >
+                            onClick={(e) => {e.stopPropagation();updateCatalog(cat.id, { active: !cat.active });}}
+                            className={`p-1 rounded transition-colors ${cat.active ? "text-emerald-600 bg-emerald-50" : "text-muted-foreground bg-muted"}`}
+                            title={cat.active ? "Desativar" : "Ativar"}>
+                            
                                 {cat.active ? <Eye className="w-3 h-3" /> : <EyeOff className="w-3 h-3" />}
                               </button>
                               <button
-                                onClick={(e) => { e.stopPropagation(); setEditingCatalogId(cat.id); setEditingCatalogName(cat.name); }}
-                                className="p-1 rounded text-muted-foreground hover:text-foreground opacity-0 group-hover:opacity-100 transition-all"
-                                title="Renomear"
-                              >
+                            onClick={(e) => {e.stopPropagation();setEditingCatalogId(cat.id);setEditingCatalogName(cat.name);}}
+                            className="p-1 rounded text-muted-foreground hover:text-foreground opacity-0 group-hover:opacity-100 transition-all"
+                            title="Renomear">
+                            
                                 <Pencil className="w-3 h-3" />
                               </button>
-                              {index !== 0 && (
-                                <button
-                                  onClick={(e) => { e.stopPropagation(); deleteCatalog(cat.id); }}
-                                  className="p-1 rounded text-destructive opacity-0 group-hover:opacity-100 transition-all"
-                                  title="Excluir"
-                                >
+                              {index !== 0 &&
+                          <button
+                            onClick={(e) => {e.stopPropagation();deleteCatalog(cat.id);}}
+                            className="p-1 rounded text-destructive opacity-0 group-hover:opacity-100 transition-all"
+                            title="Excluir">
+                            
                                   <Trash2 className="w-3 h-3" />
                                 </button>
-                              )}
+                          }
                             </div>
                           </div>
                           <p className="text-[10px] font-medium text-muted-foreground mt-1">
                             {cat.paints.length} cores · {cat.active ? "Ativo" : "Inativo"}
                           </p>
                         </button>
-                      )}
+                    }
                     </div>
-                  ))}
+                  )}
                 </div>
 
                 {/* Novo catálogo */}
@@ -1406,8 +1406,8 @@ const Dashboard = () => {
                           setNewCatalogName("");
                           toast.success("Catálogo criado!");
                         }
-                      }}
-                    />
+                      }} />
+                    
                     <Button size="icon" className="h-9 w-9 shrink-0" onClick={() => {
                       if (newCatalogName.trim()) {
                         addCatalog({ name: newCatalogName.trim(), active: true });
@@ -1452,48 +1452,48 @@ const Dashboard = () => {
                     placeholder="Buscar por nome ou código..."
                     value={searchTerm}
                     onChange={(e) => setSearchTerm(e.target.value)}
-                    className="pl-10 h-10"
-                  />
-                  {searchTerm && (
-                    <button onClick={() => setSearchTerm("")} className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground">
+                    className="pl-10 h-10" />
+                  
+                  {searchTerm &&
+                  <button onClick={() => setSearchTerm("")} className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground">
                       <X className="w-3.5 h-3.5" />
                     </button>
-                  )}
+                  }
                 </div>
 
                 {/* Stats rápidas */}
                 <div className="grid grid-cols-3 gap-3">
                   {[
-                    { label: "Total", value: activeCatalog?.paints.length || 0 },
-                    { label: "Filtradas", value: filteredPaints.length },
-                    { label: "Categorias", value: categories.length },
-                  ].map(({ label, value }) => (
-                    <div key={label} className="bg-muted/40 rounded-xl p-3 text-center">
+                  { label: "Total", value: activeCatalog?.paints.length || 0 },
+                  { label: "Filtradas", value: filteredPaints.length },
+                  { label: "Categorias", value: categories.length }].
+                  map(({ label, value }) =>
+                  <div key={label} className="bg-muted/40 rounded-xl p-3 text-center">
                       <p className="text-lg font-bold font-display text-foreground">{value}</p>
                       <p className="text-[10px] text-muted-foreground uppercase tracking-wider">{label}</p>
                     </div>
-                  ))}
+                  )}
                 </div>
 
                 {/* Grid de cores por categoria */}
                 <div className="space-y-8 max-h-[500px] overflow-y-auto pr-1">
-                  {categories.length > 0 ? (
-                    categories.map((cat) => {
-                      const catPaints = filteredPaints.filter((p) => p.category === cat);
-                      if (catPaints.length === 0) return null;
-                      return (
-                        <div key={cat} className="space-y-3">
+                  {categories.length > 0 ?
+                  categories.map((cat) => {
+                    const catPaints = filteredPaints.filter((p) => p.category === cat);
+                    if (catPaints.length === 0) return null;
+                    return (
+                      <div key={cat} className="space-y-3">
                           <div className="flex items-center gap-3 sticky top-0 bg-card py-1 z-10">
                             <h3 className="text-[10px] font-bold text-muted-foreground uppercase tracking-[0.2em]">{cat}</h3>
                             <div className="h-px flex-1 bg-border" />
                             <span className="text-[10px] text-muted-foreground">{catPaints.length}</span>
                           </div>
                           <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 xl:grid-cols-6 gap-3">
-                            {catPaints.map((paint) => (
-                              <div
-                                key={paint.id}
-                                className="group bg-background rounded-xl border border-border overflow-hidden hover:shadow-md transition-all relative"
-                              >
+                            {catPaints.map((paint) =>
+                          <div
+                            key={paint.id}
+                            className="group bg-background rounded-xl border border-border overflow-hidden hover:shadow-md transition-all relative">
+                            
                                 <div className="h-14 w-full" style={{ backgroundColor: paint.hex }} />
                                 <div className="p-2">
                                   <p className="text-[10px] font-bold text-foreground truncate leading-tight">{paint.name}</p>
@@ -1501,26 +1501,26 @@ const Dashboard = () => {
                                 </div>
                                 <div className="absolute top-1 right-1 flex gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
                                   <button
-                                    onClick={() => handleEditPaint(paint)}
-                                    className="w-5 h-5 rounded bg-white/90 shadow flex items-center justify-center hover:bg-white"
-                                  >
+                                onClick={() => handleEditPaint(paint)}
+                                className="w-5 h-5 rounded bg-white/90 shadow flex items-center justify-center hover:bg-white">
+                                
                                     <Pencil className="w-2.5 h-2.5 text-gray-600" />
                                   </button>
                                   <button
-                                    onClick={() => handleDeletePaint(paint.id)}
-                                    className="w-5 h-5 rounded bg-white/90 shadow flex items-center justify-center hover:bg-red-50"
-                                  >
+                                onClick={() => handleDeletePaint(paint.id)}
+                                className="w-5 h-5 rounded bg-white/90 shadow flex items-center justify-center hover:bg-red-50">
+                                
                                     <X className="w-2.5 h-2.5 text-red-500" />
                                   </button>
                                 </div>
                               </div>
-                            ))}
+                          )}
                           </div>
-                        </div>
-                      );
-                    })
-                  ) : (
-                    <div className="py-20 text-center border-2 border-dashed border-border rounded-2xl">
+                        </div>);
+
+                  }) :
+
+                  <div className="py-20 text-center border-2 border-dashed border-border rounded-2xl">
                       <Palette className="w-10 h-10 text-muted-foreground mx-auto mb-3 opacity-20" />
                       <p className="text-muted-foreground font-medium">Este catálogo está vazio.</p>
                       <p className="text-xs text-muted-foreground mt-1">Importe um CSV ou adicione cores manualmente.</p>
@@ -1528,7 +1528,7 @@ const Dashboard = () => {
                         <Plus className="w-4 h-4" /> Adicionar Primeira Cor
                       </Button>
                     </div>
-                  )}
+                  }
                 </div>
               </div>
             </div>
@@ -1562,8 +1562,8 @@ const Dashboard = () => {
                           value={company.slug}
                           onChange={(e) => updateCompanyLocal({ slug: e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, "-") })}
                           className="h-11 font-mono text-sm"
-                          placeholder="minha-loja"
-                        />
+                          placeholder="minha-loja" />
+                        
                       </div>
                     </div>
                   </div>
@@ -1580,28 +1580,28 @@ const Dashboard = () => {
                       key: "secondaryColor" as const,
                       value: company.secondaryColor,
                       desc: "Usada em detalhes e gradientes"
-                    }].map(({ label, key, value, desc }) => (
-                      <div key={key} className="space-y-2">
+                    }].map(({ label, key, value, desc }) =>
+                    <div key={key} className="space-y-2">
                         <Label className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">{label}</Label>
                         <div className="flex gap-2">
                           <div className="relative w-11 h-11 shrink-0">
                             <input
-                              type="color"
-                              value={value}
-                              onChange={(e) => updateCompanyLocal({ [key]: e.target.value })}
-                              className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
-                            />
+                            type="color"
+                            value={value}
+                            onChange={(e) => updateCompanyLocal({ [key]: e.target.value })}
+                            className="absolute inset-0 w-full h-full opacity-0 cursor-pointer" />
+                          
                             <div className="w-full h-full rounded-lg border-2 border-border shadow-sm" style={{ backgroundColor: value }} />
                           </div>
                           <Input
-                            value={value}
-                            onChange={(e) => updateCompanyLocal({ [key]: e.target.value })}
-                            className="h-11 font-mono text-sm uppercase"
-                          />
+                          value={value}
+                          onChange={(e) => updateCompanyLocal({ [key]: e.target.value })}
+                          className="h-11 font-mono text-sm uppercase" />
+                        
                         </div>
                         <p className="text-[10px] text-muted-foreground">{desc}</p>
                       </div>
-                    ))}
+                    )}
                   </div>
 
                   {/* Logo */}
@@ -1610,27 +1610,27 @@ const Dashboard = () => {
                     <input type="file" ref={logoInputRef} className="hidden" accept="image/png,image/jpeg,image/svg+xml" onChange={handleLogoUpload} />
                     <div
                       className="border-2 border-dashed border-border rounded-xl p-6 text-center hover:bg-muted/40 transition-colors cursor-pointer group"
-                      onClick={() => logoInputRef.current?.click()}
-                    >
-                      {company.logo ? (
-                        <div className="relative h-20 mx-auto" style={{ width: "auto", maxWidth: "200px" }}>
+                      onClick={() => logoInputRef.current?.click()}>
+                      
+                      {company.logo ?
+                      <div className="relative h-20 mx-auto" style={{ width: "auto", maxWidth: "200px" }}>
                           <img src={company.logo} alt="Preview" className="w-full h-full object-contain" />
                           <div className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity rounded-lg">
                             <Upload className="w-5 h-5 text-white" />
                           </div>
-                        </div>
-                      ) : (
-                        <>
+                        </div> :
+
+                      <>
                           <ImageIcon className="w-7 h-7 text-muted-foreground/50 mx-auto mb-2" />
                           <p className="text-xs text-muted-foreground">Clique para fazer upload (PNG, SVG, JPG · máx 2MB)</p>
                         </>
-                      )}
+                      }
                     </div>
-                    {company.logo && (
-                      <Button variant="ghost" size="sm" className="text-destructive hover:text-destructive w-full" onClick={() => updateCompanyLocal({ logo: undefined })}>
+                    {company.logo &&
+                    <Button variant="ghost" size="sm" className="text-destructive hover:text-destructive w-full" onClick={() => updateCompanyLocal({ logo: undefined })}>
                         <X className="w-3.5 h-3.5 mr-1" /> Remover logo
                       </Button>
-                    )}
+                    }
                   </div>
 
                   {/* Dados da Empresa */}
@@ -1649,8 +1649,8 @@ const Dashboard = () => {
                             value={company.phone || ""}
                             onChange={(e) => updateCompanyLocal({ phone: e.target.value })}
                             placeholder="(11) 99999-9999"
-                            className="h-11 pl-10"
-                          />
+                            className="h-11 pl-10" />
+                          
                         </div>
                       </div>
                       <div className="space-y-2">
@@ -1661,8 +1661,8 @@ const Dashboard = () => {
                             value={company.website || ""}
                             onChange={(e) => updateCompanyLocal({ website: e.target.value })}
                             placeholder="www.sualoja.com.br"
-                            className="h-11 pl-10"
-                          />
+                            className="h-11 pl-10" />
+                          
                         </div>
                       </div>
                     </div>
@@ -1673,8 +1673,8 @@ const Dashboard = () => {
                         value={company.address || ""}
                         onChange={(e) => updateCompanyLocal({ address: e.target.value })}
                         placeholder="Rua Example, 123 - Cidade/UF"
-                        className="h-11"
-                      />
+                        className="h-11" />
+                      
                     </div>
                   </div>
 
@@ -1689,27 +1689,27 @@ const Dashboard = () => {
                       <Label className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Estilo da Barra Superior</Label>
                       <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
                         {([
-                          { value: "glass", label: "Transparente", desc: "Fundo translúcido" },
-                          { value: "gradient", label: "Gradiente", desc: "Degrade intenso" },
-                          { value: "card", label: "Cartão", desc: "Com linha gradient" },
-                          { value: "minimal", label: "Criativo", desc: "Divisor animado" },
-                          { value: "primary", label: "Sólido", desc: "Cor primária sólida" },
-                          { value: "white", label: "Branco", desc: "Fundo branco limpo" },
-                          { value: "white-accent", label: "Branco Accent", desc: "Branco com linha colorida" },
-                        ] as { value: HeaderStyleMode; label: string; desc: string }[]).map((opt) => (
-                          <button
-                            key={opt.value}
-                            onClick={() => updateCompanyLocal({ headerStyle: opt.value })}
-                            className={`p-3 rounded-xl border-2 text-left transition-all ${
-                              company.headerStyle === opt.value
-                                ? "border-primary bg-primary/5"
-                                : "border-border hover:border-primary/30"
-                            }`}
-                          >
+                        { value: "glass", label: "Transparente", desc: "Fundo translúcido" },
+                        { value: "gradient", label: "Gradiente", desc: "Degrade intenso" },
+                        { value: "card", label: "Cartão", desc: "Com linha gradient" },
+                        { value: "minimal", label: "Criativo", desc: "Divisor animado" },
+                        { value: "primary", label: "Sólido", desc: "Cor primária sólida" },
+                        { value: "white", label: "Branco", desc: "Fundo branco limpo" },
+                        { value: "white-accent", label: "Branco Accent", desc: "Branco com linha colorida" }] as
+                        {value: HeaderStyleMode;label: string;desc: string;}[]).map((opt) =>
+                        <button
+                          key={opt.value}
+                          onClick={() => updateCompanyLocal({ headerStyle: opt.value })}
+                          className={`p-3 rounded-xl border-2 text-left transition-all ${
+                          company.headerStyle === opt.value ?
+                          "border-primary bg-primary/5" :
+                          "border-border hover:border-primary/30"}`
+                          }>
+                          
                             <p className="text-xs font-bold text-foreground">{opt.label}</p>
                             <p className="text-[9px] text-muted-foreground mt-0.5">{opt.desc}</p>
                           </button>
-                        ))}
+                        )}
                       </div>
                     </div>
 
@@ -1718,23 +1718,23 @@ const Dashboard = () => {
                       <Label className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Conteúdo do Cabeçalho</Label>
                       <div className="grid grid-cols-3 gap-2">
                         {([
-                          { value: "logo+name", label: "Logo + Nome", icon: "🔤" },
-                          { value: "logo", label: "Só Logo", icon: "🖼️" },
-                          { value: "name", label: "Só Nome", icon: "📝" },
-                        ] as { value: HeaderContentMode; label: string; icon: string }[]).map((opt) => (
-                          <button
-                            key={opt.value}
-                            onClick={() => updateCompanyLocal({ headerContent: opt.value })}
-                            className={`p-3 rounded-xl border-2 text-center transition-all ${
-                              company.headerContent === opt.value
-                                ? "border-primary bg-primary/5"
-                                : "border-border hover:border-primary/30"
-                            }`}
-                          >
+                        { value: "logo+name", label: "Logo + Nome", icon: "🔤" },
+                        { value: "logo", label: "Só Logo", icon: "🖼️" },
+                        { value: "name", label: "Só Nome", icon: "📝" }] as
+                        {value: HeaderContentMode;label: string;icon: string;}[]).map((opt) =>
+                        <button
+                          key={opt.value}
+                          onClick={() => updateCompanyLocal({ headerContent: opt.value })}
+                          className={`p-3 rounded-xl border-2 text-center transition-all ${
+                          company.headerContent === opt.value ?
+                          "border-primary bg-primary/5" :
+                          "border-border hover:border-primary/30"}`
+                          }>
+                          
                             <span className="text-lg">{opt.icon}</span>
                             <p className="text-xs font-bold text-foreground mt-1">{opt.label}</p>
                           </button>
-                        ))}
+                        )}
                       </div>
                     </div>
                   </div>
@@ -1749,23 +1749,23 @@ const Dashboard = () => {
                       <Label className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Conjunto de Fontes</Label>
                       <div className="grid grid-cols-3 gap-2">
                         {([
-                          { value: "grotesk", label: "Grotesk", sample: "Space Grotesk", desc: "Moderna e técnica" },
-                          { value: "rounded", label: "Arredondada", sample: "Montserrat", desc: "Amigável e suave" },
-                          { value: "neo", label: "Neo-Grotesca", sample: "Roboto", desc: "Clássica e neutra" },
-                        ] as { value: FontSet; label: string; sample: string; desc: string }[]).map((opt) => (
-                          <button
-                            key={opt.value}
-                            onClick={() => updateCompanyLocal({ fontSet: opt.value })}
-                            className={`p-3 rounded-xl border-2 text-left transition-all ${
-                              company.fontSet === opt.value
-                                ? "border-primary bg-primary/5"
-                                : "border-border hover:border-primary/30"
-                            }`}
-                          >
+                        { value: "grotesk", label: "Grotesk", sample: "Space Grotesk", desc: "Moderna e técnica" },
+                        { value: "rounded", label: "Arredondada", sample: "Montserrat", desc: "Amigável e suave" },
+                        { value: "neo", label: "Neo-Grotesca", sample: "Roboto", desc: "Clássica e neutra" }] as
+                        {value: FontSet;label: string;sample: string;desc: string;}[]).map((opt) =>
+                        <button
+                          key={opt.value}
+                          onClick={() => updateCompanyLocal({ fontSet: opt.value })}
+                          className={`p-3 rounded-xl border-2 text-left transition-all ${
+                          company.fontSet === opt.value ?
+                          "border-primary bg-primary/5" :
+                          "border-border hover:border-primary/30"}`
+                          }>
+                          
                             <p className="text-xs font-bold text-foreground">{opt.label}</p>
                             <p className="text-[9px] text-muted-foreground mt-0.5">{opt.desc}</p>
                           </button>
-                        ))}
+                        )}
                       </div>
                     </div>
                   </div>
@@ -1786,60 +1786,60 @@ const Dashboard = () => {
                   {/* Header preview */}
                   <div
                     className={`h-12 flex items-center gap-2 px-3 ${
-                      headerStyle === "glass" ? "bg-background/80 backdrop-blur-lg" :
-                      headerStyle === "gradient" ? "border-b border-transparent" :
-                      headerStyle === "card" ? "bg-card border-b border-border shadow-lg" :
-                      headerStyle === "minimal" ? "border-b border-transparent" :
-                      "bg-background/80 backdrop-blur-lg"
-                    }`}
-                    style={
-                      headerStyle === "gradient" ? { 
-                        background: `linear-gradient(135deg, ${company.primaryColor} 0%, ${company.secondaryColor} 100%)`
-                      } : headerStyle === "minimal" ? {
-                        backgroundColor: company.primaryColor,
-                        opacity: 0.95 // Leve transparência no fundo
-                      } : undefined
+                    headerStyle === "glass" ? "bg-background/80 backdrop-blur-lg" :
+                    headerStyle === "gradient" ? "border-b border-transparent" :
+                    headerStyle === "card" ? "bg-card border-b border-border shadow-lg" :
+                    headerStyle === "minimal" ? "border-b border-transparent" :
+                    "bg-background/80 backdrop-blur-lg"}`
                     }
-                  >
+                    style={
+                    headerStyle === "gradient" ? {
+                      background: `linear-gradient(135deg, ${company.primaryColor} 0%, ${company.secondaryColor} 100%)`
+                    } : headerStyle === "minimal" ? {
+                      backgroundColor: company.primaryColor,
+                      opacity: 0.95 // Leve transparência no fundo
+                    } : undefined
+                    }>
+                    
                     {/* Linha gradient para o estilo cartão (sem transparência) */}
-                    {headerStyle === "card" && (
-                      <div 
-                        className="h-1 w-full"
-                        style={{ 
-                          background: `linear-gradient(90deg, ${company.primaryColor}, ${company.secondaryColor})`
-                        }}
-                      />
-                    )}
+                    {headerStyle === "card" &&
+                    <div
+                      className="h-1 w-full"
+                      style={{
+                        background: `linear-gradient(90deg, ${company.primaryColor}, ${company.secondaryColor})`
+                      }} />
 
-                    {(company.headerContent === "logo+name" || company.headerContent === "logo") && (
-                      <div
-                        className="h-6 rounded flex items-center justify-center"
-                        style={{ 
-                          backgroundColor: company.logo ? "transparent" : (headerStyle === "gradient" || headerStyle === "minimal") ? "rgba(255,255,255,0.15)" : undefined,
-                          width: company.logo ? "auto" : "1.5rem",
-                          maxWidth: "80px",
-                          border: (headerStyle === "gradient" || headerStyle === "minimal") ? "1px solid rgba(255,255,255,0.2)" : undefined,
-                          opacity: headerStyle === "minimal" ? 0.9 : undefined // Leve transparência adicional no logo
-                        }}
-                      >
-                        {company.logo ? (
-                          <img src={company.logo} alt="Logo" className="w-full h-full object-contain" />
-                        ) : (
-                          <Palette className="w-3 h-3" style={{ color: (headerStyle === "gradient" || headerStyle === "minimal") ? "#FFFFFF" : company.primaryColor }} />
-                        )}
+                    }
+
+                    {(company.headerContent === "logo+name" || company.headerContent === "logo") &&
+                    <div
+                      className="h-6 rounded flex items-center justify-center"
+                      style={{
+                        backgroundColor: company.logo ? "transparent" : headerStyle === "gradient" || headerStyle === "minimal" ? "rgba(255,255,255,0.15)" : undefined,
+                        width: company.logo ? "auto" : "1.5rem",
+                        maxWidth: "80px",
+                        border: headerStyle === "gradient" || headerStyle === "minimal" ? "1px solid rgba(255,255,255,0.2)" : undefined,
+                        opacity: headerStyle === "minimal" ? 0.9 : undefined // Leve transparência adicional no logo
+                      }}>
+                      
+                        {company.logo ?
+                      <img src={company.logo} alt="Logo" className="w-full h-full object-contain" /> :
+
+                      <Palette className="w-3 h-3" style={{ color: headerStyle === "gradient" || headerStyle === "minimal" ? "#FFFFFF" : company.primaryColor }} />
+                      }
                       </div>
-                    )}
-                    {(company.headerContent === "logo+name" || company.headerContent === "name") && (
-                      <span className={`text-sm font-bold ${
-                        headerStyle === "gradient" || headerStyle === "minimal" ? "" : "text-foreground"
-                      }`} style={
-                        (headerStyle === "gradient" || headerStyle === "minimal") ? { 
-                          color: '#FFFFFF' // Sempre branco nestes estilos
-                        } : undefined
-                      }>
+                    }
+                    {(company.headerContent === "logo+name" || company.headerContent === "name") &&
+                    <span className={`text-sm font-bold ${
+                    headerStyle === "gradient" || headerStyle === "minimal" ? "" : "text-foreground"}`
+                    } style={
+                    headerStyle === "gradient" || headerStyle === "minimal" ? {
+                      color: '#FFFFFF' // Sempre branco nestes estilos
+                    } : undefined
+                    }>
                         {company.name}
                       </span>
-                    )}
+                    }
                   </div>
 
                   <div className="p-4 space-y-3">
@@ -1851,9 +1851,9 @@ const Dashboard = () => {
                       <div className="h-2 w-1/2 rounded bg-muted animate-pulse" />
                     </div>
                     <div className="grid grid-cols-4 gap-1.5 pt-1">
-                      {company.catalogs[0]?.paints.slice(0, 8).map((p) => (
-                        <div key={p.id} title={p.name} className="aspect-square rounded-md border border-border" style={{ backgroundColor: p.hex }} />
-                      ))}
+                      {company.catalogs[0]?.paints.slice(0, 8).map((p) =>
+                      <div key={p.id} title={p.name} className="aspect-square rounded-md border border-border" style={{ backgroundColor: p.hex }} />
+                      )}
                     </div>
                     <div className="h-8 rounded-lg w-full" style={{ backgroundColor: company.primaryColor }} />
                   </div>
@@ -1940,12 +1940,12 @@ const Dashboard = () => {
                     <div>
                       <Label className="text-sm font-medium text-foreground">Website</Label>
                       <div className="mt-1 p-3 bg-muted/50 rounded-lg text-foreground">
-                        {displayData.website ? (
-                          <a href={displayData.website} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline flex items-center gap-1">
+                        {displayData.website ?
+                        <a href={displayData.website} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline flex items-center gap-1">
                             <Globe className="w-4 h-4" />
                             {displayData.website}
-                          </a>
-                        ) : "Não informado"}
+                          </a> :
+                        "Não informado"}
                       </div>
                     </div>
                     
@@ -1972,11 +1972,11 @@ const Dashboard = () => {
                     <div>
                       <Label className="text-sm font-medium text-foreground">Status</Label>
                       <div className="mt-2">
-                        <Badge 
-                          variant={company?.subscriptionStatus === 'active' ? 'default' : 'secondary'} 
+                        <Badge
+                          variant={company?.subscriptionStatus === 'active' ? 'default' : 'secondary'}
                           className="w-full justify-center py-2"
-                          style={company?.subscriptionStatus === 'active' ? accessibleStyles.primary.primaryBadge : accessibleStyles.elements.inactiveStatus}
-                        >
+                          style={company?.subscriptionStatus === 'active' ? accessibleStyles.primary.primaryBadge : accessibleStyles.elements.inactiveStatus}>
+                          
                           {company?.subscriptionStatus === 'active' ? 'Assinatura Ativa' : 'Assinatura Inativa'}
                         </Badge>
                       </div>
@@ -1994,14 +1994,14 @@ const Dashboard = () => {
                       </div>
                     </div>
                     
-                    {company?.tokensExpiresAt && (
-                      <div>
+                    {company?.tokensExpiresAt &&
+                    <div>
                         <Label className="text-sm font-medium text-foreground">Validade dos Tokens</Label>
                         <div className="mt-1 p-3 bg-muted/50 rounded-lg text-foreground">
                           {new Date(company.tokensExpiresAt).toLocaleDateString('pt-BR')}
                         </div>
                       </div>
-                    )}
+                    }
                     
                     <div className="pt-2 space-y-2">
                       <Button
@@ -2013,23 +2013,23 @@ const Dashboard = () => {
                           await refreshData();
                           toast.success("Status atualizado!");
                         }}
-                        style={accessibleStyles.elements.secondaryActionButton}
-                      >
+                        style={accessibleStyles.elements.secondaryActionButton}>
+                        
                         <RefreshCw className="w-4 h-4" />
                         Atualizar Status
                       </Button>
                       
-                      {company?.subscriptionStatus !== 'active' && (
-                        <Button
-                          size="sm"
-                          className="w-full gap-2"
-                          onClick={() => window.location.href = '/checkout'}
-                          style={accessibleStyles.elements.actionButton}
-                        >
+                      {company?.subscriptionStatus !== 'active' &&
+                      <Button
+                        size="sm"
+                        className="w-full gap-2"
+                        onClick={() => window.location.href = '/checkout'}
+                        style={accessibleStyles.elements.actionButton}>
+                        
                           <CreditCard className="w-4 h-4" />
                           Assinar Agora
                         </Button>
-                      )}
+                      }
                     </div>
                   </div>
                 </div>
@@ -2042,14 +2042,14 @@ const Dashboard = () => {
                   </h3>
                   
                   <div className="bg-card border border-border rounded-xl p-6">
-                    {tokenHistoryLoading ? (
-                      <div className="flex items-center justify-center py-4">
+                    {tokenHistoryLoading ?
+                    <div className="flex items-center justify-center py-4">
                         <Loader2 className="w-4 h-4 animate-spin" />
-                      </div>
-                    ) : tokenHistory.length > 0 ? (
-                      <div className="space-y-3">
-                        {tokenHistory.map((item, index) => (
-                          <div key={index} className="flex items-center justify-between p-3 bg-muted/30 rounded-lg">
+                      </div> :
+                    tokenHistory.length > 0 ?
+                    <div className="space-y-3">
+                        {tokenHistory.map((item, index) =>
+                      <div key={index} className="flex items-center justify-between p-3 bg-muted/30 rounded-lg">
                             <div>
                               <div className="text-sm font-medium text-foreground">
                                 {item.description}
@@ -2062,14 +2062,14 @@ const Dashboard = () => {
                               {item.amount > 0 ? '+' : ''}{item.amount}
                             </Badge>
                           </div>
-                        ))}
-                      </div>
-                    ) : (
-                      <div className="text-center py-4 text-muted-foreground">
+                      )}
+                      </div> :
+
+                    <div className="text-center py-4 text-muted-foreground">
                         <FileText className="w-8 h-8 mx-auto mb-2 opacity-50" />
                         <p className="text-sm">Nenhuma movimentação de tokens</p>
                       </div>
-                    )}
+                    }
                   </div>
                 </div>
               </div>
@@ -2083,16 +2083,16 @@ const Dashboard = () => {
         onOpenChange={setPaintDialogOpen}
         paint={editingPaint}
         onSave={handleSavePaint}
-        isSaving={isSavingPaint}
-      />
+        isSaving={isSavingPaint} />
+      
 
       {/* Modal obrigatório para criar senha no primeiro acesso */}
       <Dialog
         open={passwordSetupOpen}
         onOpenChange={(open) => {
           if (open) setPasswordSetupOpen(true);
-        }}
-      >
+        }}>
+        
         <DialogContent
           onEscapeKeyDown={(e) => {
             e.preventDefault();
@@ -2103,8 +2103,8 @@ const Dashboard = () => {
           onInteractOutside={(e) => {
             e.preventDefault();
           }}
-          className="max-w-md"
-        >
+          className="max-w-md">
+          
           <DialogHeader>
             <DialogTitle>🔐 Proteja sua conta</DialogTitle>
             <DialogDescription>
@@ -2139,13 +2139,13 @@ const Dashboard = () => {
                 }}
                 placeholder="Digite sua nova senha"
                 className={
-                  passwordHasStarted
-                    ? (passwordRules.minLength && passwordRules.hasUpper && passwordRules.hasNumber
-                        ? "border-green-600 focus-visible:ring-green-600"
-                        : "border-yellow-600 focus-visible:ring-yellow-600")
-                    : undefined
-                }
-              />
+                passwordHasStarted ?
+                passwordRules.minLength && passwordRules.hasUpper && passwordRules.hasNumber ?
+                "border-green-600 focus-visible:ring-green-600" :
+                "border-yellow-600 focus-visible:ring-yellow-600" :
+                undefined
+                } />
+              
             </div>
 
             <div className="space-y-2">
@@ -2160,13 +2160,13 @@ const Dashboard = () => {
                 }}
                 placeholder="Repita a senha"
                 className={
-                  passwordHasStarted
-                    ? (passwordRules.matches
-                        ? "border-green-600 focus-visible:ring-green-600"
-                        : "border-yellow-600 focus-visible:ring-yellow-600")
-                    : undefined
-                }
-              />
+                passwordHasStarted ?
+                passwordRules.matches ?
+                "border-green-600 focus-visible:ring-green-600" :
+                "border-yellow-600 focus-visible:ring-yellow-600" :
+                undefined
+                } />
+              
             </div>
 
             <div className="text-xs">
@@ -2177,26 +2177,26 @@ const Dashboard = () => {
               <div className={getRuleClass(passwordRules.matches)}>- As senhas precisam ser iguais</div>
             </div>
 
-            {passwordError && (
-              <div className="text-sm text-destructive bg-destructive/10 border border-destructive/20 rounded p-2">
+            {passwordError &&
+            <div className="text-sm text-destructive bg-destructive/10 border border-destructive/20 rounded p-2">
                 {passwordError}
               </div>
-            )}
+            }
           </div>
 
           <DialogFooter className="flex-col sm:flex-row gap-2">
-            <Button 
-              variant="outline" 
+            <Button
+              variant="outline"
               onClick={handleSkipPasswordSetup}
-              className="w-full sm:w-auto"
-            >
+              className="w-full sm:w-auto">
+              
               Definir depois
             </Button>
-            <Button 
-              onClick={handleSetPassword} 
+            <Button
+              onClick={handleSetPassword}
               disabled={isSavingPassword || !passwordRules.minLength || !passwordRules.hasUpper || !passwordRules.hasNumber || !passwordRules.matches}
-              className="w-full sm:w-auto"
-            >
+              className="w-full sm:w-auto">
+              
               {isSavingPassword ? "Salvando..." : "Criar senha agora"}
             </Button>
           </DialogFooter>
@@ -2204,8 +2204,8 @@ const Dashboard = () => {
       </Dialog>
 
       {/* Diálogo de boas práticas para logo */}
-      {logoGuidelinesOpen && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+      {logoGuidelinesOpen &&
+      <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
           <div className="bg-background rounded-2xl border border-border shadow-soft max-w-md w-full p-6 space-y-4">
             <div className="text-center space-y-3">
               <div className="w-12 h-12 rounded-xl gradient-primary flex items-center justify-center mx-auto">
@@ -2269,10 +2269,10 @@ const Dashboard = () => {
             </div>
           </div>
         </div>
-      )}
+      }
 
-    </div>
-  );
+    </div>);
+
 };
 
 export default Dashboard;
