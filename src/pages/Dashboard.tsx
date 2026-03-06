@@ -799,26 +799,23 @@ const Dashboard = () => {
   const isGradientHeader = headerStyle === "gradient";
   const isCardHeader = headerStyle === "card";
   const isMinimalHeader = headerStyle === "minimal";
+  const isPrimaryHeader = headerStyle === "primary";
+  const isWhiteHeader = headerStyle === "white";
+  const isWhiteAccentHeader = headerStyle === "white-accent";
+  const isColoredHeader = isGradientHeader || isMinimalHeader || isPrimaryHeader;
 
   const getButtonStyle = (isPrimary = true) => {
-      // Se estiver em modo gradiente, usar estilo primário acessível
-      if (isGradientHeader) {
+      if (isColoredHeader) {
         return accessibleStyles.primary.primaryButton;
       }
-      // Se estiver em modo criativo, usar contraste inteligente
-      if (isMinimalHeader) {
-        return accessibleStyles.primary.primaryButton;
-      }
-      // Caso contrário, usar lógica normal
       return companyStyles.getButtonStyle(isPrimary);
     };
 
   const getHeaderTextColor = () => {
-    // Se estiver em modo gradiente ou criativo, usar texto acessível
-    if (isGradientHeader || isMinimalHeader) {
+    if (isColoredHeader) {
       return accessibleStyles.primary.primaryText.color;
     }
-    return undefined; // Usa cores padrão do Tailwind
+    return undefined;
   };
 
   const handleCheckout = async (mode: "subscription" | "recharge") => {
@@ -884,25 +881,25 @@ const Dashboard = () => {
         className={`sticky top-0 z-50 ${
           headerStyle === "glass"
             ? "bg-background/80 backdrop-blur-lg border-b border-border"
-            : headerStyle === "gradient"
+            : isColoredHeader
               ? "border-b border-transparent"
-              : headerStyle === "card"
+              : isCardHeader
                 ? "bg-card border-b border-border shadow-xl"
-                : headerStyle === "minimal"
-                  ? "border-b border-transparent"
+                : (isWhiteHeader || isWhiteAccentHeader)
+                  ? "bg-white border-b border-border"
                   : "bg-background/80 backdrop-blur-lg border-b border-border"
         }`}
         style={
           isGradientHeader ? { 
             background: `linear-gradient(135deg, ${company.primaryColor} 0%, ${company.secondaryColor} 100%)`
-          } : isMinimalHeader ? {
+          } : (isMinimalHeader || isPrimaryHeader) ? {
             backgroundColor: company.primaryColor,
-            opacity: 0.95 // Leve transparência no fundo
+            opacity: isPrimaryHeader ? 1 : 0.95
           } : undefined
         }
       >
-        {/* Linha gradient para o estilo cartão (sem transparência) */}
-        {isCardHeader && (
+        {/* Linha gradient para o estilo cartão ou white-accent */}
+        {(isCardHeader || isWhiteAccentHeader) && (
           <div 
             className="h-1 w-full"
             style={{ 
@@ -917,17 +914,16 @@ const Dashboard = () => {
               <div
                 className="h-8 rounded-lg flex items-center justify-center overflow-hidden shrink-0"
                 style={{ 
-                  backgroundColor: company.logo ? "transparent" : (isGradientHeader || isMinimalHeader) ? "rgba(255,255,255,0.15)" : undefined,
+                  backgroundColor: company.logo ? "transparent" : isColoredHeader ? "rgba(255,255,255,0.15)" : undefined,
                   width: company.logo ? "auto" : "2rem",
                   maxWidth: "120px",
-                  border: (isGradientHeader || isMinimalHeader) ? "1px solid rgba(255,255,255,0.2)" : undefined,
-                  opacity: isMinimalHeader ? 0.9 : undefined // Leve transparência adicional no logo
+                  border: isColoredHeader ? "1px solid rgba(255,255,255,0.2)" : undefined,
                 }}
               >
                 {company.logo ? (
                   <img src={company.logo} alt="Logo" className="w-full h-full object-contain" />
                 ) : (
-                  <Palette className="w-4 h-4" style={{ color: (isGradientHeader || isMinimalHeader) ? "#FFFFFF" : company.primaryColor }} />
+                  <Palette className="w-4 h-4" style={{ color: isColoredHeader ? "#FFFFFF" : company.primaryColor }} />
                 )}
               </div>
             )}
@@ -1697,6 +1693,9 @@ const Dashboard = () => {
                           { value: "gradient", label: "Gradiente", desc: "Degrade intenso" },
                           { value: "card", label: "Cartão", desc: "Com linha gradient" },
                           { value: "minimal", label: "Criativo", desc: "Divisor animado" },
+                          { value: "primary", label: "Sólido", desc: "Cor primária sólida" },
+                          { value: "white", label: "Branco", desc: "Fundo branco limpo" },
+                          { value: "white-accent", label: "Branco Accent", desc: "Branco com linha colorida" },
                         ] as { value: HeaderStyleMode; label: string; desc: string }[]).map((opt) => (
                           <button
                             key={opt.value}

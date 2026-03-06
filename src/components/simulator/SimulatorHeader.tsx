@@ -36,29 +36,42 @@ const SimulatorHeader = ({
   const headerContent = company?.headerContent ?? "logo+name";
   const isPrimaryHeader = headerStyle === "primary";
 
+  const isGradientHeader = headerStyle === "gradient";
+  const isCardHeader = headerStyle === "card";
+  const isMinimalHeader = headerStyle === "minimal";
+  const isColoredHeader = isPrimaryHeader || isGradientHeader || isMinimalHeader;
+
   const rootClass = cn(
-    "sticky top-0 z-50 border-b border-border",
-    headerStyle === "glass" && "bg-background/80 backdrop-blur-lg",
-    (headerStyle === "white" || headerStyle === "white-accent") && "bg-white",
-    isPrimaryHeader && "bg-transparent",
+    "sticky top-0 z-50",
+    headerStyle === "glass" && "bg-background/80 backdrop-blur-lg border-b border-border",
+    (headerStyle === "white" || headerStyle === "white-accent") && "bg-white border-b border-border",
+    isCardHeader && "bg-card border-b border-border shadow-xl",
+    (isPrimaryHeader || isGradientHeader || isMinimalHeader) && "border-b border-transparent",
   );
 
-  const rootStyle = isPrimaryHeader ? { backgroundColor: company?.primaryColor || "hsl(var(--primary))" } : undefined;
+  const rootStyle = isPrimaryHeader
+    ? { backgroundColor: company?.primaryColor || "hsl(var(--primary))" }
+    : isGradientHeader
+      ? { background: `linear-gradient(135deg, ${company?.primaryColor || "hsl(var(--primary))"} 0%, ${company?.secondaryColor || "hsl(var(--secondary))"} 100%)` }
+      : isMinimalHeader
+        ? { backgroundColor: company?.primaryColor || "hsl(var(--primary))", opacity: 0.95 }
+        : undefined;
 
-  const titleColor = getHeaderTextColor(headerStyle);
-  const mutedColor = getHeaderMutedTextColor(headerStyle);
+  const coloredStyle = isColoredHeader ? "primary" : headerStyle;
+  const titleColor = getHeaderTextColor(coloredStyle);
+  const mutedColor = getHeaderMutedTextColor(coloredStyle);
 
   const showLogo = headerContent === "logo+name" || headerContent === "logo";
   const showName = headerContent === "logo+name" || headerContent === "name";
 
-  const ghostOnPrimary = isPrimaryHeader ? "text-white hover:bg-white/10" : "";
-  const outlineOnPrimary = isPrimaryHeader
+  const ghostOnPrimary = isColoredHeader ? "text-white hover:bg-white/10" : "";
+  const outlineOnPrimary = isColoredHeader
     ? "border-white/20 text-white hover:bg-white/10 hover:text-white"
     : "";
 
   return (
     <header className={rootClass} style={rootStyle}>
-      {headerStyle === "white-accent" && (
+      {(headerStyle === "white-accent" || isCardHeader) && (
         <div
           className="h-1 w-full"
           style={{
@@ -75,7 +88,7 @@ const SimulatorHeader = ({
             </Link>
           </Button>
 
-          <div className={cn("h-6 w-px mx-1", isPrimaryHeader ? "bg-white/20" : "bg-border")} />
+          <div className={cn("h-6 w-px mx-1", isColoredHeader ? "bg-white/20" : "bg-border")} />
 
           <div className="flex items-center gap-2.5 min-w-0">
             {showLogo && (
@@ -84,7 +97,7 @@ const SimulatorHeader = ({
                 style={{
                   backgroundColor: company?.logo
                     ? "transparent"
-                    : isPrimaryHeader
+                    : isColoredHeader
                       ? "rgba(255,255,255,0.18)"
                       : company?.primaryColor || "hsl(var(--primary))",
                 }}
@@ -92,7 +105,7 @@ const SimulatorHeader = ({
                 {company?.logo ? (
                   <img src={company.logo} alt={company.name} className="w-full h-full object-contain" />
                 ) : (
-                  <Palette className={cn("w-4 h-4", isPrimaryHeader ? "text-white" : "text-white")} />
+                  <Palette className={cn("w-4 h-4", isColoredHeader ? "text-white" : "text-white")} />
                 )}
               </div>
             )}
@@ -116,7 +129,7 @@ const SimulatorHeader = ({
             outlineOnPrimary,
             !isPrimaryHeader && "border-border"
           )}>
-            <Sparkles className={cn("w-3.5 h-3.5", isPrimaryHeader ? "text-white/80" : "text-amber-500")} />
+            <Sparkles className={cn("w-3.5 h-3.5", isColoredHeader ? "text-white/80" : "text-amber-500")} />
             <span className={cn(titleColor)}>{company?.tokens ?? 0}</span>
             <span className={cn("hidden sm:inline-block", mutedColor)}>créditos</span>
           </div>
@@ -148,7 +161,7 @@ const SimulatorHeader = ({
               onClick={onGeneratePDF}
               className={cn(
                 "gap-1.5 hidden sm:inline-flex",
-                isPrimaryHeader ? outlineOnPrimary : "border-primary/20 hover:bg-primary/5 text-primary",
+                isColoredHeader ? outlineOnPrimary : "border-primary/20 hover:bg-primary/5 text-primary",
               )}
             >
               <FileDown className="w-3.5 h-3.5" /> Gerar PDF
