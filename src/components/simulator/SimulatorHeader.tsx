@@ -30,12 +30,11 @@ const SimulatorHeader = ({
   projectName,
   hasUnsavedChanges,
 }: SimulatorHeaderProps) => {
-  const { company } = useStore(); // Use company from context
+  const { company } = useStore();
 
   const headerStyle = company?.headerStyle ?? "glass";
   const headerContent = company?.headerContent ?? "logo+name";
   const isPrimaryHeader = headerStyle === "primary";
-
   const isGradientHeader = headerStyle === "gradient";
   const isCardHeader = headerStyle === "card";
   const isMinimalHeader = headerStyle === "minimal";
@@ -80,20 +79,22 @@ const SimulatorHeader = ({
         />
       )}
 
-      <div className="container mx-auto flex items-center justify-between h-16 px-4">
-        <div className="flex items-center gap-3 min-w-0">
-          <Button variant="ghost" size="sm" asChild className={cn(ghostOnPrimary)}>
-            <Link to={companySlug ? `/empresa/${companySlug}` : "/dashboard"} className="gap-1.5">
-              <ArrowLeft className="w-3.5 h-3.5" /> Voltar
+      <div className="container mx-auto flex items-center justify-between h-14 sm:h-16 px-2 sm:px-4">
+        {/* Left side */}
+        <div className="flex items-center gap-1.5 sm:gap-3 min-w-0">
+          <Button variant="ghost" size="sm" asChild className={cn("h-8 px-2 sm:px-3", ghostOnPrimary)}>
+            <Link to={companySlug ? `/empresa/${companySlug}` : "/dashboard"} className="gap-1">
+              <ArrowLeft className="w-3.5 h-3.5" />
+              <span className="hidden sm:inline">Voltar</span>
             </Link>
           </Button>
 
-          <div className={cn("h-6 w-px mx-1", isColoredHeader ? "bg-white/20" : "bg-border")} />
+          <div className={cn("h-5 w-px", isColoredHeader ? "bg-white/20" : "bg-border")} />
 
-          <div className="flex items-center gap-2.5 min-w-0">
+          <div className="flex items-center gap-1.5 sm:gap-2.5 min-w-0">
             {showLogo && (
               <div
-                className="w-8 h-8 rounded-lg flex items-center justify-center overflow-hidden"
+                className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg flex items-center justify-center overflow-hidden flex-shrink-0"
                 style={{
                   backgroundColor: company?.logo
                     ? "transparent"
@@ -105,53 +106,54 @@ const SimulatorHeader = ({
                 {company?.logo ? (
                   <img src={company.logo} alt={company.name} className="w-full h-full object-contain" />
                 ) : (
-                  <Palette className={cn("w-4 h-4", isColoredHeader ? "text-white" : "text-white")} />
+                  <Palette className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-white" />
                 )}
               </div>
             )}
 
             {showName && (
               <div className="flex flex-col min-w-0">
-                <span className={cn("font-display font-bold text-sm leading-none truncate", titleColor)}>
+                <span className={cn("font-display font-bold text-xs sm:text-sm leading-none truncate max-w-[100px] sm:max-w-none", titleColor)}>
                   {company?.name || "Simulador"}
                 </span>
-                <span className={cn("text-[10px] font-medium uppercase tracking-wider truncate", mutedColor)}>
-                  {projectName ? projectName : "Simulador de Ambientes"}
+                <span className={cn("text-[9px] sm:text-[10px] font-medium uppercase tracking-wider truncate max-w-[100px] sm:max-w-none", mutedColor)}>
+                  {projectName ? projectName : "Simulador"}
                 </span>
               </div>
             )}
           </div>
         </div>
 
-        <div className="flex items-center gap-2">
+        {/* Right side */}
+        <div className="flex items-center gap-1 sm:gap-2">
           <div className={cn(
-            "flex items-center gap-1.5 h-9 px-3 rounded-md border text-xs font-medium",
+            "flex items-center gap-1 h-7 sm:h-9 px-2 sm:px-3 rounded-md border text-xs font-medium",
             outlineOnPrimary,
             !isPrimaryHeader && "border-border"
           )}>
-            <Sparkles className={cn("w-3.5 h-3.5", isColoredHeader ? "text-white/80" : "text-amber-500")} />
-            <span className={cn(titleColor)}>{company?.tokens ?? 0}</span>
-            <span className={cn("hidden sm:inline-block", mutedColor)}>créditos</span>
+            <Sparkles className={cn("w-3 h-3 sm:w-3.5 sm:h-3.5", isColoredHeader ? "text-white/80" : "text-amber-500")} />
+            <span className={cn("text-[11px] sm:text-xs", titleColor)}>{company?.tokens ?? 0}</span>
           </div>
 
           <Button
             variant="outline"
             size="sm"
             onClick={onOpenProjects}
-            className={cn("gap-1.5", outlineOnPrimary)}
+            className={cn("gap-1 h-7 sm:h-9 px-2 sm:px-3 text-xs", outlineOnPrimary)}
           >
-            <FolderOpen className="w-3.5 h-3.5" /> Sessões
+            <FolderOpen className="w-3.5 h-3.5" />
+            <span className="hidden sm:inline">Sessões</span>
           </Button>
 
           <Button
             variant={hasUnsavedChanges ? "default" : "outline"}
             size="sm"
             onClick={onSave}
-            className={cn("gap-1.5", outlineOnPrimary)}
+            className={cn("gap-1 h-7 sm:h-9 px-2 sm:px-3 text-xs", outlineOnPrimary)}
             style={hasUnsavedChanges ? { backgroundColor: company?.primaryColor } : undefined}
           >
             <Save className="w-3.5 h-3.5" />
-            {hasUnsavedChanges ? "Salvar *" : "Salvar"}
+            <span className="hidden sm:inline">{hasUnsavedChanges ? "Salvar *" : "Salvar"}</span>
           </Button>
 
           {hasSimulations && (
@@ -160,7 +162,7 @@ const SimulatorHeader = ({
               size="sm"
               onClick={onGeneratePDF}
               className={cn(
-                "gap-1.5 hidden sm:inline-flex",
+                "gap-1 h-7 sm:h-9 px-2 sm:px-3 text-xs hidden sm:inline-flex",
                 isColoredHeader ? outlineOnPrimary : "border-primary/20 hover:bg-primary/5 text-primary",
               )}
             >
