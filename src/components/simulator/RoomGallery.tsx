@@ -34,7 +34,10 @@ const RoomGallery = ({ rooms, activeRoomId, onSelectRoom, onAddRoom, onUploadCli
           onClick={() => onSelectRoom(room.id)}
           onMouseEnter={() => setHoveredRoomId(room.id)}
           onMouseLeave={() => setHoveredRoomId(null)}
-          style={{ width: 120, height: 80 }}
+          style={{ width: 100, height: 68 }}
+          className={`relative flex-shrink-0 rounded-xl border-2 border-border overflow-hidden group transition-all duration-200 w-[100px] h-[68px] sm:w-[120px] sm:h-[80px] ${
+            activeRoomId === room.id ? 'ring-2 ring-primary ring-offset-2' : 'hover:border-primary/50 hover:shadow-md'
+          }`}
         >
           <img
             src={room.imageUrl}
@@ -86,7 +89,8 @@ const RoomGallery = ({ rooms, activeRoomId, onSelectRoom, onAddRoom, onUploadCli
       <button
         onClick={onUploadClick}
         className="flex-shrink-0 rounded-xl border-2 border-dashed border-border hover:border-primary/50 transition-all duration-200 flex flex-col items-center justify-center gap-1 bg-muted/30 hover:bg-muted/60"
-        style={{ width: 120, height: 80 }}
+        style={{ width: 100, height: 68 }}
+        className="flex-shrink-0 rounded-xl border-2 border-dashed border-border hover:border-primary/50 transition-all duration-200 flex flex-col items-center justify-center gap-1 bg-muted/30 hover:bg-muted/60 w-[100px] h-[68px] sm:w-[120px] sm:h-[80px]"
       >
         <Plus className="w-5 h-5 text-muted-foreground" />
         <span className="text-[10px] text-muted-foreground font-medium">Novo Ambiente</span>

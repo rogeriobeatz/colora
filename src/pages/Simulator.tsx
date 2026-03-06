@@ -166,7 +166,7 @@ const Simulator = ({ companySlug }: { companySlug?: string }) => {
         projectName={session?.name ?? null}
       />
 
-      <div className="container mx-auto px-4 py-8 max-w-7xl flex-1">
+      <div className="container mx-auto px-3 sm:px-4 py-4 sm:py-8 max-w-7xl flex-1 pb-20 lg:pb-8">
         {!activeRoom ? (
           <div className="animate-fade-in">
             <div className="text-center mb-8 max-w-xl mx-auto">
@@ -177,7 +177,7 @@ const Simulator = ({ companySlug }: { companySlug?: string }) => {
                 <Palette className="w-8 h-8" style={{ color: company.primaryColor }} />
               </div>
 
-              <h1 className="text-3xl font-display font-bold text-foreground mb-3">Simulador de Ambientes</h1>
+              <h1 className="text-2xl sm:text-3xl font-display font-bold text-foreground mb-3">Simulador de Ambientes</h1>
               <p className="text-muted-foreground text-lg">
                 Envie uma foto, selecione a parede e aplique uma cor com realismo.
               </p>
@@ -245,8 +245,8 @@ const Simulator = ({ companySlug }: { companySlug?: string }) => {
               </Button>
             </div>
 
-            <div className="grid lg:grid-cols-[1fr_360px] gap-8">
-              <div className="space-y-6">
+            <div className="grid lg:grid-cols-[1fr_360px] gap-4 sm:gap-8">
+              <div className="space-y-4 sm:space-y-6">
                 <ImageViewer
                   room={activeRoom}
                   selectedWallId={selectedWallId}
@@ -270,7 +270,7 @@ const Simulator = ({ companySlug }: { companySlug?: string }) => {
                 )}
               </div>
 
-              <div className="animate-slide-in-right">
+              <div className="animate-slide-in-right hidden lg:block">
                 <ColorPanel
                   catalogs={company.catalogs}
                   selectedPaint={selectedPaint}
@@ -283,6 +283,20 @@ const Simulator = ({ companySlug }: { companySlug?: string }) => {
                 />
               </div>
             </div>
+          </div>
+
+          {/* Mobile ColorPanel - rendered outside grid */}
+          <div className="lg:hidden">
+            <ColorPanel
+              catalogs={company.catalogs}
+              selectedPaint={selectedPaint}
+              onSelectPaint={setSelectedPaint}
+              onApplyColor={applyColor}
+              canApply={!!activeRoom?.isAnalyzed && !!selectedWallId && !!selectedPaint}
+              isPainting={isPainting}
+              selectedWallLabel={selectedWall?.label}
+              primaryColor={company.primaryColor}
+            />
           </div>
         )}
       </div>
