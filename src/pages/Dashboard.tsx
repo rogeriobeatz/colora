@@ -799,6 +799,10 @@ const Dashboard = () => {
   const isGradientHeader = headerStyle === "gradient";
   const isCardHeader = headerStyle === "card";
   const isMinimalHeader = headerStyle === "minimal";
+  const isPrimaryHeader = headerStyle === "primary";
+  const isWhiteHeader = headerStyle === "white";
+  const isWhiteAccentHeader = headerStyle === "white-accent";
+  const isColoredHeader = isGradientHeader || isMinimalHeader || isPrimaryHeader;
 
   const getButtonStyle = (isPrimary = true) => {
       // Se estiver em modo gradiente, usar estilo primário acessível
