@@ -888,25 +888,25 @@ const Dashboard = () => {
         className={`sticky top-0 z-50 ${
           headerStyle === "glass"
             ? "bg-background/80 backdrop-blur-lg border-b border-border"
-            : headerStyle === "gradient"
+            : isColoredHeader
               ? "border-b border-transparent"
-              : headerStyle === "card"
+              : isCardHeader
                 ? "bg-card border-b border-border shadow-xl"
-                : headerStyle === "minimal"
-                  ? "border-b border-transparent"
+                : (isWhiteHeader || isWhiteAccentHeader)
+                  ? "bg-white border-b border-border"
                   : "bg-background/80 backdrop-blur-lg border-b border-border"
         }`}
         style={
           isGradientHeader ? { 
             background: `linear-gradient(135deg, ${company.primaryColor} 0%, ${company.secondaryColor} 100%)`
-          } : isMinimalHeader ? {
+          } : (isMinimalHeader || isPrimaryHeader) ? {
             backgroundColor: company.primaryColor,
-            opacity: 0.95 // Leve transparência no fundo
+            opacity: isPrimaryHeader ? 1 : 0.95
           } : undefined
         }
       >
-        {/* Linha gradient para o estilo cartão (sem transparência) */}
-        {isCardHeader && (
+        {/* Linha gradient para o estilo cartão ou white-accent */}
+        {(isCardHeader || isWhiteAccentHeader) && (
           <div 
             className="h-1 w-full"
             style={{ 
@@ -921,17 +921,16 @@ const Dashboard = () => {
               <div
                 className="h-8 rounded-lg flex items-center justify-center overflow-hidden shrink-0"
                 style={{ 
-                  backgroundColor: company.logo ? "transparent" : (isGradientHeader || isMinimalHeader) ? "rgba(255,255,255,0.15)" : undefined,
+                  backgroundColor: company.logo ? "transparent" : isColoredHeader ? "rgba(255,255,255,0.15)" : undefined,
                   width: company.logo ? "auto" : "2rem",
                   maxWidth: "120px",
-                  border: (isGradientHeader || isMinimalHeader) ? "1px solid rgba(255,255,255,0.2)" : undefined,
-                  opacity: isMinimalHeader ? 0.9 : undefined // Leve transparência adicional no logo
+                  border: isColoredHeader ? "1px solid rgba(255,255,255,0.2)" : undefined,
                 }}
               >
                 {company.logo ? (
                   <img src={company.logo} alt="Logo" className="w-full h-full object-contain" />
                 ) : (
-                  <Palette className="w-4 h-4" style={{ color: (isGradientHeader || isMinimalHeader) ? "#FFFFFF" : company.primaryColor }} />
+                  <Palette className="w-4 h-4" style={{ color: isColoredHeader ? "#FFFFFF" : company.primaryColor }} />
                 )}
               </div>
             )}
