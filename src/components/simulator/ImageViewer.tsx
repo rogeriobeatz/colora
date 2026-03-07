@@ -164,10 +164,10 @@ const ImageViewer = ({
         {/* Labels */}
         {hasSimulations && (
           <>
-            <div className="absolute top-4 left-4 bg-black/60 text-white text-xs font-bold px-3 py-1.5 rounded-full backdrop-blur-sm z-10">
+            <div className="absolute top-2 left-2 sm:top-4 sm:left-4 bg-black/60 text-white text-[10px] sm:text-xs font-bold px-2 py-1 sm:px-3 sm:py-1.5 rounded-full backdrop-blur-sm z-10">
               Antes
             </div>
-            <div className="absolute top-4 right-4 bg-black/60 text-white text-xs font-bold px-3 py-1.5 rounded-full backdrop-blur-sm z-10">
+            <div className="absolute top-2 right-2 sm:top-4 sm:right-4 bg-black/60 text-white text-[10px] sm:text-xs font-bold px-2 py-1 sm:px-3 sm:py-1.5 rounded-full backdrop-blur-sm z-10">
               Depois
             </div>
           </>
@@ -175,11 +175,10 @@ const ImageViewer = ({
 
         {/* History dots */}
         {hasSimulations && (
-          <div className="absolute bottom-4 left-4 z-20">
-            <div className="flex items-center gap-2 bg-background/70 backdrop-blur-md border border-border rounded-full px-3 py-2 shadow-soft">
-              {/* dot for "original" */}
+          <div className="absolute bottom-2 left-2 sm:bottom-4 sm:left-4 z-20">
+            <div className="flex items-center gap-1.5 sm:gap-2 bg-background/70 backdrop-blur-md border border-border rounded-full px-2 py-1.5 sm:px-3 sm:py-2 shadow-soft">
               <button
-                className={`w-3.5 h-3.5 rounded-full border transition-transform ${
+                className={`w-3 h-3 sm:w-3.5 sm:h-3.5 rounded-full border transition-transform ${
                   room.activeSimulationId === null ? "scale-110 border-foreground" : "border-border"
                 }`}
                 style={{ backgroundColor: "#fff" }}
@@ -189,14 +188,14 @@ const ImageViewer = ({
                 onClick={() => onSelectSimulation(null)}
               />
 
-              <div className="w-px h-4 bg-border" />
+              <div className="w-px h-3 sm:h-4 bg-border" />
 
               {room.simulations.map((sim) => {
                 const isActive = room.activeSimulationId === sim.id;
                 return (
                   <button
                     key={sim.id}
-                    className={`w-3.5 h-3.5 rounded-full border transition-transform ${
+                    className={`w-3 h-3 sm:w-3.5 sm:h-3.5 rounded-full border transition-transform ${
                       isActive ? "scale-110 border-foreground" : "border-border"
                     }`}
                     style={{ backgroundColor: sim.paint.hex }}
@@ -210,9 +209,9 @@ const ImageViewer = ({
             </div>
 
             {activeSim && (
-              <div className="mt-2 text-xs text-muted-foreground bg-background/70 backdrop-blur-md border border-border rounded-xl px-3 py-2 inline-flex">
+              <div className="mt-1.5 sm:mt-2 text-[10px] sm:text-xs text-muted-foreground bg-background/70 backdrop-blur-md border border-border rounded-lg sm:rounded-xl px-2 py-1.5 sm:px-3 sm:py-2 inline-flex">
                 <span className="font-semibold text-foreground">{activeSim.paint.name}</span>
-                <span className="mx-2 text-muted-foreground/60">·</span>
+                <span className="mx-1.5 sm:mx-2 text-muted-foreground/60">·</span>
                 <span>{activeSim.wallLabel}</span>
               </div>
             )}
@@ -222,15 +221,13 @@ const ImageViewer = ({
 
       {/* Wall selection */}
       {room.isAnalyzed && !room.isAnalyzing && room.walls.length > 0 && (
-        <div className="mt-4 space-y-3">
-          <div className="flex items-center gap-2 text-sm text-muted-foreground bg-card p-3 rounded-xl border border-border">
-            <span className="font-semibold" style={{ color: primaryColor }}>
-              Selecione uma parede
-            </span>
-            <span>e depois escolha uma cor</span>
-          </div>
+        <div className="mt-3 sm:mt-4 space-y-2 sm:space-y-3">
+          <p className="text-xs sm:text-sm text-muted-foreground px-1">
+            <span className="font-semibold" style={{ color: primaryColor }}>Selecione uma parede</span>
+            {" "}e escolha uma cor
+          </p>
 
-          <div className="flex flex-wrap gap-2">
+          <div className="flex gap-1.5 sm:gap-2 overflow-x-auto pb-1 -mx-1 px-1">
             {room.walls.map((wall) => {
               const isSelected = selectedWallId === wall.id;
 
@@ -238,16 +235,16 @@ const ImageViewer = ({
                 <button
                   key={wall.id}
                   onClick={() => onSelectWall(wall.id)}
-                  className={`px-4 py-2.5 rounded-xl text-sm font-semibold transition-all duration-200 flex items-center gap-2 ${
+                  className={`flex-shrink-0 px-3 py-1.5 sm:px-4 sm:py-2.5 rounded-lg sm:rounded-xl text-xs sm:text-sm font-semibold transition-all duration-200 flex items-center gap-1.5 sm:gap-2 ${
                     isSelected
-                      ? "text-white shadow-soft scale-105"
+                      ? "text-white shadow-soft"
                       : "bg-muted text-muted-foreground hover:bg-muted/80 hover:text-foreground border border-border"
                   }`}
                   style={{
                     backgroundColor: isSelected ? primaryColor : undefined,
                   }}
                 >
-                  <span className="text-base">🧱</span>
+                  <span className="text-xs sm:text-base">🧱</span>
                   <span>{wall.label}</span>
                 </button>
               );
