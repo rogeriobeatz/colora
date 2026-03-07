@@ -166,7 +166,7 @@ const Simulator = ({ companySlug }: { companySlug?: string }) => {
         projectName={session?.name ?? null}
       />
 
-      <div className="container mx-auto px-3 sm:px-4 py-4 sm:py-8 max-w-7xl flex-1 pb-20 lg:pb-8">
+      <div className="container mx-auto px-2 sm:px-4 py-3 sm:py-8 max-w-7xl flex-1 pb-24 sm:pb-20 lg:pb-8">
         {!activeRoom ? (
           <div className="animate-fade-in">
             <div className="text-center mb-8 max-w-xl mx-auto">
@@ -221,32 +221,32 @@ const Simulator = ({ companySlug }: { companySlug?: string }) => {
           </div>
         ) : (
           <div className="animate-fade-in">
-            <div className="flex items-center justify-between gap-3 mb-6">
-              <div className="min-w-0">
-                <p className="text-sm text-muted-foreground flex items-center gap-2">
-                  Projeto
+            <div className="flex items-center justify-between gap-2 mb-3 sm:mb-6">
+              <div className="min-w-0 flex-1">
+                <div className="flex items-center gap-2">
+                  <p className="text-sm sm:text-lg font-display font-bold truncate">{session?.name || ""}</p>
                   {hasUnsavedChanges && (
-                    <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full bg-amber-100 text-amber-700 text-[10px] font-medium">
+                    <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full bg-amber-100 text-amber-700 text-[10px] font-medium flex-shrink-0">
                       <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse" />
                     </span>
                   )}
-                </p>
-                <p className="text-lg font-display font-bold truncate">{session?.name || ""}</p>
+                </div>
               </div>
 
               <Button
-                variant="outline"
-                className="gap-2"
+                variant="ghost"
+                size="sm"
+                className="gap-1.5 h-7 sm:h-9 px-2 sm:px-3 text-xs flex-shrink-0"
                 onClick={() => setProjectDialogOpen(true)}
                 title="Renomear projeto"
               >
-                <PencilLine className="w-4 h-4" />
-                Renomear
+                <PencilLine className="w-3.5 h-3.5" />
+                <span className="hidden sm:inline">Renomear</span>
               </Button>
             </div>
 
-            <div className="grid lg:grid-cols-[1fr_360px] gap-4 sm:gap-8">
-              <div className="space-y-4 sm:space-y-6">
+            <div className="grid lg:grid-cols-[1fr_360px] gap-3 sm:gap-8">
+              <div className="space-y-3 sm:space-y-6">
                 <ImageViewer
                   room={activeRoom}
                   selectedWallId={selectedWallId}
