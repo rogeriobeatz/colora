@@ -257,9 +257,9 @@ const Simulator = ({ companySlug }: { companySlug?: string }) => {
                 />
 
                 {rooms.length > 0 && (
-                  <div className="bg-card p-4 rounded-2xl border border-border shadow-soft">
-                    <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest mb-3 px-1">
-                      Ambientes Carregados ({rooms.length})
+                  <div className="bg-card p-2.5 sm:p-4 rounded-xl sm:rounded-2xl border border-border shadow-soft">
+                    <p className="text-[9px] sm:text-[10px] font-bold text-muted-foreground uppercase tracking-widest mb-2 sm:mb-3 px-1">
+                      Ambientes ({rooms.length})
                     </p>
                     <RoomGallery rooms={rooms} activeRoomId={activeRoomId} onSelectRoom={selectRoom} onAddRoom={addRoom} onUploadClick={triggerUpload} onDeleteRoom={clearRoom} />
                   </div>
