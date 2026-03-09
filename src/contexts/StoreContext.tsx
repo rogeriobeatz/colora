@@ -46,7 +46,6 @@ interface Profile {
   header_content: string | null;
   header_style: string | null;
   font_set: string | null;
-  ai_credits: number | null;
 
   // Novos campos do checkout
   full_name: string | null;

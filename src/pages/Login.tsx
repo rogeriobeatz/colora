@@ -73,17 +73,14 @@ const Login = () => {
           .from('profiles')
           .insert({
             id: data.user.id,
-            email: email,
             full_name: fullName,
-            company_name: companyName, // CORRIGIDO: Usar companyName
+            company_name: companyName,
             company_slug: generateSlug(companyName),
-            tokens: 0, // Saldo zerado
-            ai_credits: 0, // Créditos zerados
-            subscription_status: 'inactive', // Sem assinatura
+            tokens: 0,
+            subscription_status: 'inactive',
             document_type: 'cpf',
             document_number: '',
             stripe_customer_id: null,
-            needs_password: false // Já definiu senha no cadastro
           });
 
         console.log('[CADASTRO] Perfil criado:', { profileError, success: !profileError });
