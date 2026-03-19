@@ -166,7 +166,7 @@ const Simulator = ({ companySlug }: { companySlug?: string }) => {
         projectName={session?.name ?? null}
       />
 
-      <div className="container mx-auto px-4 py-8 max-w-7xl flex-1">
+      <div className="container mx-auto px-2 sm:px-4 py-3 sm:py-8 max-w-7xl flex-1 pb-24 sm:pb-20 lg:pb-8">
         {!activeRoom ? (
           <div className="animate-fade-in">
             <div className="text-center mb-8 max-w-xl mx-auto">
@@ -177,7 +177,7 @@ const Simulator = ({ companySlug }: { companySlug?: string }) => {
                 <Palette className="w-8 h-8" style={{ color: company.primaryColor }} />
               </div>
 
-              <h1 className="text-3xl font-display font-bold text-foreground mb-3">Simulador de Ambientes</h1>
+              <h1 className="text-2xl sm:text-3xl font-display font-bold text-foreground mb-3">Simulador de Ambientes</h1>
               <p className="text-muted-foreground text-lg">
                 Envie uma foto, selecione a parede e aplique uma cor com realismo.
               </p>
@@ -221,32 +221,32 @@ const Simulator = ({ companySlug }: { companySlug?: string }) => {
           </div>
         ) : (
           <div className="animate-fade-in">
-            <div className="flex items-center justify-between gap-3 mb-6">
-              <div className="min-w-0">
-                <p className="text-sm text-muted-foreground flex items-center gap-2">
-                  Projeto
+            <div className="flex items-center justify-between gap-2 mb-3 sm:mb-6">
+              <div className="min-w-0 flex-1">
+                <div className="flex items-center gap-2">
+                  <p className="text-sm sm:text-lg font-display font-bold truncate">{session?.name || ""}</p>
                   {hasUnsavedChanges && (
-                    <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full bg-amber-100 text-amber-700 text-[10px] font-medium">
+                    <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full bg-amber-100 text-amber-700 text-[10px] font-medium flex-shrink-0">
                       <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse" />
                     </span>
                   )}
-                </p>
-                <p className="text-lg font-display font-bold truncate">{session?.name || ""}</p>
+                </div>
               </div>
 
               <Button
-                variant="outline"
-                className="gap-2"
+                variant="ghost"
+                size="sm"
+                className="gap-1.5 h-7 sm:h-9 px-2 sm:px-3 text-xs flex-shrink-0"
                 onClick={() => setProjectDialogOpen(true)}
                 title="Renomear projeto"
               >
-                <PencilLine className="w-4 h-4" />
-                Renomear
+                <PencilLine className="w-3.5 h-3.5" />
+                <span className="hidden sm:inline">Renomear</span>
               </Button>
             </div>
 
-            <div className="grid lg:grid-cols-[1fr_360px] gap-8">
-              <div className="space-y-6">
+            <div className="grid lg:grid-cols-[1fr_360px] gap-3 sm:gap-8">
+              <div className="space-y-3 sm:space-y-6">
                 <ImageViewer
                   room={activeRoom}
                   selectedWallId={selectedWallId}
@@ -257,9 +257,9 @@ const Simulator = ({ companySlug }: { companySlug?: string }) => {
                 />
 
                 {rooms.length > 0 && (
-                  <div className="bg-card p-4 rounded-2xl border border-border shadow-soft">
-                    <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest mb-3 px-1">
-                      Ambientes Carregados ({rooms.length})
+                  <div className="bg-card p-2.5 sm:p-4 rounded-xl sm:rounded-2xl border border-border shadow-soft">
+                    <p className="text-[9px] sm:text-[10px] font-bold text-muted-foreground uppercase tracking-widest mb-2 sm:mb-3 px-1">
+                      Ambientes ({rooms.length})
                     </p>
                     <RoomGallery rooms={rooms} activeRoomId={activeRoomId} onSelectRoom={selectRoom} onAddRoom={addRoom} onUploadClick={triggerUpload} onDeleteRoom={clearRoom} />
                   </div>
@@ -270,7 +270,7 @@ const Simulator = ({ companySlug }: { companySlug?: string }) => {
                 )}
               </div>
 
-              <div className="animate-slide-in-right">
+              <div className="animate-slide-in-right hidden lg:block">
                 <ColorPanel
                   catalogs={company.catalogs}
                   selectedPaint={selectedPaint}
@@ -282,6 +282,20 @@ const Simulator = ({ companySlug }: { companySlug?: string }) => {
                   primaryColor={company.primaryColor}
                 />
               </div>
+            </div>
+
+            {/* Mobile ColorPanel - rendered outside grid */}
+            <div className="lg:hidden">
+              <ColorPanel
+                catalogs={company.catalogs}
+                selectedPaint={selectedPaint}
+                onSelectPaint={setSelectedPaint}
+                onApplyColor={applyColor}
+                canApply={!!activeRoom?.isAnalyzed && !!selectedWallId && !!selectedPaint}
+                isPainting={isPainting}
+                selectedWallLabel={selectedWall?.label}
+                primaryColor={company.primaryColor}
+              />
             </div>
           </div>
         )}

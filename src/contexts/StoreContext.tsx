@@ -46,7 +46,6 @@ interface Profile {
   header_content: string | null;
   header_style: string | null;
   font_set: string | null;
-  ai_credits: number | null;
 
   // Novos campos do checkout
   full_name: string | null;
@@ -91,7 +90,7 @@ function isHeaderContentMode(v: any): v is HeaderContentMode {
   return v === "logo+name" || v === "logo" || v === "name";
 }
 function isHeaderStyleMode(v: any): v is HeaderStyleMode {
-  return v === "glass" || v === "gradient" || v === "card" || v === "minimal";
+  return v === "glass" || v === "gradient" || v === "card" || v === "minimal" || v === "primary" || v === "white" || v === "white-accent";
 }
 function isFontSet(v: any): v is FontSet {
   return v === "grotesk" || v === "rounded" || v === "neo";

@@ -11,17 +11,17 @@ const SimulationCards = ({ simulations, onRemove }: SimulationCardsProps) => {
 
   return (
     <div>
-      <h3 className="text-sm font-semibold text-foreground mb-3">Cores Aplicadas</h3>
-      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
+      <h3 className="text-xs sm:text-sm font-semibold text-foreground mb-2 sm:mb-3">Cores Aplicadas</h3>
+      <div className="flex gap-2 sm:gap-3 overflow-x-auto pb-1 sm:pb-0 sm:grid sm:grid-cols-3 md:grid-cols-4">
         {simulations.map((sim) => (
           <div
             key={sim.id}
-            className="bg-card rounded-xl border border-border overflow-hidden group relative"
+            className="bg-card rounded-lg sm:rounded-xl border border-border overflow-hidden group relative flex-shrink-0 w-[120px] sm:w-auto"
           >
-            <div className="h-10 w-full" style={{ backgroundColor: sim.paint.hex }} />
-            <div className="p-2.5">
-              <p className="text-xs font-semibold text-foreground">{sim.paint.name}</p>
-              <p className="text-[10px] text-muted-foreground">
+            <div className="h-8 sm:h-10 w-full" style={{ backgroundColor: sim.paint.hex }} />
+            <div className="p-2 sm:p-2.5">
+              <p className="text-[10px] sm:text-xs font-semibold text-foreground truncate">{sim.paint.name}</p>
+              <p className="text-[9px] sm:text-[10px] text-muted-foreground truncate">
                 {sim.wallLabel} · {sim.paint.hex}
               </p>
             </div>

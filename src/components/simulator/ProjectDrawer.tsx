@@ -57,7 +57,7 @@ const ProjectDrawer = ({
         <span />
       </SheetTrigger>
 
-      <SheetContent side="right" className="w-[360px] sm:w-[420px]">
+      <SheetContent side="right" className="w-full sm:w-[420px]">
         <SheetHeader>
           <SheetTitle className="flex items-center gap-2">
             <FolderOpen className="w-5 h-5" />
