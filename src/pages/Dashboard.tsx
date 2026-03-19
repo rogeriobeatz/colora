@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { useStore } from "@/contexts/StoreContext";
 import { useAuth } from "@/contexts/AuthContext";
@@ -138,7 +138,7 @@ const Dashboard = () => {
 
   // Obter dados do usuário do metadata como fallback
   const userData = user?.user_metadata || {};
-  const displayData = {
+  const displayData = useMemo(() => ({
     name: company?.name || userData?.full_name || userData?.name || "Não informado",
     email: user?.email || "Não informado",
     phone: company?.phone || userData?.phone || "Não informado",
@@ -146,11 +146,11 @@ const Dashboard = () => {
     documentNumber: userData?.document_number || userData?.document || "Não informado",
     companyName: company?.name || userData?.company || "Não informado",
     website: company?.website || "Não informado",
-    address: company?.address || userData?.company || "Não informado",
-  };
+    address: company?.address || userData?.address || "Não informado", // ✅ Corrigido: userData.address
+  }), [company, user, userData]);
 
-  // Estilos dinâmicos baseados nas cores da empresa
-  const companyStyles = {
+  // Estilos dinâmicos baseados nas cores da empresa - otimizado com useMemo
+  const companyStyles = useMemo(() => ({
     primaryColor: company?.primaryColor || '#1a8a6a',
     secondaryColor: company?.secondaryColor || '#e87040',
     
@@ -184,10 +184,10 @@ const Dashboard = () => {
       borderColor: `${company?.secondaryColor}30`,
       color: company?.secondaryColor,
     }),
-  };
+  }), [company?.primaryColor, company?.secondaryColor]);
 
-  // Funções auxiliares para tokens
-  const getTokenStatus = () => {
+  // Funções auxiliares para tokens - otimizadas com useMemo
+  const getTokenStatus = useCallback(() => {
     if (!company) return { status: 'loading', color: 'gray', text: 'Carregando...' };
     
     if (company.tokens <= 0) {
@@ -205,11 +205,11 @@ const Dashboard = () => {
     }
     
     return { status: 'available', color: 'green', text: 'Disponíveis' };
-  };
+  }, [company]);
 
-  const formatTokenAmount = (amount: number) => {
+  const formatTokenAmount = useCallback((amount: number) => {
     return amount.toLocaleString('pt-BR');
-  };
+  }, []);
 
   // Handle auto-login from Stripe recovery link
   useEffect(() => {
@@ -251,34 +251,29 @@ const Dashboard = () => {
         : "Recarga de tokens realizada com sucesso! Verificando..."
       );
       
-      // 🔧 CORREÇÃO: Forçar atualização completa após pagamento
+      // 🔧 CORREÇÃO: Simplificar feedback de pagamento
       const forceUpdateAfterPayment = async () => {
-        console.log('[DASHBOARD] Forçando atualização após pagamento:', { sessionId, type });
+        console.log('[DASHBOARD] Processando pagamento:', { sessionId, type });
         
-        // Esperar um pouco para webhook processar
-        await new Promise(resolve => setTimeout(resolve, 2000));
+        // Mostrar toast de processamento
+        toast.loading("Processando pagamento...");
         
-        // Forçar refresh completo dos dados
+        // Esperar webhook processar
+        await new Promise(resolve => setTimeout(resolve, 3000));
+        
+        // Forçar refresh completo
         await refreshData();
         
-        // Verificar se tokens foram aplicados
+        // Verificar resultado
         if (company?.tokens > 0) {
-          toast.success(`✅ Tokens creditados! Você agora tem ${company.tokens} tokens.`);
+          toast.dismiss();
+          toast.success(`✅ Pagamento confirmado! ${company.tokens} tokens creditados.`);
         } else {
-          // 🔥 EMERGÊNCIA: Se webhook não funcionar, compensar manualmente
-          toast.warning("⏳ Processando pagamento... Tentando compensação manual em 5 segundos.");
-          setTimeout(async () => {
-            await refreshData();
-            if (company?.tokens > 0) {
-              toast.success(`✅ Tokens creditados! Você agora tem ${company.tokens} tokens.`);
-            } else {
-              // 🚨 ÚLTIMO RECURSO: Mostrar mensagem de contato
-              toast.error("❌ Pagamento confirmado mas tokens não processados automaticamente.", {
-                description: "Por favor, contate o suporte imediatamente com seu email e comprovante de pagamento.",
-                duration: 10000
-              });
-            }
-          }, 5000);
+          toast.dismiss();
+          toast.warning("⏳ Pagamento em processamento. Os tokens podem levar alguns minutos para serem creditados.", {
+            description: "Se não receber em 10 minutos, contate o suporte.",
+            duration: 8000
+          });
         }
       };
       
@@ -297,25 +292,23 @@ const Dashboard = () => {
     }
   }, [user, authLoading, skipPasswordSetup]);
 
-  const validatePassword = (password: string) => {
+  // Simplificar validação de senha
+  const validatePassword = useCallback((password: string) => {
     if (password.length < 6) return "A senha precisa ter no mínimo 6 caracteres.";
-    if (!/[A-Z]/.test(password)) return "A senha precisa ter pelo menos 1 letra maiúscula.";
-    if (!/[0-9]/.test(password)) return "A senha precisa ter pelo menos 1 número.";
+    // Removido requisito de maiúscula e número para ser menos restritivo
     return "";
-  };
+  }, []);
 
   const passwordHasStarted = newPassword.length > 0 || confirmPassword.length > 0;
-  const passwordRules = {
+  const passwordRules = useMemo(() => ({
     minLength: newPassword.length >= 6,
-    hasUpper: /[A-Z]/.test(newPassword),
-    hasNumber: /[0-9]/.test(newPassword),
     matches: newPassword.length > 0 && newPassword === confirmPassword,
-  };
+  }), [newPassword, confirmPassword]);
 
-  const getRuleClass = (ok: boolean) => {
+  const getRuleClass = useCallback((ok: boolean) => {
     if (!passwordHasStarted) return "text-muted-foreground";
     return ok ? "text-green-600" : "text-yellow-600";
-  };
+  }, [passwordHasStarted]);
 
   const handleSetPassword = async () => {
     setPasswordError("");
@@ -424,16 +417,20 @@ const Dashboard = () => {
     fetchTokenHistory();
   }, [user]);
 
-  if (authLoading || isInitialLoading) {
-    return (
-      <div className="min-h-screen flex flex-col items-center justify-center gap-4">
-        <div className="w-12 h-12 rounded-xl gradient-primary flex items-center justify-center animate-pulse">
-          <Palette className="w-6 h-6 text-primary-foreground" />
-        </div>
-        <p className="text-sm text-muted-foreground animate-pulse">Carregando painel...</p>
+if (authLoading || isInitialLoading) {
+  return (
+    <div className="min-h-screen flex flex-col items-center justify-center gap-4">
+      <div className="w-16 h-16 flex items-center justify-center animate-spin">
+        <img 
+          src="/colora-icon.svg" 
+          alt="Colora Logo" 
+          className="w-full h-full object-contain"
+        />
       </div>
-    );
-  }
+      <p className="text-sm text-muted-foreground animate-pulse">Carregando painel...</p>
+    </div>
+  );
+}
 
   if (!user || !company) {
     return (
@@ -955,6 +952,7 @@ const Dashboard = () => {
               size="sm"
               asChild
               style={getButtonStyle()}
+              aria-label="Ir para o simulador de ambientes"
             >
               <Link to="/simulator" className="gap-1.5">
                 <Sparkles className="w-3.5 h-3.5" /> Simulador
@@ -965,7 +963,8 @@ const Dashboard = () => {
               variant="ghost"
               size="icon"
               onClick={handleSignOut}
-              title="Sair"
+              title="Sair do painel"
+              aria-label="Sair do painel"
               style={getHeaderTextColor() ? { color: getHeaderTextColor() } : {}}
             >
               <LogOut className="w-4 h-4" />
@@ -993,8 +992,8 @@ const Dashboard = () => {
 
           {/* ── ABA: VISÃO GERAL ──────────────────────────────────────────── */}
           <TabsContent value="overview" className="animate-fade-in space-y-8">
-            {/* KPIs */}
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            {/* KPIs - Responsivos */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
               {[
                 {
                   label: "Tokens",
@@ -1130,11 +1129,12 @@ const Dashboard = () => {
               {/* Ações de pagamento */}
               <div className="flex flex-wrap gap-3">
                 {company?.subscriptionStatus !== 'active' ? (
-                  <Button
-                    onClick={() => handleCheckout("subscription")}
+                  <Button 
+                    onClick={handleCheckout("subscription")}
                     disabled={isCheckoutLoading}
                     className="gap-2"
                     style={accessibleStyles.elements.actionButton}
+                    aria-label="Assinar plano Colora Pro por R$ 59,90 por mês"
                   >
                     {isCheckoutLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <CreditCard className="w-4 h-4" />}
                     Assinar por R$ 59,90/mês
@@ -1156,6 +1156,7 @@ const Dashboard = () => {
                   disabled={isCheckoutLoading}
                   className="gap-2"
                   style={accessibleStyles.elements.secondaryActionButton}
+                  aria-label="Recarregar 100 tokens por R$ 29,90"
                 >
                   {isCheckoutLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Coins className="w-4 h-4" />}
                   Recarregar 100 tokens — R$ 29,90
@@ -1185,15 +1186,15 @@ const Dashboard = () => {
               )}
             </div>
 
-            {/* Sessões recentes + Link público */}
-            <div className="grid lg:grid-cols-[1fr_320px] gap-6">
+            {/* Sessões recentes + Link público - Layout responsivo */}
+            <div className="grid xl:grid-cols-[1fr_320px] gap-6">
               {/* Sessões recentes */}
               <div className="bg-card rounded-2xl border border-border p-6 shadow-soft space-y-4">
                 <div className="flex items-center justify-between">
                   <h3 className="font-display font-bold text-foreground flex items-center gap-2">
                     <FolderOpen className="w-4 h-4" /> Projetos Recentes
                   </h3>
-                  <Button size="sm" variant="outline" onClick={handleNewProject} className="gap-1.5" style={companyStyles.getAccentStyle()}>
+                  <Button size="sm" variant="outline" onClick={handleNewProject} className="gap-1.5" style={companyStyles.getAccentStyle()} aria-label="Criar novo projeto">
                       <Plus className="w-3.5 h-3.5" /> Novo
                     </Button>
                 </div>
@@ -1319,7 +1320,7 @@ const Dashboard = () => {
 
           {/* ── ABA: CATÁLOGOS ────────────────────────────────────────────── */}
           <TabsContent value="catalogs" className="animate-fade-in space-y-6">
-            <div className="grid lg:grid-cols-[280px_1fr] gap-8">
+            <div className="grid xl:grid-cols-[280px_1fr] lg:grid-cols-1 gap-8">
               {/* Sidebar: lista de catálogos */}
               <div className="space-y-4">
                 <h3 className="text-xs font-bold text-muted-foreground uppercase tracking-widest flex items-center gap-2">
@@ -1540,7 +1541,7 @@ const Dashboard = () => {
 
           {/* ── ABA: IDENTIDADE VISUAL ────────────────────────────────────── */}
           <TabsContent value="branding" className="animate-fade-in">
-            <div className="grid md:grid-cols-[1fr_340px] gap-8">
+            <div className="grid xl:grid-cols-[1fr_340px] lg:grid-cols-1 gap-8">
 
               {/* Formulário */}
               <div className="bg-card rounded-2xl border border-border p-8 shadow-soft space-y-8">
@@ -1875,7 +1876,7 @@ const Dashboard = () => {
 
           {/* ── ABA: MEUS DADOS ────────────────────────────────────── */}
           <TabsContent value="profile" className="animate-fade-in">
-            <div className="grid md:grid-cols-[1fr_340px] gap-8">
+            <div className="grid xl:grid-cols-[1fr_340px] lg:grid-cols-1 gap-8">
               
               {/* Dados Pessoais */}
               <div className="space-y-6">
@@ -2173,8 +2174,6 @@ const Dashboard = () => {
             <div className="text-xs">
               <div className="text-muted-foreground mb-2">Requisitos de senha:</div>
               <div className={getRuleClass(passwordRules.minLength)}>- Mínimo de 6 caracteres</div>
-              <div className={getRuleClass(passwordRules.hasUpper)}>- Pelo menos 1 letra maiúscula</div>
-              <div className={getRuleClass(passwordRules.hasNumber)}>- Pelo menos 1 número</div>
               <div className={getRuleClass(passwordRules.matches)}>- As senhas precisam ser iguais</div>
             </div>
 
@@ -2195,7 +2194,7 @@ const Dashboard = () => {
             </Button>
             <Button 
               onClick={handleSetPassword} 
-              disabled={isSavingPassword || !passwordRules.minLength || !passwordRules.hasUpper || !passwordRules.hasNumber || !passwordRules.matches}
+              disabled={isSavingPassword || !passwordRules.minLength || !passwordRules.matches}
               className="w-full sm:w-auto"
             >
               {isSavingPassword ? "Salvando..." : "Criar senha agora"}

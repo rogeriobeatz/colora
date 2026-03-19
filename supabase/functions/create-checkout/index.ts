@@ -62,7 +62,7 @@ serve(async (req) => {
     }
     
     const { mode, customerData } = parsedBody;
-    const origin = req.headers.get("origin") || "https://colora.rogerio.work";
+    const origin = req.headers.get("origin") || "https://colora.app.br";
     
     logStep("PARSED DATA", { 
       mode, 
@@ -108,7 +108,7 @@ serve(async (req) => {
     // 🔧 CORREÇÃO: Success URL dinâmica baseada no frontend
     // Detecta se está em localhost ou produção
     const isLocalhost = origin?.includes('localhost') || origin?.includes('127.0.0.1');
-    const baseUrl = isLocalhost ? origin : "https://colora.rogerio.work";
+    const baseUrl = isLocalhost ? origin : "https://colora.app.br";
     
     // Success URL → página de sucesso com redirecionamento dinâmico
     const successUrl = `${baseUrl}/checkout/sucesso?email=${encodeURIComponent(customerData.email)}&session_id={CHECKOUT_SESSION_ID}&mode=${mode}&origin=${encodeURIComponent(origin || baseUrl)}`;

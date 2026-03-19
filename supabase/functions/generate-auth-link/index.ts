@@ -181,7 +181,7 @@ serve(async (req) => {
     }
 
     // 4. Generate magic link
-    const origin = req.headers.get("origin") || "https://colora.rogerio.work";
+    const origin = req.headers.get("origin") || "https://colora.app.br";
     const redirectTo = `${origin}/dashboard?payment=success`;
 
     const fixActionLink = (actionLink: string): string => {

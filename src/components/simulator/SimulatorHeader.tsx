@@ -15,10 +15,21 @@ interface SimulatorHeaderProps {
 }
 
 function getHeaderTextColor(style?: string) {
-  return style === "primary" ? "text-white" : "text-foreground";
+  // Estilos com fundo escuro precisam de texto branco
+  if (style === "primary" || style === "gradient" || style === "minimal") {
+    return "text-white";
+  }
+  // Estilos com fundo claro usam texto padrão
+  return "text-foreground";
 }
+
 function getHeaderMutedTextColor(style?: string) {
-  return style === "primary" ? "text-white/75" : "text-muted-foreground";
+  // Estilos com fundo escuro precisam de texto branco com opacidade
+  if (style === "primary" || style === "gradient" || style === "minimal") {
+    return "text-white/75";
+  }
+  // Estilos com fundo claro usam texto padrão
+  return "text-muted-foreground";
 }
 
 const SimulatorHeader = ({
@@ -35,6 +46,9 @@ const SimulatorHeader = ({
   const headerStyle = company?.headerStyle ?? "glass";
   const headerContent = company?.headerContent ?? "logo+name";
   const isPrimaryHeader = headerStyle === "primary";
+  const isGradientHeader = headerStyle === "gradient";
+const isCardHeader = headerStyle === "card";
+const isMinimalHeader = headerStyle === "minimal";
 
   const rootClass = cn(
     "sticky top-0 z-50 border-b border-border",
@@ -43,18 +57,23 @@ const SimulatorHeader = ({
     isPrimaryHeader && "bg-transparent",
   );
 
-  const rootStyle = isPrimaryHeader ? { backgroundColor: company?.primaryColor || "hsl(var(--primary))" } : undefined;
-
+const rootStyle = 
+  isGradientHeader ? { background: `linear-gradient(135deg, ${company?.primaryColor} 0%, ${company?.secondaryColor} 100%)` } :
+  isMinimalHeader ? { backgroundColor: company?.primaryColor } :
+  isPrimaryHeader ? { backgroundColor: company?.primaryColor } : undefined;
   const titleColor = getHeaderTextColor(headerStyle);
   const mutedColor = getHeaderMutedTextColor(headerStyle);
 
   const showLogo = headerContent === "logo+name" || headerContent === "logo";
   const showName = headerContent === "logo+name" || headerContent === "name";
 
-  const ghostOnPrimary = isPrimaryHeader ? "text-white hover:bg-white/10" : "";
-  const outlineOnPrimary = isPrimaryHeader
-    ? "border-white/20 text-white hover:bg-white/10 hover:text-white"
-    : "";
+const ghostOnDarkHeader = (isPrimaryHeader || isGradientHeader || isMinimalHeader) 
+  ? "text-white hover:bg-white/10" 
+  : "";
+
+const outlineOnDarkHeader = (isPrimaryHeader || isGradientHeader || isMinimalHeader)
+  ? "border-white/20 text-white hover:bg-white/10 hover:text-white"
+  : "";
 
   return (
     <header className={rootClass} style={rootStyle}>
@@ -69,7 +88,7 @@ const SimulatorHeader = ({
 
       <div className="container mx-auto flex items-center justify-between h-16 px-4">
         <div className="flex items-center gap-3 min-w-0">
-          <Button variant="ghost" size="sm" asChild className={cn(ghostOnPrimary)}>
+          <Button variant="ghost" size="sm" asChild className={cn(ghostOnDarkHeader)}>
             <Link to={companySlug ? `/empresa/${companySlug}` : "/dashboard"} className="gap-1.5">
               <ArrowLeft className="w-3.5 h-3.5" /> Voltar
             </Link>
@@ -113,10 +132,11 @@ const SimulatorHeader = ({
         <div className="flex items-center gap-2">
           <div className={cn(
             "flex items-center gap-1.5 h-9 px-3 rounded-md border text-xs font-medium",
-            outlineOnPrimary,
-            !isPrimaryHeader && "border-border"
+outlineOnDarkHeader,
+!(isPrimaryHeader || isGradientHeader || isMinimalHeader) && "border-border"
           )}>
-            <Sparkles className={cn("w-3.5 h-3.5", isPrimaryHeader ? "text-white/80" : "text-amber-500")} />
+            <Sparkles className={cn("w-3.5 h-3.5", (isPrimaryHeader || isGradientHeader || isMinimalHeader) ? "text-white/80" : "text-amber-500"
+)} />
             <span className={cn(titleColor)}>{company?.tokens ?? 0}</span>
             <span className={cn("hidden sm:inline-block", mutedColor)}>créditos</span>
           </div>
@@ -125,7 +145,7 @@ const SimulatorHeader = ({
             variant="outline"
             size="sm"
             onClick={onOpenProjects}
-            className={cn("gap-1.5", outlineOnPrimary)}
+            className={cn("gap-1.5", outlineOnDarkHeader)}
           >
             <FolderOpen className="w-3.5 h-3.5" /> Sessões
           </Button>
@@ -134,7 +154,7 @@ const SimulatorHeader = ({
             variant={hasUnsavedChanges ? "default" : "outline"}
             size="sm"
             onClick={onSave}
-            className={cn("gap-1.5", outlineOnPrimary)}
+className={cn("gap-1.5", outlineOnDarkHeader)}
             style={hasUnsavedChanges ? { backgroundColor: company?.primaryColor } : undefined}
           >
             <Save className="w-3.5 h-3.5" />

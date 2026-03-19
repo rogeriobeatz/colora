@@ -66,7 +66,7 @@ export const sendWelcomeEmail = async (data: WelcomeEmailData): Promise<boolean>
               </ul>
               
               <div style="text-align: center;">
-                <a href="https://colora.rogerio.work/dashboard" class="button">Acessar Meu Painel</a>
+                <a href="https://colora.app.br/dashboard" class="button">Acessar Meu Painel</a>
               </div>
               
               <p>Para fazer login, use o e-mail <strong>${data.email}</strong> e a senha que você definir no primeiro acesso.</p>
@@ -88,7 +88,7 @@ export const sendWelcomeEmail = async (data: WelcomeEmailData): Promise<boolean>
     
     // Send email using Resend
     const { data: result, error } = await resend.emails.send({
-      from: 'Colora <noreply@colora.rogerio.work>',
+      from: 'Colora <noreply@colora.app.br>',
       to: [data.email],
       subject: emailContent.subject,
       html: emailContent.html
@@ -154,7 +154,7 @@ export const sendRenewalEmail = async (data: RenewalEmailData): Promise<boolean>
               <p>Seus tokens já estão disponíveis para uso. Que tal começar a simular novas pinturas?</p>
               
               <div style="text-align: center;">
-                <a href="https://colora.rogerio.work/simulator" class="button">Começar a Simular</a>
+                <a href="https://colora.app.br/simulator" class="button">Começar a Simular</a>
               </div>
               
               <p>Lembre-se que você recebe ${data.tokens} tokens todos os meses para usar em nossas simulações de IA.</p>
@@ -176,7 +176,7 @@ export const sendRenewalEmail = async (data: RenewalEmailData): Promise<boolean>
     
     // Send email using Resend
     const { data: result, error } = await resend.emails.send({
-      from: 'Colora <noreply@colora.rogerio.work>',
+      from: 'Colora <noreply@colora.app.br>',
       to: [data.email],
       subject: emailContent.subject,
       html: emailContent.html
