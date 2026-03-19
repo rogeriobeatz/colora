@@ -1,24 +1,21 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { decodeBase64 } from "https://deno.land/std@0.224.0/encoding/base64.ts";
-
-const corsHeaders = {
-  "Access-Control-Allow-Origin": "https://colora.app.br",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
-  "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
-  "Vary": "Origin"
-};
+import { generateSimpleCorsHeaders, createCorsResponse } from "../_shared/cors-config.ts";
 
 const KIE_BASE_URL = "https://api.kie.ai";
 
-const jsonResponse = (data: any, status = 200) => new Response(JSON.stringify(data), {
-  headers: { ...corsHeaders, "Content-Type": "application/json" },
-  status,
-});
+const jsonResponse = (data: any, status = 200, req: Request) => {
+  const headers = generateSimpleCorsHeaders(req);
+  return new Response(JSON.stringify(data), {
+    headers: { ...headers, "Content-Type": "application/json" },
+    status,
+  });
+};
 
 serve(async (req) => {
   if (req.method === "OPTIONS") {
-    return new Response(null, { headers: corsHeaders });
+    return createCorsResponse(req);
   }
 
   try {
@@ -32,7 +29,7 @@ serve(async (req) => {
 
     if (!KIE_API_KEY || !SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY || !SUPABASE_ANON_KEY) {
       console.error("Environment variables not configured");
-      return jsonResponse({ error: "Internal server configuration error." }, 500);
+      return jsonResponse({ error: "Internal server configuration error." }, 500, req);
     }
     
     const serviceRoleClient = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
@@ -43,14 +40,14 @@ serve(async (req) => {
     const { data: { user }, error: userError } = await userClient.auth.getUser();
 
     if (userError || !user) {
-      return jsonResponse({ error: "Authentication required." }, 401);
+      return jsonResponse({ error: "Authentication required." }, 401, req);
     }
 
     // 2. Token Check (before any processing)
     const { data: profile, error: profileError } = await serviceRoleClient.from('profiles').select('tokens, tokens_expires_at').eq('id', user.id).single();
 
     if (profileError || !profile) {
-      return jsonResponse({ error: "User profile not found." }, 404);
+      return jsonResponse({ error: "User profile not found." }, 404, req);
     }
 
     // Verifica se tem tokens disponíveis
@@ -60,7 +57,7 @@ serve(async (req) => {
     );
 
     if (!tokensAvailable) {
-      return jsonResponse({ error: "Tokens insuficientes ou expirados. Assine um plano para receber tokens mensais!" }, 402);
+      return jsonResponse({ error: "Tokens insuficientes ou expirados. Assine um plano para receber tokens mensais!" }, 402, req);
     }
     
     console.log(`[paint-wall] User ${user.id} has ${profile.tokens} tokens. Proceeding...`);
@@ -151,11 +148,11 @@ Style: Photorealistic interior photograph, natural lighting, high resolution.`;
     // Cleanup
     setTimeout(() => serviceRoleClient.storage.from('images').remove([fileName]), 3600000);
 
-    return jsonResponse({ imageUrl: finalImageUrl, sucesso: true, details: { aspectRatio, wallName: technicalWallName } });
+    return jsonResponse({ imageUrl: finalImageUrl, sucesso: true, details: { aspectRatio, wallName: technicalWallName } }, 200, req);
 
   } catch (error: any) {
     console.error("[paint-wall] FATAL ERROR:", error.message);
-    return jsonResponse({ error: error.message, sucesso: false }, 500);
+    return jsonResponse({ error: error.message, sucesso: false }, 500, req);
   }
 });
 

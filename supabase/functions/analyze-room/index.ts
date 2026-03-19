@@ -1,5 +1,6 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient, SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { generateSimpleCorsHeaders, createCorsResponse } from "../_shared/cors-config.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "https://colora.app.br",
@@ -8,14 +9,17 @@ const corsHeaders = {
   "Vary": "Origin"
 };
 
-const jsonResponse = (data: any, status = 200) => new Response(JSON.stringify(data), {
-  headers: { ...corsHeaders, "Content-Type": "application/json" },
-  status,
-});
+const jsonResponse = (data: any, status = 200, req: Request) => {
+  const headers = generateSimpleCorsHeaders(req);
+  return new Response(JSON.stringify(data), {
+    headers: { ...headers, "Content-Type": "application/json" },
+    status,
+  });
+};
 
 serve(async (req) => {
   if (req.method === "OPTIONS") {
-    return new Response(null, { headers: corsHeaders });
+    return createCorsResponse(req);
   }
 
   try {
@@ -29,7 +33,7 @@ serve(async (req) => {
 
     if (!LOVABLE_API_KEY || !SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY || !SUPABASE_ANON_KEY) {
       console.error("Environment variables not configured");
-      return jsonResponse({ error: "Internal server configuration error." }, 500);
+      return jsonResponse({ error: "Internal server configuration error." }, 500, req);
     }
 
     const serviceRoleClient = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
@@ -40,13 +44,13 @@ serve(async (req) => {
     const { data: { user }, error: userError } = await userClient.auth.getUser();
 
     if (userError || !user) {
-      return jsonResponse({ error: "Authentication required." }, 401);
+      return jsonResponse({ error: "Authentication required." }, 401, req);
     }
 
     // 2. Body Validation
     const { imageBase64 } = await req.json();
     if (!imageBase64) {
-      return jsonResponse({ error: "imageBase64 is required" }, 400);
+      return jsonResponse({ error: "imageBase64 is required" }, 400, req);
     }
 
     // 3. Caching Logic - TEMPORARIAMENTE DESABILITADO
@@ -72,7 +76,7 @@ serve(async (req) => {
         sucesso: true, 
         fromCache: true, 
         total: cached.surfaces.length 
-      });
+      }, 200, req);
     }
 
     console.log(`[analyze-room] Cache MISS for user ${user.id}. Processing analysis...`);
@@ -193,11 +197,11 @@ IMPORTANT:
     };
     console.log(`[analyze-room] Final: ${validSurfaces.length} walls detected for user ${user.id}, room: "${roomName}"`);
     
-    return jsonResponse(result);
+    return jsonResponse(result, 200, req);
 
   } catch (error: any) {
     console.error("[analyze-room] FATAL ERROR:", error.message);
-    return jsonResponse({ error: error.message, sucesso: false }, 500);
+    return jsonResponse({ error: error.message, sucesso: false }, 500, req);
   }
 });
 

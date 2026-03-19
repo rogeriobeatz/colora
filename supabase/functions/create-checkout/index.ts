@@ -1,6 +1,7 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import Stripe from "https://esm.sh/stripe@18.5.0";
 import { corsHeaders } from "../_shared/cors.ts";
+import { getDomainForContext, PLATFORM_URLS } from "../_shared/domains.ts";
 
 const logStep = (step: string, details?: any) => {
   const detailsStr = details ? ` - ${JSON.stringify(details)}` : '';
@@ -62,14 +63,12 @@ serve(async (req) => {
     }
     
     const { mode, customerData } = parsedBody;
-    const origin = req.headers.get("origin") || "https://colora.app.br";
+    const origin = req.headers.get("origin") || getDomainForContext();
     
     logStep("PARSED DATA", { 
       mode, 
-      customerData,
-      hasEmail: !!customerData?.email,
-      hasName: !!customerData?.name,
-      origin
+      origin,
+      customer: customerData.email
     });
 
     if (!customerData?.email || !customerData?.name) {
@@ -108,7 +107,7 @@ serve(async (req) => {
     // 🔧 CORREÇÃO: Success URL dinâmica baseada no frontend
     // Detecta se está em localhost ou produção
     const isLocalhost = origin?.includes('localhost') || origin?.includes('127.0.0.1');
-    const baseUrl = isLocalhost ? origin : "https://colora.app.br";
+    const baseUrl = isLocalhost ? origin : getDomainForContext();
     
     // Success URL → página de sucesso com redirecionamento dinâmico
     const successUrl = `${baseUrl}/checkout/sucesso?email=${encodeURIComponent(customerData.email)}&session_id={CHECKOUT_SESSION_ID}&mode=${mode}&origin=${encodeURIComponent(origin || baseUrl)}`;
