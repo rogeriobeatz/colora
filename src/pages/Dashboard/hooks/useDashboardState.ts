@@ -274,6 +274,21 @@ export const useDashboardState = () => {
     }
   };
 
+  const handleSaveBranding = async () => {
+    if (!company) return;
+
+    try {
+      setIsSaving(true);
+      await updateCompany(company);
+      toast.success("Identidade visual atualizada!");
+    } catch (error) {
+      console.error("Erro ao salvar identidade:", error);
+      toast.error("Erro ao salvar alterações");
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
   const handleCancelEditProfile = () => {
     setIsEditingProfile(false);
     setProfileData({

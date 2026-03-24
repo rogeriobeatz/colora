@@ -9,6 +9,7 @@
 export const DOMAINS = {
   // Ambiente de produção
   PRODUCTION: "https://colora.app.br",
+  PRODUCTION_WWW: "https://www.colora.app.br",
   
   // Ambiente de desenvolvimento (localhost)
   LOCALHOST: "http://localhost:3000",
@@ -24,6 +25,7 @@ export const DOMAINS = {
 // Lista de todos os domínios permitidos
 export const ALLOWED_DOMAINS = [
   DOMAINS.PRODUCTION,
+  DOMAINS.PRODUCTION_WWW,
   DOMAINS.LOCALHOST,
   DOMAINS.LOCALHOST_ALT,
   DOMAINS.LOCALHOST_IP,
