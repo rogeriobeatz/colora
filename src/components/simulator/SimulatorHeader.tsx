@@ -34,27 +34,23 @@ const SimulatorHeader = ({
 
   const headerStyle = company?.headerStyle ?? "glass";
   const headerContent = company?.headerContent ?? "logo+name";
-  const isPrimaryHeader = headerStyle === "primary";
   const isGradientHeader = headerStyle === "gradient";
   const isCardHeader = headerStyle === "card";
-  const isMinimalHeader = headerStyle === "minimal";
-  const isColoredHeader = isPrimaryHeader || isGradientHeader || isMinimalHeader;
+  const isPrimaryHeader = headerStyle === "primary";
+  const isColoredHeader = isPrimaryHeader || isGradientHeader;
 
   const rootClass = cn(
     "sticky top-0 z-50",
     headerStyle === "glass" && "bg-background/80 backdrop-blur-lg border-b border-border",
-    (headerStyle === "white" || headerStyle === "white-accent") && "bg-white border-b border-border",
     isCardHeader && "bg-card border-b border-border shadow-xl",
-    (isPrimaryHeader || isGradientHeader || isMinimalHeader) && "border-b border-transparent",
+    (isPrimaryHeader || isGradientHeader) && "border-b border-transparent",
   );
 
   const rootStyle = isPrimaryHeader
     ? { backgroundColor: company?.primaryColor || "hsl(var(--primary))" }
     : isGradientHeader
       ? { background: `linear-gradient(135deg, ${company?.primaryColor || "hsl(var(--primary))"} 0%, ${company?.secondaryColor || "hsl(var(--secondary))"} 100%)` }
-      : isMinimalHeader
-        ? { backgroundColor: company?.primaryColor || "hsl(var(--primary))", opacity: 0.95 }
-        : undefined;
+      : undefined;
 
   const coloredStyle = isColoredHeader ? "primary" : headerStyle;
   const titleColor = getHeaderTextColor(coloredStyle);
@@ -70,7 +66,7 @@ const SimulatorHeader = ({
 
   return (
     <header className={rootClass} style={rootStyle}>
-      {(headerStyle === "white-accent" || isCardHeader) && (
+      {isCardHeader && (
         <div
           className="h-1 w-full"
           style={{

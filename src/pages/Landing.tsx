@@ -191,7 +191,7 @@ const Landing = () => {
               </p>
             </div>
             <div className="opacity-0 animate-fade-in-delay-2 relative">
-              <div className="rounded-2xl overflow-hidden shadow-elevated border border-border relative">
+              <div className="rounded-2xl shadow-elevated border border-border relative">
                 {/* Gradient border glow */}
                 <div className="absolute -inset-[1px] rounded-2xl opacity-40 -z-10 blur-sm"
                   style={{ background: "var(--gradient-primary)" }} />
@@ -208,10 +208,22 @@ const Landing = () => {
                       <img
                         src={image.src}
                         alt={`Ambiente com cor ${image.colorName}`}
-                        className="w-full h-full object-cover"
+                        className="w-full h-full object-cover rounded-2xl"
                       />
                     </div>
                   ))}
+                </div>
+                
+                {/* Floating Color Card */}
+                <div className="absolute -bottom-5 -left-4 bg-card rounded-xl p-3 shadow-elevated border border-border flex items-center gap-3 transition-all duration-500">
+                  <div 
+                    className="w-10 h-10 rounded-full border-2 border-border" 
+                    style={{ backgroundColor: roomImages[currentImage].colorCode }}
+                  />
+                  <div>
+                    <p className="text-[10px] text-muted-foreground uppercase tracking-wide font-medium">Cor aplicada</p>
+                    <p className="text-sm font-bold text-foreground">{roomImages[currentImage].colorName}</p>
+                  </div>
                 </div>
 
                 {/* Color Indicators */}
@@ -230,17 +242,6 @@ const Landing = () => {
                   ))}
                 </div>
 
-                {/* Floating Color Card */}
-                <div className="absolute -bottom-5 -left-4 bg-card rounded-xl p-3 shadow-elevated border border-border flex items-center gap-3 transition-all duration-500">
-                  <div 
-                    className="w-10 h-10 rounded-full border-2 border-border" 
-                    style={{ backgroundColor: roomImages[currentImage].colorCode }}
-                  />
-                  <div>
-                    <p className="text-[10px] text-muted-foreground uppercase tracking-wide font-medium">Cor aplicada</p>
-                    <p className="text-sm font-bold text-foreground">{roomImages[currentImage].colorName}</p>
-                  </div>
-                </div>
 
                 {/* AI Badge */}
                 {/* <div className="absolute -top-3 -right-3 bg-card rounded-lg px-3 py-2 shadow-elevated border border-border flex items-center gap-2">

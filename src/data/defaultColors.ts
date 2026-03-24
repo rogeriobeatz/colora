@@ -16,7 +16,7 @@ export interface Catalog {
 }
 
 export type HeaderContentMode = "logo+name" | "logo" | "name";
-export type HeaderStyleMode = "glass" | "gradient" | "card" | "minimal" | "primary" | "white" | "white-accent";
+export type HeaderStyleMode = "glass" | "gradient" | "card" | "primary";
 export type FontSet = "grotesk" | "rounded" | "neo";
 
 export interface CropCoordinates {
