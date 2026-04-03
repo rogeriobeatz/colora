@@ -7,7 +7,7 @@ interface AuthContextType {
   user: User | null;
   loading: boolean;
   signOut: () => Promise<void>;
-  checkSubscription: () => Promise<void>;
+  checkSubscription: () => Promise<any>;
   subscriptionChecked: boolean;
   refreshCompanyData?: () => Promise<void>; // ✅ Adicionar referência
 }
