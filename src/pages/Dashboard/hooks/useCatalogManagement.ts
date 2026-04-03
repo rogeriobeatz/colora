@@ -46,7 +46,6 @@ export const useCatalogManagement = () => {
       await addCatalog({
         name: newCatalogName.trim(),
         active: true,
-        paints: []
       });
       setNewCatalogName("");
       toast.success("Catálogo adicionado!");
