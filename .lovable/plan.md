@@ -1,64 +1,104 @@
 
 
-## Diagnosis
+# Plan: Design Standardization + Build Error Fixes
 
-The root cause is clear: **the `stripe-webhook` function has ZERO logs**. It has never been called by Stripe. Looking at the secrets, `STRIPE_WEBHOOK_SECRET` is **not configured** in Supabase (the create-checkout logs also confirm `"hasWebhookSecret": false`).
+## Summary
+Standardize the design system across all pages into two tiers: (1) **Public pages** (Landing, Login, Reset, Terms, Privacy, Checkout, CheckoutSuccess) using Colora brand identity, and (2) **White-label pages** (Dashboard, Simulator) using client branding with WCAG-safe fallbacks. Also fix all current build errors.
 
-This means: Stripe completes payment → redirects user to `/checkout/sucesso` → `generate-auth-link` authenticates the user → but **no webhook ever fires**, so tokens are never credited.
+---
 
-Even if we configure the webhook secret, webhooks are inherently asynchronous and can be delayed or missed. The architecture should not depend solely on them for token crediting.
+## Part 1: Fix Build Errors (prerequisite)
 
-## Plan: Move Token Crediting to the Auth Link Function
+These must be resolved first to unblock everything:
 
-Instead of depending on an unreliable webhook, credit tokens directly in the `generate-auth-link` function, which is already called reliably from the frontend after payment verification.
+1. **`StoreFooter.tsx` line 109** — `documentNumber` doesn't exist on `Company`. Add `documentNumber?: string` to `Company` interface in `defaultColors.ts`.
 
-### 1. Refactor `generate-auth-link` to also credit tokens
+2. **`useSimulator.ts` line 8** — imports `Paint` from `./types` but it's not exported there (it's in `defaultColors`). Change import to `import { Paint } from "@/data/defaultColors"`.
 
-This function already:
-- Verifies the Stripe session is paid (`payment_status === "paid"`)
-- Has access to `SUPABASE_SERVICE_ROLE_KEY` (bypasses RLS)
-- Is called reliably from the frontend
+3. **`Dashboard.tsx` line 160** — `CatalogsTab` receives props it doesn't declare (`newCatalogName`, `editingCatalogId`, `editingCatalogName`, `handleSaveCatalog`, `setEditingCatalogId`, `setEditingCatalogName`). Add these missing props to `CatalogsTabProps` interface, or internalize them in the tab component.
 
-Add token crediting logic after payment verification:
-- Look up or create user profile using `stripe_customer_id` or email
-- Check if tokens were already credited for this session (idempotent via `token_consumptions` table)
-- If not credited yet, add tokens (200 for subscription, 100 for recharge)
-- Update profile's `subscription_status` and `stripe_customer_id`
+4. **`useCatalogManagement.ts` line 49** — `paints` passed to `addCatalog` but type excludes it. Fix the `addCatalog` call to match the expected type signature.
 
-### 2. Simplify `stripe-webhook` to be a backup only
+5. **`useCatalogManagement.ts` line 108** — `importPaintsCSV` receives `File` but expects `string`. Update the `importPaintsCSV` signature or convert file to string before passing.
 
-Keep the webhook for handling:
-- `invoice.paid` (subscription renewals)
-- `customer.subscription.deleted` (cancellations)
+6. **`useDashboardState.ts` line 172** — `checkSubscription` returns `Promise<void>`, so testing its result for truthiness fails. Update `checkSubscription` in `AuthContext` to return the subscription status object, or refactor the check logic to not rely on a return value.
 
-But remove the hard requirement for `STRIPE_WEBHOOK_SECRET` — if it's not configured, the webhook gracefully returns 500 (which is fine since it's not the primary path).
+---
 
-### 3. Fix `create-checkout` metadata for new subscriptions
+## Part 2: Create Shared Public Layout Component
 
-Currently, when `mode === "subscription"`, the metadata sets `create_user_on_success: 'true'` and `is_recharge: 'false'`. When `mode === "recharge"`, it's the opposite. The `generate-auth-link` function will read this metadata to determine token amount (200 vs 100).
+**New file: `src/components/layouts/PublicLayout.tsx`**
 
-### 4. Document the webhook setup requirement
+A shared layout for all public-facing (non-authenticated) pages with:
+- Consistent navbar: Colora logo (left), contextual back-link or nav items (right)
+- Backdrop blur header with `sticky top-0`
+- Consistent container: `max-w-4xl mx-auto` with standard padding
+- Shared footer with links to Terms, Privacy, and copyright
+- Consistent background: `bg-white` base with subtle gradient accents
 
-Add a note about configuring the Stripe webhook URL and secret for subscription renewals (non-critical for initial payment but needed for ongoing renewals).
+**Apply to**: Terms, Privacy, ResetPassword, Login, Checkout, CheckoutSuccess
 
-### Technical Details
+Currently each page duplicates its own nav bar with slight variations. The shared layout eliminates this duplication.
 
-**`generate-auth-link/index.ts` changes:**
-```
-After verifying payment status:
-1. Get session metadata (is_recharge, customer_email, etc.)
-2. Get Stripe customer ID from session
-3. Find or create Supabase user (reuse existing logic from webhook)
-4. Upsert profile with stripe_customer_id, tokens, subscription_status
-5. Check token_consumptions for idempotency (match on session ID)
-6. Insert token credit if not already recorded
-7. Then generate the auth link as before
-```
+---
 
-**Token amounts:**
-- `is_recharge === 'true'` → +100 tokens (added to existing)
-- `create_user_on_success === 'true'` (new subscription) → set to 200 tokens
-- Default/recharge for existing user → +100 tokens added to current balance
+## Part 3: Standardize Public Pages
 
-**Idempotency:** Check `token_consumptions` for a record with description containing the session ID before inserting.
+For each public page, wrap content in `<PublicLayout>` and normalize:
+
+- **Terms & Privacy**: Already similar — just wrap in shared layout, remove duplicated nav
+- **Login & ResetPassword**: Wrap in shared layout, keep form cards centered with consistent card styling (`rounded-2xl border shadow-sm bg-white`)
+- **Checkout**: Wrap in shared layout, normalize form card to match Login style
+- **CheckoutSuccess**: Wrap in shared layout, normalize status cards
+
+Typography rules for all public pages:
+- Page titles: `text-2xl font-display font-bold`
+- Section headings: `text-lg font-semibold`
+- Body text: `text-sm text-muted-foreground`
+- Consistent spacing tokens from `index.css`
+
+---
+
+## Part 4: Strengthen White-Label WCAG Compliance
+
+**In `BrandingApplier.tsx`**, enhance the CSS variable generation to always produce WCAG AA-safe foreground colors:
+
+- When applying `--primary`, compute relative luminance and auto-set `--primary-foreground` to white or dark based on contrast ratio >= 4.5:1
+- Same for `--secondary` / `--secondary-foreground`
+- Add fallback values for all header style variables so pages render correctly even with no client branding configured
+- Ensure `--background` and `--foreground` always maintain minimum 4.5:1 contrast
+
+**In Dashboard and Simulator headers**, add defensive CSS:
+- Use `color: var(--header-fg, hsl(var(--foreground)))` pattern everywhere
+- Ensure token badges, buttons, and text remain readable regardless of client color choices
+
+---
+
+## Part 5: Normalize Dashboard & Simulator Shared Patterns
+
+- Ensure both pages use consistent spacing (`p-4 lg:p-8`) and max-width containers
+- Standardize the token display badge component (currently duplicated with slight differences)
+- Ensure mobile menu triggers use consistent sizing and positioning
+
+---
+
+## Files to Create
+- `src/components/layouts/PublicLayout.tsx`
+
+## Files to Modify
+- `src/data/defaultColors.ts` (add `documentNumber` to Company)
+- `src/components/simulator/useSimulator.ts` (fix Paint import)
+- `src/pages/Dashboard.tsx` (fix CatalogsTab props)
+- `src/pages/Dashboard/components/CatalogsTab.tsx` (add missing props to interface)
+- `src/pages/Dashboard/hooks/useCatalogManagement.ts` (fix type mismatches)
+- `src/pages/Dashboard/hooks/useDashboardState.ts` (fix void check)
+- `src/contexts/AuthContext.tsx` (return value from checkSubscription)
+- `src/components/BrandingApplier.tsx` (WCAG contrast enforcement)
+- `src/components/StoreFooter.tsx` (no change needed after Company fix)
+- `src/pages/Terms.tsx` (use PublicLayout)
+- `src/pages/Privacy.tsx` (use PublicLayout)
+- `src/pages/Login.tsx` (use PublicLayout)
+- `src/pages/ResetPassword.tsx` (use PublicLayout)
+- `src/pages/Checkout.tsx` (use PublicLayout)
+- `src/pages/CheckoutSuccess.tsx` (use PublicLayout)
 
