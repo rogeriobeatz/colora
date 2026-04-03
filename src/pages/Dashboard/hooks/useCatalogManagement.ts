@@ -104,7 +104,10 @@ export const useCatalogManagement = () => {
     if (!file) return;
 
     try {
-      await importPaintsCSV(file, selectedCatalogId || company?.catalogs[0]?.id);
+      const csvText = await file.text();
+      const catalogId = selectedCatalogId || company?.catalogs[0]?.id;
+      if (!catalogId) return;
+      importPaintsCSV(catalogId, csvText);
       toast.success("Cores importadas com sucesso!");
     } catch (error) {
       console.error("Erro ao importar:", error);

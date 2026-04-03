@@ -52,6 +52,9 @@ export interface Company {
   subscriptionStatus: 'active' | 'inactive';
   lastTokenDeposit: string | null;
 
+  // Documento da empresa
+  documentNumber?: string;
+
   // Coordenadas de crop da imagem principal (logo)
   logoCrop?: CropCoordinates;
 }

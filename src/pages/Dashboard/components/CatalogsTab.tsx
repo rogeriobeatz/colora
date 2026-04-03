@@ -24,6 +24,13 @@ interface CatalogsTabProps {
   setSelectedCatalogId: (id: string | null) => void;
   searchTerm: string;
   setSearchTerm: (term: string) => void;
+  newCatalogName?: string;
+  setNewCatalogName?: (name: string) => void;
+  editingCatalogId?: string | null;
+  editingCatalogName?: string;
+  setEditingCatalogId?: (id: string | null) => void;
+  setEditingCatalogName?: (name: string) => void;
+  handleSaveCatalog?: () => void;
   activeCatalog: any;
   filteredPaints: Paint[];
   categories: string[];

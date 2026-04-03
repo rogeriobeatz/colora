@@ -5,10 +5,10 @@ import { useStore } from "@/contexts/StoreContext";
 import { 
   Room, 
   DetectedWall, 
-  Paint, 
   SimulatorSessionData, 
   AspectMode 
 } from "./types";
+import { Paint } from "@/data/defaultColors";
 import { 
   saveSimulatorSession, 
   getSimulatorSession, 
