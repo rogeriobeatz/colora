@@ -7,7 +7,7 @@ import { Label } from "@/components/ui/label";
 import { Lock, Eye, EyeOff, CheckCircle, AlertCircle } from "lucide-react";
 import { toast } from "sonner";
 import { ColoraSpinner } from "@/components/ui/colora-spinner";
-import logoSvg from "@/assets/colora-logo.svg";
+import PublicLayout from "@/components/layouts/PublicLayout";
 
 const ResetPassword = () => {
   const [searchParams] = useSearchParams();
@@ -23,309 +23,141 @@ const ResetPassword = () => {
   const [errorMsg, setErrorMsg] = useState("");
   const [passwordStrength, setPasswordStrength] = useState<"weak" | "medium" | "strong" | null>(null);
 
-  // Extrair parâmetros do hash (Supabase usa # para auth)
   const getHashParams = () => {
     const hash = location.hash;
-    const params = new URLSearchParams(hash.substring(1)); // Remove o #
-    return {
-      access_token: params.get("access_token"),
-      refresh_token: params.get("refresh_token"),
-      type: params.get("type")
-    };
+    const params = new URLSearchParams(hash.substring(1));
+    return { access_token: params.get("access_token"), refresh_token: params.get("refresh_token"), type: params.get("type") };
   };
 
-  const { access_token, refresh_token, type } = getHashParams();
+  const { access_token, type } = getHashParams();
   const token = access_token;
 
   useEffect(() => {
-    if (!token || type !== "recovery") {
-      setStatus("error");
-      setErrorMsg("Link de recuperação inválido ou expirado.");
-      return;
-    }
-    
-    // Verify token validity
+    if (!token || type !== "recovery") { setStatus("error"); setErrorMsg("Link de recuperação inválido ou expirado."); return; }
     const verifyToken = async () => {
       try {
-        // Para recovery tokens, precisamos usar o access_token do hash
         if (access_token) {
           const { error } = await supabase.auth.getUser(access_token);
-          if (error) {
-            setStatus("error");
-            setErrorMsg("Link de recuperação inválido ou expirado.");
-          } else {
-            setStatus("ready");
-          }
-        } else {
-          setStatus("error");
-          setErrorMsg("Token de recuperação não encontrado.");
-        }
-      } catch (error) {
-        setStatus("error");
-        setErrorMsg("Link de recuperação inválido ou expirado.");
-      }
+          setStatus(error ? "error" : "ready");
+          if (error) setErrorMsg("Link de recuperação inválido ou expirado.");
+        } else { setStatus("error"); setErrorMsg("Token de recuperação não encontrado."); }
+      } catch { setStatus("error"); setErrorMsg("Link de recuperação inválido ou expirado."); }
     };
-
     verifyToken();
   }, [token, type, access_token]);
 
-  const validatePassword = (password: string): { isValid: boolean; strength: "weak" | "medium" | "strong" } => {
+  const validatePassword = (pw: string) => {
     let score = 0;
-    
-    if (password.length >= 8) score++;
-    if (password.length >= 12) score++;
-    if (/[A-Z]/.test(password)) score++;
-    if (/[a-z]/.test(password)) score++;
-    if (/[0-9]/.test(password)) score++;
-    if (/[^A-Za-z0-9]/.test(password)) score++;
-
-    if (score <= 2) return { isValid: false, strength: "weak" };
-    if (score <= 4) return { isValid: true, strength: "medium" };
-    return { isValid: true, strength: "strong" };
+    if (pw.length >= 8) score++; if (pw.length >= 12) score++;
+    if (/[A-Z]/.test(pw)) score++; if (/[a-z]/.test(pw)) score++;
+    if (/[0-9]/.test(pw)) score++; if (/[^A-Za-z0-9]/.test(pw)) score++;
+    if (score <= 2) return { isValid: false, strength: "weak" as const };
+    if (score <= 4) return { isValid: true, strength: "medium" as const };
+    return { isValid: true, strength: "strong" as const };
   };
 
-  const handlePasswordChange = (value: string) => {
-    setPassword(value);
-    const validation = validatePassword(value);
-    setPasswordStrength(validation.strength);
-  };
+  const handlePasswordChange = (value: string) => { setPassword(value); setPasswordStrength(validatePassword(value).strength); };
 
-  const getPasswordStrengthColor = () => {
-    switch (passwordStrength) {
-      case "weak": return "text-red-500";
-      case "medium": return "text-yellow-500";
-      case "strong": return "text-green-500";
-      default: return "text-gray-400";
-    }
-  };
-
-  const getPasswordStrengthText = () => {
-    switch (passwordStrength) {
-      case "weak": return "Fraca";
-      case "medium": return "Média";
-      case "strong": return "Forte";
-      default: return "";
-    }
-  };
+  const strengthColor = passwordStrength === "weak" ? "text-destructive" : passwordStrength === "medium" ? "text-accent-foreground" : "text-primary";
+  const strengthText = passwordStrength === "weak" ? "Fraca" : passwordStrength === "medium" ? "Média" : "Forte";
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
-    if (password !== confirmPassword) {
-      toast.error("As senhas não coincidem");
-      return;
-    }
-
-    const validation = validatePassword(password);
-    if (!validation.isValid) {
-      toast.error("A senha deve ter pelo menos 8 caracteres, incluindo letras maiúsculas, minúsculas e números");
-      return;
-    }
-
+    if (password !== confirmPassword) { toast.error("As senhas não coincidem"); return; }
+    if (!validatePassword(password).isValid) { toast.error("Senha muito fraca"); return; }
     setLoading(true);
-    
     try {
-      const { error } = await supabase.auth.updateUser({
-        password: password,
-      });
-
+      const { error } = await supabase.auth.updateUser({ password });
       if (error) throw error;
-
       setStatus("success");
       toast.success("Senha redefinida com sucesso!");
-      
-      // Redirect to login after 2 seconds
-      setTimeout(() => {
-        navigate("/login");
-      }, 2000);
-
+      setTimeout(() => navigate("/login"), 2000);
     } catch (error: any) {
-      console.error("Error resetting password:", error);
-      toast.error("Erro ao redefinir senha", { 
-        description: error.message || "Tente novamente ou solicite um novo link de recuperação." 
-      });
-    } finally {
-      setLoading(false);
-    }
+      toast.error("Erro ao redefinir senha", { description: error.message });
+    } finally { setLoading(false); }
   };
 
-  if (status === "loading") {
-    return (
-      <div className="min-h-screen bg-background flex flex-col items-center justify-center p-4">
-        <div className="mb-8">
-          <img src={logoSvg} alt="Colora" className="h-12 w-auto" />
+  const renderContent = () => {
+    if (status === "loading") return (
+      <div className="bg-card p-8 rounded-2xl border border-border shadow-sm text-center space-y-6">
+        <ColoraSpinner size="lg" className="mx-auto" />
+        <p className="text-sm text-muted-foreground">Verificando link de recuperação...</p>
+      </div>
+    );
+    if (status === "error") return (
+      <div className="bg-card p-8 rounded-2xl border border-border shadow-sm text-center space-y-6">
+        <div className="w-16 h-16 rounded-full bg-destructive/10 flex items-center justify-center mx-auto">
+          <AlertCircle className="w-8 h-8 text-destructive" />
         </div>
-        <div className="w-full max-w-md">
-          <div className="bg-card p-8 rounded-3xl border border-border shadow-elevated text-center space-y-6">
-            <ColoraSpinner size="lg" className="mx-auto" />
-            <p className="text-muted-foreground">Verificando link de recuperação...</p>
-          </div>
+        <div>
+          <h2 className="text-2xl font-display font-bold text-foreground mb-2">Link Inválido</h2>
+          <p className="text-sm text-muted-foreground mb-6">{errorMsg}</p>
+        </div>
+        <div className="space-y-3">
+          <Button asChild className="w-full"><a href="/login">Voltar para o Login</a></Button>
+          <Button variant="outline" asChild className="w-full"><a href="/login">Solicitar Novo Link</a></Button>
         </div>
       </div>
     );
-  }
-
-  if (status === "error") {
-    return (
-      <div className="min-h-screen bg-background flex flex-col items-center justify-center p-4">
-        <div className="mb-8">
-          <img src={logoSvg} alt="Colora" className="h-12 w-auto" />
+    if (status === "success") return (
+      <div className="bg-card p-8 rounded-2xl border border-border shadow-sm text-center space-y-6">
+        <div className="w-16 h-16 rounded-full bg-primary/10 flex items-center justify-center mx-auto">
+          <CheckCircle className="w-8 h-8 text-primary" />
         </div>
-        <div className="w-full max-w-md">
-          <div className="bg-card p-8 rounded-3xl border border-border shadow-elevated text-center space-y-6">
-            <div className="w-16 h-16 rounded-full bg-destructive/10 flex items-center justify-center mx-auto">
-              <AlertCircle className="w-8 h-8 text-destructive" />
-            </div>
-            <div>
-              <h1 className="text-2xl font-display font-bold text-foreground mb-2">
-                Link Inválido
-              </h1>
-              <p className="text-muted-foreground text-sm mb-6">{errorMsg}</p>
-            </div>
-            <div className="space-y-3">
-              <Button asChild className="w-full">
-                <a href="/login">Voltar para o Login</a>
-              </Button>
-              <Button variant="outline" asChild className="w-full">
-                <a href="/login">Solicitar Novo Link</a>
-              </Button>
-            </div>
-          </div>
+        <div>
+          <h2 className="text-2xl font-display font-bold text-foreground mb-2">Senha Redefinida!</h2>
+          <p className="text-sm text-muted-foreground">Você será redirecionado para o login em instantes...</p>
         </div>
       </div>
     );
-  }
-
-  if (status === "success") {
     return (
-      <div className="min-h-screen bg-background flex flex-col items-center justify-center p-4">
-        <div className="mb-8">
-          <img src={logoSvg} alt="Colora" className="h-12 w-auto" />
+      <div className="bg-card p-8 rounded-2xl border border-border shadow-sm">
+        <div className="text-center mb-8">
+          <h2 className="text-2xl font-display font-bold text-foreground mb-2">Redefinir Senha</h2>
+          <p className="text-sm text-muted-foreground">Crie sua nova senha de acesso</p>
         </div>
-        <div className="w-full max-w-md">
-          <div className="bg-card p-8 rounded-3xl border border-border shadow-elevated text-center space-y-6">
-            <div className="w-16 h-16 rounded-full bg-green-500/10 flex items-center justify-center mx-auto">
-              <CheckCircle className="w-8 h-8 text-green-500" />
+        <form onSubmit={handleSubmit} className="space-y-6">
+          <div className="space-y-2">
+            <Label htmlFor="password">Nova Senha</Label>
+            <div className="relative">
+              <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+              <Input id="password" type={showPassword ? "text" : "password"} placeholder="Mínimo 8 caracteres" value={password} onChange={(e) => handlePasswordChange(e.target.value)} className="h-12 pl-10 pr-10" required minLength={8} />
+              <button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground">
+                {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+              </button>
             </div>
-            <div>
-              <h1 className="text-2xl font-display font-bold text-foreground mb-2">
-                Senha Redefinida!
-              </h1>
-              <p className="text-muted-foreground text-sm">
-                Você será redirecionado para o login em instantes...
-              </p>
-            </div>
+            {password && passwordStrength && <div className="flex items-center gap-2 text-xs"><span className="text-muted-foreground">Força:</span><span className={strengthColor}>{strengthText}</span></div>}
           </div>
-        </div>
+          <div className="space-y-2">
+            <Label htmlFor="confirmPassword">Confirmar Senha</Label>
+            <div className="relative">
+              <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+              <Input id="confirmPassword" type={showConfirmPassword ? "text" : "password"} placeholder="Confirme sua senha" value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} className="h-12 pl-10 pr-10" required minLength={8} />
+              <button type="button" onClick={() => setShowConfirmPassword(!showConfirmPassword)} className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground">
+                {showConfirmPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+              </button>
+            </div>
+            {confirmPassword && password !== confirmPassword && <p className="text-xs text-destructive">As senhas não coincidem</p>}
+          </div>
+          <div className="bg-muted/50 rounded-lg p-3 text-xs text-muted-foreground">
+            <p className="font-medium mb-1">Requisitos de senha:</p>
+            <ul className="space-y-1"><li>• Mínimo 8 caracteres</li><li>• Letras maiúsculas e minúsculas</li><li>• Pelo menos um número</li><li>• Caracteres especiais (recomendado)</li></ul>
+          </div>
+          <Button type="submit" className="w-full h-12" disabled={loading || !password || !confirmPassword || password !== confirmPassword}>
+            {loading ? <><ColoraSpinner size="sm" className="mr-2" /> Redefinindo...</> : "Redefinir Senha"}
+          </Button>
+        </form>
+        <div className="text-center mt-6"><a href="/login" className="text-sm text-muted-foreground hover:text-primary transition-colors">← Voltar para o Login</a></div>
       </div>
     );
-  }
+  };
 
   return (
-    <div className="min-h-screen bg-background flex flex-col items-center justify-center p-4">
-      <div className="mb-8">
-        <img src={logoSvg} alt="Colora" className="h-12 w-auto" />
+    <PublicLayout maxWidth="max-w-md" showBackLink={false}>
+      <div className="flex flex-col items-center justify-center min-h-[60vh]">
+        {renderContent()}
       </div>
-
-      <div className="w-full max-w-md">
-        <div className="bg-card p-8 rounded-3xl border border-border shadow-elevated">
-          <div className="text-center mb-8">
-            <h1 className="text-2xl font-display font-bold text-foreground mb-2">
-              Redefinir Senha
-            </h1>
-            <p className="text-muted-foreground text-sm">
-              Crie sua nova senha de acesso
-            </p>
-          </div>
-
-          <form onSubmit={handleSubmit} className="space-y-6">
-            <div className="space-y-2">
-              <Label htmlFor="password">Nova Senha</Label>
-              <div className="relative">
-                <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                <Input 
-                  id="password" 
-                  type={showPassword ? "text" : "password"} 
-                  placeholder="Mínimo 8 caracteres" 
-                  value={password} 
-                  onChange={(e) => handlePasswordChange(e.target.value)}
-                  className="h-12 pl-10 pr-10"
-                  required
-                  minLength={8}
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
-                >
-                  {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                </button>
-              </div>
-              {password && passwordStrength && (
-                <div className="flex items-center gap-2 text-xs">
-                  <span className="text-muted-foreground">Força:</span>
-                  <span className={getPasswordStrengthColor()}>{getPasswordStrengthText()}</span>
-                </div>
-              )}
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="confirmPassword">Confirmar Senha</Label>
-              <div className="relative">
-                <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                <Input 
-                  id="confirmPassword" 
-                  type={showConfirmPassword ? "text" : "password"} 
-                  placeholder="Confirme sua senha" 
-                  value={confirmPassword} 
-                  onChange={(e) => setConfirmPassword(e.target.value)}
-                  className="h-12 pl-10 pr-10"
-                  required
-                  minLength={8}
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
-                >
-                  {showConfirmPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                </button>
-              </div>
-              {confirmPassword && password !== confirmPassword && (
-                <p className="text-xs text-red-500">As senhas não coincidem</p>
-              )}
-            </div>
-
-            <div className="bg-muted/50 rounded-lg p-3 text-xs text-muted-foreground">
-              <p className="font-medium mb-1">Requisitos de senha:</p>
-              <ul className="space-y-1">
-                <li>• Mínimo 8 caracteres</li>
-                <li>• Letras maiúsculas e minúsculas</li>
-                <li>• Pelo menos um número</li>
-                <li>• Caracteres especiais (recomendado)</li>
-              </ul>
-            </div>
-
-            <Button type="submit" className="w-full h-12" disabled={loading || !password || !confirmPassword || password !== confirmPassword}>
-              {loading ? (
-                <>
-                  <ColoraSpinner size="sm" className="mr-2" />
-                  Redefinindo Senha...
-                </>
-              ) : (
-                "Redefinir Senha"
-              )}
-            </Button>
-          </form>
-
-          <div className="text-center mt-6">
-            <a href="/login" className="text-sm text-muted-foreground hover:text-primary transition-colors">
-              ← Voltar para o Login
-            </a>
-          </div>
-        </div>
-      </div>
-    </div>
+    </PublicLayout>
   );
 };
 

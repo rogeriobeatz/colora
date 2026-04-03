@@ -7,7 +7,7 @@ interface AuthContextType {
   user: User | null;
   loading: boolean;
   signOut: () => Promise<void>;
-  checkSubscription: () => Promise<void>;
+  checkSubscription: () => Promise<any>;
   subscriptionChecked: boolean;
   refreshCompanyData?: () => Promise<void>; // ✅ Adicionar referência
 }
@@ -24,41 +24,39 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const lastSubscriptionCheck = useRef<string | null>(null);
   const subscriptionCheckTimeout = useRef<NodeJS.Timeout | null>(null);
 
-  const checkSubscription = async () => {
+  const checkSubscription = async (): Promise<any> => {
     try {
       console.log("[Auth] Verificando assinatura...");
       
-      // ✅ MELHORIA: Evitar chamadas duplicadas
       const currentUserId = session?.user?.id;
       const lastCheck = lastSubscriptionCheck.current;
       
-      // Se não há usuário ou já verificou recentemente, pula
       if (!currentUserId || (lastCheck === currentUserId)) {
         console.log("[Auth] Skip: verificação já feita recentemente");
-        return;
+        return null;
       }
       
       const { data, error } = await supabase.functions.invoke('check-subscription');
       
-      // Atualiza cache
       lastSubscriptionCheck.current = currentUserId;
       
       if (error) {
         console.error("[Auth] Erro ao verificar assinatura:", error);
+        return null;
       } else {
         console.log("[Auth] Assinatura verificada:", data);
         
-        // ✅ FORÇAR ATUALIZAÇÃO DO STORECONTEXT APÓS VERIFICAR ASSINATURA
         if (data?.success) {
-          // Dispara evento customizado para o StoreContext ouvir
           window.dispatchEvent(new CustomEvent('subscription-updated', { 
             detail: { subscriptionStatus: data.subscriptionStatus, tokens: data.tokens } 
           }));
         }
       }
       setSubscriptionChecked(true);
+      return data;
     } catch (err) {
       console.error("[Auth] Erro ao invocar check-subscription:", err);
+      return null;
     }
   };
 

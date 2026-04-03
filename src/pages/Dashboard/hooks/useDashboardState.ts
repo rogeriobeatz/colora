@@ -166,10 +166,10 @@ export const useDashboardState = () => {
       if (!user || !company) return;
 
       try {
-        const subscriptionStatus = await debouncedCheckSubscription();
-        console.log("[Dashboard] Status da assinatura:", subscriptionStatus);
+        const result = await debouncedCheckSubscription();
+        console.log("[Dashboard] Status da assinatura:", result);
 
-        if (subscriptionStatus && subscriptionStatus.subscriptionStatus === 'active') {
+        if (result && result.subscriptionStatus === 'active') {
           await depositMonthlyTokens();
           await refreshData();
         }
