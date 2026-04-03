@@ -32,11 +32,19 @@ const ImageViewer = ({
 
   const activeSim = useMemo(() => {
     if (!room.activeSimulationId) return null;
-    return room.simulations.find((s) => s.id === room.activeSimulationId) || null;
+    const found = room.simulations.find((s) => s.id === room.activeSimulationId) || null;
+    console.log("[ImageViewer] Simulação ativa:", found ? `ID: ${found.id}, URL: ${found.imageUrl}` : "Nenhuma");
+    return found;
   }, [room.activeSimulationId, room.simulations]);
 
-  const displayAfterUrl = hoverSimUrl || room.imageUrl;
+  const displayAfterUrl = hoverSimUrl || activeSim?.imageUrl || room.imageUrl;
   const displayBeforeUrl = room.originalImageUrl;
+
+  console.log("[ImageViewer] Renderizando camadas:", {
+    before: displayBeforeUrl.substring(0, 50) + "...",
+    after: displayAfterUrl.startsWith("http") ? displayAfterUrl : "Base64 local",
+    hasSimulations
+  });
 
   useEffect(() => {
     setHoverSimUrl(null);
@@ -164,10 +172,10 @@ const ImageViewer = ({
         {/* Labels */}
         {hasSimulations && (
           <>
-            <div className="absolute top-2 left-2 sm:top-4 sm:left-4 bg-black/60 text-white text-[10px] sm:text-xs font-bold px-2 py-1 sm:px-3 sm:py-1.5 rounded-full backdrop-blur-sm z-10">
+            <div className="absolute top-3 left-3 bg-black/40 text-white text-[9px] font-medium px-2 py-0.5 rounded-full backdrop-blur-[2px] z-10 uppercase tracking-wider">
               Antes
             </div>
-            <div className="absolute top-2 right-2 sm:top-4 sm:right-4 bg-black/60 text-white text-[10px] sm:text-xs font-bold px-2 py-1 sm:px-3 sm:py-1.5 rounded-full backdrop-blur-sm z-10">
+            <div className="absolute top-3 right-3 bg-black/40 text-white text-[9px] font-medium px-2 py-0.5 rounded-full backdrop-blur-[2px] z-10 uppercase tracking-wider">
               Depois
             </div>
           </>
@@ -175,11 +183,11 @@ const ImageViewer = ({
 
         {/* History dots */}
         {hasSimulations && (
-          <div className="absolute bottom-2 left-2 sm:bottom-4 sm:left-4 z-20">
-            <div className="flex items-center gap-1.5 sm:gap-2 bg-background/70 backdrop-blur-md border border-border rounded-full px-2 py-1.5 sm:px-3 sm:py-2 shadow-soft">
+          <div className="absolute bottom-2 left-2 z-20 flex flex-col items-start gap-1.5 max-w-[85%]">
+            <div className="flex items-center gap-1.5 bg-background/80 backdrop-blur-sm border border-border rounded-full px-1.5 py-1 shadow-soft">
               <button
-                className={`w-3 h-3 sm:w-3.5 sm:h-3.5 rounded-full border transition-transform ${
-                  room.activeSimulationId === null ? "scale-110 border-foreground" : "border-border"
+                className={`w-2.5 h-2.5 rounded-full border transition-transform ${
+                  room.activeSimulationId === null ? "scale-110 border-foreground" : "border-border opacity-50"
                 }`}
                 style={{ backgroundColor: "#fff" }}
                 title="Original"
@@ -188,15 +196,15 @@ const ImageViewer = ({
                 onClick={() => onSelectSimulation(null)}
               />
 
-              <div className="w-px h-3 sm:h-4 bg-border" />
+              <div className="w-px h-2.5 bg-border" />
 
               {room.simulations.map((sim) => {
                 const isActive = room.activeSimulationId === sim.id;
                 return (
                   <button
                     key={sim.id}
-                    className={`w-3 h-3 sm:w-3.5 sm:h-3.5 rounded-full border transition-transform ${
-                      isActive ? "scale-110 border-foreground" : "border-border"
+                    className={`w-2.5 h-2.5 rounded-full border transition-transform ${
+                      isActive ? "scale-110 border-foreground" : "border-border opacity-50"
                     }`}
                     style={{ backgroundColor: sim.paint.hex }}
                     title={`${sim.paint.name} · ${sim.wallLabel}`}
@@ -209,9 +217,9 @@ const ImageViewer = ({
             </div>
 
             {activeSim && (
-              <div className="mt-1.5 sm:mt-2 text-[10px] sm:text-xs text-muted-foreground bg-background/70 backdrop-blur-md border border-border rounded-lg sm:rounded-xl px-2 py-1.5 sm:px-3 sm:py-2 inline-flex">
+              <div className="text-[9px] sm:text-[10px] text-muted-foreground bg-background/80 backdrop-blur-sm border border-border rounded-lg px-2 py-1 inline-flex shadow-soft animate-in fade-in">
                 <span className="font-semibold text-foreground">{activeSim.paint.name}</span>
-                <span className="mx-1.5 sm:mx-2 text-muted-foreground/60">·</span>
+                <span className="mx-1.5 text-muted-foreground/50">·</span>
                 <span>{activeSim.wallLabel}</span>
               </div>
             )}

@@ -1,154 +1,248 @@
-import { useCallback, useEffect, useMemo, useReducer, useRef } from "react";
+import { useCallback, useEffect, useRef, useState, useReducer, useMemo } from "react";
 import { toast } from "sonner";
-import { Paint } from "@/data/defaultColors";
 import { supabase } from "@/integrations/supabase/client";
-import { Room, DetectedWall, WallSimulation, SimulatorSessionData } from "./types";
 import { useStore } from "@/contexts/StoreContext";
-import { deleteSimulatorSession, getLastSessionId, getSimulatorSession, listSimulatorSessions, saveSimulatorSession, setLastSessionId, generateUUID } from "@/lib/simulator-db";
+import { 
+  Room, 
+  DetectedWall, 
+  Paint, 
+  SimulatorSessionData, 
+  AspectMode 
+} from "./types";
+import { 
+  saveSimulatorSession, 
+  getSimulatorSession, 
+  listSimulatorSessions, 
+  deleteSimulatorSession,
+  generateUUID,
+  setLastSessionId,
+  getLastSessionId
+} from "@/lib/simulator-db";
 import { preprocessImageFile } from "@/lib/image-preprocess";
 
-// --- Helper Functions ---
-const genId = () => Math.random().toString(36).substring(2, 10);
-const AUTOSAVE_DELAY = 0; // 🔴 DESATIVADO - Auto-save causa sobrecarga massiva
+const AUTOSAVE_DELAY = 2000;
+
 const nowIso = () => new Date().toISOString();
 
-const normalizeLoadedSession = (data: any): SimulatorSessionData => {
-  console.log("[Simulator] Dados brutos carregados:", data); // Debug
-  const normalized = {
-    id: data.id || generateUUID(), // Usar generateUUID em vez de genId
-    name: data.name || "", // Sem fallback genérico
-    createdAt: data.createdAt || nowIso(),
-    updatedAt: data.updatedAt || nowIso(),
-    rooms: Array.isArray(data.rooms) ? data.rooms : [],
-    activeRoomId: data.activeRoomId || null,
-    selectedWallId: data.selectedWallId || null,
-  };
-  console.log("[Simulator] Dados normalizados:", normalized); // Debug
-  return normalized;
-};
-
-// --- State, Actions, and Reducer ---
-interface SimulatorState {
+type State = {
   session: SimulatorSessionData | null;
   loadingSession: boolean;
-  rooms: Room[];
-  activeRoomId: string | null;
-  selectedWallId: string | null;
-  selectedPaint: Paint | null;
   isPainting: boolean;
   hasUnsavedChanges: boolean;
-}
+};
 
-type Action =
-  | { type: 'SET_STATE'; payload: Partial<SimulatorState> }
-  | { type: 'START_LOADING_SESSION' }
-  | { type: 'LOAD_SESSION'; payload: SimulatorSessionData }
+type Action = 
+  | { type: 'SET_STATE'; payload: Partial<State> }
   | { type: 'CREATE_SESSION'; payload: SimulatorSessionData }
+  | { type: 'LOAD_SESSION'; payload: SimulatorSessionData }
   | { type: 'DELETE_SESSION' }
+  | { type: 'START_LOADING_SESSION' }
   | { type: 'SET_SESSION_NAME'; payload: string }
   | { type: 'ADD_ROOM_START'; payload: Room }
   | { type: 'ADD_ROOM_SUCCESS'; payload: { roomId: string; walls: DetectedWall[] } }
   | { type: 'ADD_ROOM_FAILURE'; payload: { roomId: string } }
   | { type: 'UPDATE_ROOM_NAME'; payload: { roomId: string; name: string } }
-  | { type: 'SET_ACTIVE_ROOM'; payload: string | null }
-  | { type: 'SET_SELECTED_WALL'; payload: string | null }
-  | { type: 'SET_SELECTED_PAINT'; payload: Paint | null }
-  | { type: 'APPLY_COLOR_START' }
-  | { type: 'APPLY_COLOR_SUCCESS'; payload: { roomId: string; simulation: WallSimulation; currentBaseImage?: string } }
-  | { type: 'APPLY_COLOR_FAILURE' }
-  | { type: 'SELECT_SIMULATION'; payload: { roomId: string; simId: string | null } }
-  | { type: 'REMOVE_SIMULATION'; payload: { roomId: string; simId: string } }
-  | { type: 'CLEAR_ROOM'; payload: string }
-  | { type: 'SET_UNSAVED_CHANGES'; payload: boolean };
+  | { type: 'SELECT_ROOM'; payload: string }
+  | { type: 'SELECT_WALL'; payload: string | null }
+  | { type: 'SET_PAINTING'; payload: boolean }
+  | { type: 'ADD_SIMULATION'; payload: { roomId: string; simulation: any } }
+  | { type: 'SELECT_SIMULATION'; payload: { roomId: string; simulationId: string | null } }
+  | { type: 'REMOVE_SIMULATION'; payload: { roomId: string; simulationId: string } }
+  | { type: 'CLEAR_ROOM'; payload: string };
 
+function reducer(state: State, action: Action): State {
+  switch (action.type) {
+    case 'SET_STATE':
+      return { ...state, ...action.payload };
+    case 'START_LOADING_SESSION':
+      return { ...state, loadingSession: true };
+    case 'CREATE_SESSION':
+    case 'LOAD_SESSION':
+      return { ...state, session: action.payload, loadingSession: false, hasUnsavedChanges: false };
+    case 'DELETE_SESSION':
+      return { ...state, session: null, hasUnsavedChanges: false };
+    case 'SET_SESSION_NAME':
+      if (!state.session) return state;
+      return { 
+        ...state, 
+        session: { ...state.session, name: action.payload, updatedAt: nowIso() }, 
+        hasUnsavedChanges: true 
+      };
+    case 'ADD_ROOM_START':
+      if (!state.session) return state;
+      return {
+        ...state,
+        session: { ...state.session, rooms: [...state.session.rooms, action.payload], updatedAt: nowIso() },
+        hasUnsavedChanges: true
+      };
+    case 'ADD_ROOM_SUCCESS':
+      if (!state.session) return state;
+      return {
+        ...state,
+        session: {
+          ...state.session,
+          activeRoomId: action.payload.roomId,
+          rooms: state.session.rooms.map(r => 
+            r.id === action.payload.roomId 
+              ? { ...r, walls: action.payload.walls, isAnalyzing: false, isAnalyzed: true } 
+              : r
+          ),
+          updatedAt: nowIso()
+        },
+        hasUnsavedChanges: true
+      };
+    case 'ADD_ROOM_FAILURE':
+      if (!state.session) return state;
+      return {
+        ...state,
+        session: {
+          ...state.session,
+          rooms: state.session.rooms.filter(r => r.id !== action.payload.roomId),
+          updatedAt: nowIso()
+        },
+        hasUnsavedChanges: true
+      };
+    case 'UPDATE_ROOM_NAME':
+      if (!state.session) return state;
+      return {
+        ...state,
+        session: {
+          ...state.session,
+          rooms: state.session.rooms.map(r => r.id === action.payload.roomId ? { ...r, name: action.payload.name } : r),
+          updatedAt: nowIso()
+        },
+        hasUnsavedChanges: true
+      };
+    case 'SELECT_ROOM':
+      if (!state.session) return state;
+      return {
+        ...state,
+        session: { ...state.session, activeRoomId: action.payload, selectedWallId: null, updatedAt: nowIso() },
+        hasUnsavedChanges: true
+      };
+    case 'SELECT_WALL':
+      if (!state.session) return state;
+      return {
+        ...state,
+        session: { ...state.session, selectedWallId: action.payload, updatedAt: nowIso() },
+        hasUnsavedChanges: true
+      };
+    case 'SET_PAINTING':
+      return { ...state, isPainting: action.payload };
+    case 'ADD_SIMULATION':
+      if (!state.session) return state;
+      return {
+        ...state,
+        session: {
+          ...state.session,
+          rooms: state.session.rooms.map(r => 
+            r.id === action.payload.roomId 
+              ? { ...r, simulations: [action.payload.simulation, ...r.simulations], activeSimulationId: action.payload.simulation.id } 
+              : r
+          ),
+          updatedAt: nowIso()
+        },
+        hasUnsavedChanges: true
+      };
+    case 'SELECT_SIMULATION':
+      if (!state.session) return state;
+      return {
+        ...state,
+        session: {
+          ...state.session,
+          rooms: state.session.rooms.map(r => 
+            r.id === action.payload.roomId ? { ...r, activeSimulationId: action.payload.simulationId } : r
+          ),
+          updatedAt: nowIso()
+        },
+        hasUnsavedChanges: true
+      };
+    case 'REMOVE_SIMULATION':
+      if (!state.session) return state;
+      return {
+        ...state,
+        session: {
+          ...state.session,
+          rooms: state.session.rooms.map(r => {
+            if (r.id !== action.payload.roomId) return r;
+            const simulations = r.simulations.filter(s => s.id !== action.payload.simulationId);
+            return {
+              ...r,
+              simulations,
+              activeSimulationId: r.activeSimulationId === action.payload.simulationId ? (simulations[0]?.id || null) : r.activeSimulationId
+            };
+          }),
+          updatedAt: nowIso()
+        },
+        hasUnsavedChanges: true
+      };
+    case 'CLEAR_ROOM':
+      if (!state.session) return state;
+      const filteredRooms = state.session.rooms.filter(r => r.id !== action.payload);
+      return {
+        ...state,
+        session: {
+          ...state.session,
+          rooms: filteredRooms,
+          activeRoomId: state.session.activeRoomId === action.payload ? (filteredRooms[0]?.id || null) : state.session.activeRoomId,
+          updatedAt: nowIso()
+        },
+        hasUnsavedChanges: true
+      };
+    default:
+      return state;
+  }
+}
 
-const initialState: SimulatorState = {
+const initialState: State = {
   session: null,
   loadingSession: true,
-  rooms: [],
-  activeRoomId: null,
-  selectedWallId: null,
-  selectedPaint: null,
   isPainting: false,
   hasUnsavedChanges: false,
 };
 
-function simulatorReducer(state: SimulatorState, action: Action): SimulatorState {
-  switch (action.type) {
-    case 'SET_STATE': return { ...state, ...action.payload };
-    case 'START_LOADING_SESSION': return { ...state, loadingSession: true };
-    case 'LOAD_SESSION': {
-      const s = action.payload;
-      const rooms = (s.rooms || []).map(r => ({...r, isAnalyzing: false, isPainting: false}));
-      return { ...initialState, session: s, rooms, activeRoomId: s.activeRoomId, selectedWallId: s.selectedWallId, loadingSession: false };
-    }
-    case 'CREATE_SESSION': return { ...initialState, session: action.payload, loadingSession: false };
-    case 'DELETE_SESSION': return { ...initialState, loadingSession: false };
-    case 'SET_SESSION_NAME': return { ...state, session: state.session ? { ...state.session, name: action.payload } : null, hasUnsavedChanges: true };
-    case 'ADD_ROOM_START': return { ...state, rooms: [...state.rooms, action.payload], activeRoomId: action.payload.id, selectedWallId: null, hasUnsavedChanges: true };
-    case 'ADD_ROOM_SUCCESS': return { ...state, rooms: state.rooms.map(r => r.id === action.payload.roomId ? { ...r, walls: action.payload.walls, isAnalyzing: false, isAnalyzed: true } : r), selectedWallId: action.payload.walls[0]?.id ?? null, hasUnsavedChanges: true };
-    case 'ADD_ROOM_FAILURE': return { ...state, rooms: state.rooms.map(r => r.id === action.payload.roomId ? { ...r, isAnalyzing: false } : r) };
-    case 'UPDATE_ROOM_NAME': return { ...state, rooms: state.rooms.map(r => r.id === action.payload.roomId ? { ...r, name: action.payload.name } : r), hasUnsavedChanges: true };
-    case 'SET_ACTIVE_ROOM': return { ...state, activeRoomId: action.payload };
-    case 'SET_SELECTED_WALL': return { ...state, selectedWallId: action.payload };
-    case 'SET_SELECTED_PAINT': return { ...state, selectedPaint: action.payload };
-    case 'APPLY_COLOR_START': return { ...state, isPainting: true };
-    case 'APPLY_COLOR_SUCCESS': {
-        const { roomId, simulation, currentBaseImage } = action.payload;
-        return { ...state, isPainting: false, hasUnsavedChanges: true, rooms: state.rooms.map(r => r.id === roomId ? { ...r, imageUrl: simulation.imageUrl, currentBaseImage: currentBaseImage || r.currentBaseImage, simulations: [...r.simulations, simulation], activeSimulationId: simulation.id } : r )};
-    }
-    case 'APPLY_COLOR_FAILURE': return { ...state, isPainting: false };
-    case 'SELECT_SIMULATION': {
-        const { roomId, simId } = action.payload;
-        return { ...state, hasUnsavedChanges: true, rooms: state.rooms.map(r => {
-            if (r.id !== roomId) return r;
-            if (!simId) return { ...r, activeSimulationId: null, imageUrl: r.originalImageUrl, currentBaseImage: undefined };
-            const sim = r.simulations.find(s => s.id === simId);
-            return { ...r, activeSimulationId: simId, imageUrl: sim ? sim.imageUrl : r.originalImageUrl };
-        })};
-    }
-    case 'REMOVE_SIMULATION': {
-        const { roomId, simId } = action.payload;
-        return { ...state, hasUnsavedChanges: true, rooms: state.rooms.map(r => {
-            if (r.id !== roomId) return r;
-            const nextSims = r.simulations.filter(s => s.id !== simId);
-            if (r.activeSimulationId !== simId) return { ...r, simulations: nextSims };
-            const nextActive = nextSims[nextSims.length - 1];
-            return { ...r, simulations: nextSims, activeSimulationId: nextActive?.id ?? null, imageUrl: nextActive?.imageUrl ?? r.originalImageUrl };
-        })};
-    }
-    case 'CLEAR_ROOM': {
-        const remaining = state.rooms.filter(r => r.id !== action.payload);
-        return { ...state, rooms: remaining, activeRoomId: state.activeRoomId === action.payload ? remaining[0]?.id ?? null : state.activeRoomId, hasUnsavedChanges: true };
-    }
-    case 'SET_UNSAVED_CHANGES': return { ...state, hasUnsavedChanges: action.payload };
-    default: return state;
-  }
+function normalizeLoadedSession(data: any): SimulatorSessionData {
+  return {
+    id: data.id || generateUUID(),
+    name: data.name || "Novo Projeto",
+    createdAt: data.createdAt || data.created_at || nowIso(),
+    updatedAt: data.updatedAt || data.updated_at || nowIso(),
+    rooms: data.rooms || [],
+    activeRoomId: data.activeRoomId || (data.rooms?.[0]?.id || null),
+    selectedWallId: data.selectedWallId || null,
+  };
 }
 
-// --- The Hook ---
-export function useSimulator({ companySlug }: { companySlug?: string } = {}) {
+export const useSimulator = () => {
   const { company, refreshData } = useStore();
-  const [state, dispatch] = useReducer(simulatorReducer, initialState);
-  const { session, loadingSession, rooms, activeRoomId, selectedWallId, selectedPaint, isPainting, hasUnsavedChanges } = state;
-  const activeRoom = useMemo(() => rooms.find((r) => r.id === activeRoomId) || null, [rooms, activeRoomId]);
+  const [state, dispatch] = useReducer(reducer, initialState);
+  const [selectedPaint, setSelectedPaint] = useState<Paint | null>(null);
   const autosaveTimer = useRef<number | null>(null);
+
+  const { session, loadingSession, isPainting, hasUnsavedChanges } = state;
+  const rooms = session?.rooms || [];
+  const activeRoom = useMemo(() => rooms.find((r) => r.id === session?.activeRoomId) || null, [rooms, session?.activeRoomId]);
+  const activeRoomId = session?.activeRoomId || null;
+  const selectedWallId = session?.selectedWallId || null;
+  const totalSimulations = useMemo(() => rooms.reduce((acc, r) => acc + r.simulations.length, 0), [rooms]);
 
   const persist = useCallback(async (isAutosave = false) => {
     if (!session) return;
-    if (autosaveTimer.current) clearTimeout(autosaveTimer.current);
-
-    const updated = { 
-      ...session, 
-      updatedAt: nowIso(),
-      rooms, // Incluir os rooms atualizados
-      activeRoomId, // Incluir o room ativo
-      selectedWallId // Incluir a parede selecionada
-    };
-    await saveSimulatorSession({ id: updated.id, name: updated.name, createdAt: updated.createdAt, updatedAt: updated.updatedAt, data: updated });
-    dispatch({ type: 'SET_STATE', payload: { session: updated, hasUnsavedChanges: false } });
-    if (!isAutosave) toast.success("Projeto salvo", { description: session.name });
-  }, [session, rooms, activeRoomId, selectedWallId]);
+    try {
+      await saveSimulatorSession({
+        id: session.id,
+        name: session.name,
+        createdAt: session.createdAt,
+        updatedAt: nowIso(),
+        data: { ...session, updatedAt: nowIso() }
+      });
+      dispatch({ type: 'SET_STATE', payload: { hasUnsavedChanges: false } });
+      if (!isAutosave) toast.success("Projeto salvo");
+    } catch (err) {
+      console.error("Erro ao salvar:", err);
+      if (!isAutosave) toast.error("Erro ao salvar");
+    }
+  }, [session]);
 
   const manualSave = useCallback(() => persist(false), [persist]);
 
@@ -165,11 +259,18 @@ export function useSimulator({ companySlug }: { companySlug?: string } = {}) {
     if (autosaveTimer.current) clearTimeout(autosaveTimer.current);
     const id = generateUUID();
     const createdAt = nowIso();
-    const s: SimulatorSessionData = { id, name: (name || "").trim(), createdAt, updatedAt: createdAt, rooms: [], activeRoomId: null, selectedWallId: null };
+    const s: SimulatorSessionData = { 
+      id, 
+      name: (name || "").trim() || "Novo Projeto", 
+      createdAt, 
+      updatedAt: createdAt, 
+      rooms: [], 
+      activeRoomId: null, 
+      selectedWallId: null 
+    };
     await saveSimulatorSession({ id: s.id, name: s.name, createdAt: s.createdAt, updatedAt: s.updatedAt, data: s });
     dispatch({ type: 'CREATE_SESSION', payload: s });
     await setLastSessionId(s.id);
-    toast.success("Novo projeto criado");
     return s;
   }, []);
 
@@ -178,15 +279,12 @@ export function useSimulator({ companySlug }: { companySlug?: string } = {}) {
     dispatch({ type: 'START_LOADING_SESSION' });
     const record = await getSimulatorSession(id);
     if (!record?.data) {
-        toast.error("Não foi possível carregar o projeto.");
-        await deleteSimulatorSession(id);
-        dispatch({ type: 'DELETE_SESSION' });
+        dispatch({ type: 'SET_STATE', payload: { loadingSession: false } });
         return;
     };
     const normalized = normalizeLoadedSession(record.data as SimulatorSessionData);
     dispatch({ type: 'LOAD_SESSION', payload: normalized });
-    await setLastSessionId(normalized.id); // Salvar como último projeto carregado
-    toast.success("Projeto carregado", { description: normalized.name });
+    await setLastSessionId(normalized.id);
   }, []);
 
   const deleteSession = useCallback(async (id: string) => {
@@ -197,25 +295,184 @@ export function useSimulator({ companySlug }: { companySlug?: string } = {}) {
 
   const listSessions = useCallback(async () => await listSimulatorSessions(), []);
   
-  const ensureSession = useCallback(async () => session || createNewSession(), [session, createNewSession]);
+  const ensureSession = useCallback(async () => {
+    if (session) return session;
+    return await createNewSession();
+  }, [session, createNewSession]);
+
+  const addRoom = useCallback(async (file: File, cropCoordinates?: { x: number; y: number; width: number; height: number }, aspectMode?: AspectMode) => {
+    if ((company?.tokens ?? 0) <= 0) return toast.error("Créditos de IA insuficientes");
+    
+    // Get latest session or create one
+    const currentSession = await ensureSession();
+    
+    const id = generateUUID();
+    const imageBase64 = await preprocessImageFile(file);
+    const base64Only = imageBase64.replace(/^data:image\/[a-z]+;base64,/, '');
+    
+    const newRoom: Room = { 
+      id, 
+      name: "", 
+      imageUrl: imageBase64, 
+      originalImageUrl: imageBase64, 
+      thumbnailUrl: imageBase64, // Salvar miniatura também
+      walls: [], 
+      isAnalyzing: true, 
+      isAnalyzed: false, 
+      simulations: [], 
+      activeSimulationId: null, 
+      cropCoordinates,
+      aspectMode
+    };
+    
+    dispatch({ type: 'ADD_ROOM_START', payload: newRoom });
+
+    try {
+      const { data, error } = await supabase.functions.invoke("analyze-room", { 
+        body: { 
+          imageBase64: base64Only,
+          cropCoordinates: cropCoordinates || null,
+          aspectMode: aspectMode || null 
+        } 
+      });
+      if (error || data?.error) throw error || new Error(data.error);
+      
+      await refreshData();
+      const detectedWalls: DetectedWall[] = (data.walls || []).map((w: any, i: number) => ({ 
+        id: w.id || `s${i}`, 
+        label: w.label_pt || w.label, 
+        englishLabel: w.label_en || "Wall", 
+        description: w.description || "" 
+      }));
+      
+      const aiRoomName = data.roomName || data.room_name || data.roomType || data.room_type || "Ambiente";
+      dispatch({ type: 'UPDATE_ROOM_NAME', payload: { roomId: id, name: aiRoomName } });
+      
+      // Auto-set session name if it's default
+      if (!currentSession.name || currentSession.name === "Novo Projeto") {
+        const autoName = `Projeto ${aiRoomName}`;
+        dispatch({ type: 'SET_SESSION_NAME', payload: autoName });
+        // Save immediately with new name
+        await saveSimulatorSession({
+          id: currentSession.id,
+          name: autoName,
+          createdAt: currentSession.createdAt,
+          updatedAt: nowIso(),
+          data: { ...currentSession, name: autoName, updatedAt: nowIso() }
+        });
+      }
+      
+      dispatch({ type: 'ADD_ROOM_SUCCESS', payload: { roomId: id, walls: detectedWalls } });
+    } catch (err: any) {
+      dispatch({ type: 'ADD_ROOM_FAILURE', payload: { roomId: id } });
+      toast.error("Erro na análise", { description: err.message });
+    }
+  }, [company, ensureSession, refreshData]);
+
+  const selectRoom = useCallback((id: string) => dispatch({ type: 'SELECT_ROOM', payload: id }), []);
+  const selectWall = useCallback((id: string | null) => dispatch({ type: 'SELECT_WALL', payload: id }), []);
+
+  const applyColor = useCallback(async () => {
+    if (!activeRoom || !selectedWallId || !selectedPaint) return;
+    
+    dispatch({ type: 'SET_PAINTING', payload: true });
+    console.log("[useSimulator] Iniciando applyColor...");
+    
+    const wall = activeRoom.walls.find(w => w.id === selectedWallId);
+    
+    // Check if there's an active simulation to use as base for stacking colors
+    const activeSim = activeRoom.simulations.find(s => s.id === activeRoom.activeSimulationId);
+    const baseImage = activeSim?.imageUrl || activeRoom.imageUrl;
+    
+    console.log("[useSimulator] Imagem base:", baseImage.startsWith('http') ? "URL externa" : "Base64 local");
+    
+    try {
+      const { data, error } = await supabase.functions.invoke("paint-wall", {
+        body: {
+          imageBase64: baseImage, // Enviamos a URL ou Base64, a Edge Function vai tratar
+          paintColor: selectedPaint.hex,
+          wallLabel: wall?.label || "Parede",
+          wallLabelEn: wall?.englishLabel || "Wall",
+          cropCoordinates: activeRoom.cropCoordinates || null,
+          aspectMode: activeRoom.aspectMode || null
+        }
+      });
+
+      if (error) {
+        console.error("[useSimulator] Erro na invocação:", error);
+        throw error;
+      }
+      
+      if (data?.error) {
+        console.error("[useSimulator] Erro retornado pela função:", data.error);
+        throw new Error(data.error);
+      }
+
+      console.log("[useSimulator] Sucesso! Nova imagem:", data.imageUrl);
+
+      const newSimulation = {
+        id: generateUUID(),
+        paint: selectedPaint,
+        imageUrl: data.imageUrl,
+        wallId: selectedWallId,
+        wallLabel: wall?.label || "Parede"
+      };
+
+      dispatch({ type: 'ADD_SIMULATION', payload: { roomId: activeRoom.id, simulation: newSimulation } });
+      toast.success("Cor aplicada com sucesso!");
+    } catch (err: any) {
+      console.error("[useSimulator] Falha fatal no applyColor:", err);
+      toast.error("Erro ao aplicar cor", { description: err.message || "Verifique sua conexão e tente novamente." });
+    } finally {
+      dispatch({ type: 'SET_PAINTING', payload: false });
+    }
+  }, [activeRoom, selectedWallId, selectedPaint]);
+
+  const selectSimulation = useCallback((roomId: string, simId: string | null) => {
+    dispatch({ type: 'SELECT_SIMULATION', payload: { roomId, simulationId: simId } });
+  }, []);
+
+  const removeSimulation = useCallback((simId: string) => {
+    if (!activeRoom) return;
+    dispatch({ type: 'REMOVE_SIMULATION', payload: { roomId: activeRoom.id, simulationId: simId } });
+  }, [activeRoom]);
+
+  const retryAnalysis = useCallback(() => {
+    // Implement retry logic if needed
+  }, []);
+
+  const clearRoom = useCallback((id: string) => {
+    dispatch({ type: 'CLEAR_ROOM', payload: id });
+  }, []);
+
+  // Guard against closing tab with unsaved changes
+  useEffect(() => {
+    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+      if (hasUnsavedChanges) {
+        e.preventDefault();
+        e.returnValue = '';
+        persist(true); // Attempt a last-second save
+      }
+    };
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    return () => window.removeEventListener('beforeunload', handleBeforeUnload);
+  }, [hasUnsavedChanges, persist]);
 
   useEffect(() => {
     let mounted = true;
     (async () => {
-      // Verificar se há um projeto pendente da dashboard
       const pendingSessionId = localStorage.getItem("colora_pending_session");
       if (pendingSessionId) {
-        localStorage.removeItem("colora_pending_session"); // Limpar após usar
+        localStorage.removeItem("colora_pending_session");
         if (mounted) {
           await loadSession(pendingSessionId);
           return;
         }
       }
       
-      // Verificar se deve criar um novo projeto
       const shouldCreateNew = localStorage.getItem("colora_new_project");
       if (shouldCreateNew) {
-        localStorage.removeItem("colora_new_project"); // Limpar após usar
+        localStorage.removeItem("colora_new_project");
         if (mounted) {
           await createNewSession();
           window.history.replaceState({}, '', '/simulator');
@@ -236,150 +493,47 @@ export function useSimulator({ companySlug }: { companySlug?: string } = {}) {
     return () => { mounted = false; };
   }, [createNewSession, loadSession]);
 
-  const addRoom = useCallback(async (file: File, cropCoordinates?: { x: number; y: number; width: number; height: number }) => {
-    if ((company?.tokens ?? 0) <= 0) return toast.error("Créditos de IA insuficientes");
-    await ensureSession();
-    
-    const id = genId();
-    const tempUrl = URL.createObjectURL(file);
-    
-    // Converter imagem para base64 para salvamento permanente
-    const imageBase64 = await preprocessImageFile(file);
-    // Remove o prefixo "data:image/jpeg;base64," para enviar para a API
-    const base64Only = imageBase64.replace(/^data:image\/[a-z]+;base64,/, '');
-    
-    const newRoom: Room = { 
-      id, 
-      name: "", // Nome vazio inicial, será atualizado pela IA
-      imageUrl: imageBase64, // Salvar como data URL permanente
-      originalImageUrl: imageBase64, 
-      walls: [], 
-      isAnalyzing: true, 
-      isAnalyzed: false, 
-      simulations: [], 
-      activeSimulationId: null, 
-      cropCoordinates 
-    };
-    
-    dispatch({ type: 'ADD_ROOM_START', payload: newRoom });
-
-    try {
-      console.log(`[useSimulator] Enviando imagem para analyze-room...`);
-      const { data, error } = await supabase.functions.invoke("analyze-room", { body: { imageBase64: base64Only } });
-      if (error || data?.error) throw error || new Error(data.error);
-      
-      console.log(`[useSimulator] Resposta recebida:`, data);
-      await refreshData();
-      const detectedWalls: DetectedWall[] = (data.walls || []).map((w: any, i: number) => ({ id: w.id || `s${i}`, label: w.label_pt || w.label, englishLabel: w.label_en || "Wall", description: w.description || "" }));
-      
-      // Atualiza o nome do room com o nome sugerido pela IA
-      const aiRoomName = data.roomName || data.room_name || "";
-      if (aiRoomName) {
-        console.log(`[useSimulator] Atualizando nome do room para: "${aiRoomName}"`);
-        dispatch({ type: 'UPDATE_ROOM_NAME', payload: { roomId: id, name: aiRoomName } });
-      } else {
-        // Fallback: usar tipo do cômodo ou nome genérico
-        const fallbackName = data.roomType || data.room_type || `Ambiente ${rooms.length + 1}`;
-        console.log(`[useSimulator] IA não retornou roomName, usando fallback: "${fallbackName}"`);
-        dispatch({ type: 'UPDATE_ROOM_NAME', payload: { roomId: id, name: fallbackName } });
-      }
-      
-      dispatch({ type: 'ADD_ROOM_SUCCESS', payload: { roomId: id, walls: detectedWalls } });
-    } catch (err: any) {
-      dispatch({ type: 'ADD_ROOM_FAILURE', payload: { roomId: id } });
-      toast.error("Erro na análise", { description: err.data?.error || err.message });
-    } finally {
-      URL.revokeObjectURL(tempUrl);
-    }
-  }, [company, ensureSession, rooms.length, refreshData]);
-
-  const applyColor = useCallback(async () => {
-    if (!activeRoom || !selectedWallId || !selectedPaint) return toast.error("Selecione uma parede e uma cor");
-    if ((company?.tokens ?? 0) <= 0) return toast.error("Créditos de IA insuficientes");
-    const wall = activeRoom.walls.find((w) => w.id === selectedWallId);
-    if (!wall) return toast.error("Parede não encontrada");
-
-    dispatch({ type: 'APPLY_COLOR_START' });
-    try {
-      // Usar a base acumulada (última simulação) se existir, senão a original
-      const baseImage = activeRoom.currentBaseImage || activeRoom.originalImageUrl;
-      const base64Only = baseImage.replace(/^data:image\/[a-z]+;base64,/, '');
-      
-      const { data, error } = await supabase.functions.invoke("paint-wall", { 
-        body: { 
-          imageBase64: base64Only, 
-          paintColor: selectedPaint.hex, 
-          paintName: selectedPaint.name, 
-          wallLabel: wall.label, 
-          wallLabelEn: wall.englishLabel, 
-          cropCoordinates: activeRoom.cropCoordinates 
-        } 
-      });
-      if (error || data?.error) throw error || new Error(data.error);
-      if (!data?.imageUrl) throw new Error("Image URL not returned");
-
-      await refreshData();
-      
-      // Converter a imagem resultado para base64 para acumular pinturas futuras
-      let newBaseImage: string | undefined;
-      try {
-        const imgRes = await fetch(data.imageUrl);
-        const blob = await imgRes.blob();
-        newBaseImage = await new Promise<string>((resolve, reject) => {
-          const reader = new FileReader();
-          reader.onload = () => resolve(reader.result as string);
-          reader.onerror = reject;
-          reader.readAsDataURL(blob);
-        });
-      } catch (e) {
-        console.warn("[useSimulator] Não foi possível converter imagem para base64, próximas pinturas usarão a base anterior", e);
-      }
-      
-      const simId = genId();
-      const simulation: WallSimulation = { id: simId, wallId: selectedWallId, wallLabel: wall.label, paint: selectedPaint, imageUrl: data.imageUrl, createdAt: nowIso(), isPainting: false };
-      dispatch({ type: 'APPLY_COLOR_SUCCESS', payload: { roomId: activeRoom.id, simulation, currentBaseImage: newBaseImage }});
-      toast.success("Cor aplicada com sucesso!");
-    } catch (err: any) {
-      const errorMessage = (err as any)?.data?.error || (err as any)?.message || "Tente novamente";
-      toast.error("Erro ao aplicar cor", { description: errorMessage });
-      dispatch({ type: 'APPLY_COLOR_FAILURE' });
-    }
-  }, [activeRoom, selectedWallId, selectedPaint, company, refreshData]);
-
-  // --- Wrapper functions that dispatch actions ---
-  const selectRoom = useCallback((id: string | null) => dispatch({ type: 'SET_ACTIVE_ROOM', payload: id }), []);
-  const selectWall = useCallback((id: string | null) => dispatch({ type: 'SET_SELECTED_WALL', payload: id }), []);
-  const setSelectedPaint = useCallback((paint: Paint | null) => dispatch({ type: 'SET_SELECTED_PAINT', payload: paint }), []);
-  const selectSimulation = useCallback((roomId: string, simId: string | null) => dispatch({ type: 'SELECT_SIMULATION', payload: { roomId, simId } }), []);
-  const removeSimulation = useCallback((simId: string) => { if(activeRoom) dispatch({ type: 'REMOVE_SIMULATION', payload: { roomId: activeRoom.id, simId } }) }, [activeRoom]);
-  const clearRoom = useCallback(async (roomId: string) => { 
-  dispatch({ type: 'CLEAR_ROOM', payload: roomId });
-  // Persistir a exclusão no banco
-  await persist();
-}, [dispatch, persist]);
-  const retryAnalysis = useCallback(() => {
-      if (!activeRoom) return;
-      const file = dataURLtoFile(activeRoom.originalImageUrl, `ambiente_${Date.now()}.jpg`);
-      dispatch({ type: 'CLEAR_ROOM', payload: activeRoom.id });
-      addRoom(file, activeRoom.cropCoordinates);
-  }, [activeRoom, addRoom]);
-
   return {
-    session, loadingSession, rooms, activeRoom, activeRoomId, selectedWallId, selectedPaint, isPainting, hasUnsavedChanges,
-    totalSimulations: rooms.reduce((acc, r) => acc + r.simulations.length, 0),
-    createNewSession, loadSession, deleteSession, listSessions, manualSave, setSessionName, addRoom, selectRoom, 
-    selectWall, setSelectedPaint, applyColor, selectSimulation, removeSimulation, retryAnalysis, clearRoom,
+    session,
+    loadingSession,
+    rooms,
+    activeRoom,
+    activeRoomId,
+    selectedWallId,
+    selectedPaint,
+    isPainting,
+    hasUnsavedChanges,
+    totalSimulations,
+    addRoom,
+    selectRoom,
+    selectWall,
+    setSelectedPaint,
+    applyColor,
+    selectSimulation,
+    removeSimulation,
+    retryAnalysis,
+    manualSave,
+    setSessionName,
+    listSessions,
+    loadSession,
+    deleteSession,
+    createNewSession,
+    clearRoom,
   };
-}
+};
 
-function dataURLtoFile(dataurl: string, filename: string): File {
-  const arr = dataurl.split(",");
-  const mimeMatch = arr[0].match(/:(.*?);/);
-  if (!mimeMatch) throw new Error("Invalid data URL");
-  const mime = mimeMatch[1];
-  const bstr = atob(arr[1]);
-  let n = bstr.length;
-  const u8arr = new Uint8Array(n);
-  while (n--) u8arr[n] = bstr.charCodeAt(n);
-  return new File([u8arr], filename, { type: mime });
+function isLightColor(hex: string): boolean {
+  const cleanHex = hex.replace('#', '');
+  let r, g, b;
+  if (cleanHex.length === 3) {
+    r = parseInt(cleanHex[0] + cleanHex[0], 16);
+    g = parseInt(cleanHex[1] + cleanHex[1], 16);
+    b = parseInt(cleanHex[2] + cleanHex[2], 16);
+  } else {
+    r = parseInt(cleanHex.substring(0, 2), 16);
+    g = parseInt(cleanHex.substring(2, 4), 16);
+    b = parseInt(cleanHex.substring(4, 6), 16);
+  }
+  const luma = 0.2126 * r + 0.7152 * g + 0.0722 * b;
+  return luma > 150;
 }

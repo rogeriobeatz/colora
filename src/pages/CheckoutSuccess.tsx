@@ -1,7 +1,8 @@
 import { useEffect, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
-import { Loader2, CheckCircle, AlertCircle } from "lucide-react";
+import { CheckCircle, AlertCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { ColoraSpinner } from "@/components/ui/colora-spinner";
 import logoSvg from "@/assets/colora-logo.svg";
 import { supabase } from "@/integrations/supabase/client";
 
@@ -91,7 +92,7 @@ const CheckoutSuccess = () => {
           {status === "loading" || status === "redirecting" ? (
             <>
               <div className="w-16 h-16 rounded-full bg-primary/10 flex items-center justify-center mx-auto">
-                <Loader2 className="w-8 h-8 text-primary animate-spin" />
+                <ColoraSpinner size="lg" />
               </div>
               <div>
                 <h1 className="text-2xl font-display font-bold text-foreground mb-2">

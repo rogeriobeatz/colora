@@ -1,4 +1,5 @@
 import type { Config } from "tailwindcss";
+import tailwindcssAnimate from "tailwindcss-animate";
 
 export default {
   darkMode: ["class"],
@@ -13,6 +14,52 @@ export default {
   		}
   	},
   	extend: {
+  		// Design System Tokens
+  		spacing: {
+  			'xs': '4px',
+  			'sm': '8px',
+  			'md': '16px',
+  			'lg': '24px',
+  			'xl': '32px',
+  			'2xl': '48px',
+  			'3xl': '64px',
+  		},
+  		borderRadius: {
+  			'sm': '4px',
+  			'md': '8px',
+  			'lg': '12px',
+  			'xl': '16px',
+  			'full': '9999px',
+  		},
+  		fontSize: {
+  			'xs': ['10px', { lineHeight: '14px' }],
+  			'sm': ['12px', { lineHeight: '16px' }],
+  			'base': ['14px', { lineHeight: '20px' }],
+  			'lg': ['16px', { lineHeight: '24px' }],
+  			'xl': ['18px', { lineHeight: '28px' }],
+  			'2xl': ['20px', { lineHeight: '30px' }],
+  			'3xl': ['24px', { lineHeight: '36px' }],
+  			'4xl': ['28px', { lineHeight: '42px' }],
+  			'5xl': ['32px', { lineHeight: '48px' }],
+  			'6xl': ['48px', { lineHeight: '64px' }],
+  		},
+  		boxShadow: {
+  			'sm': '0 1px 2px 0 rgb(0 0 0 / 0.05)',
+  			'md': '0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1)',
+  			'lg': '0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1)',
+  			'xl': '0 20px 25px -5px rgb(0 0 0 / 0.1), 0 8px 10px -6px rgb(0 0 0 / 0.1)',
+  		},
+  		transitionDuration: {
+  			'fast': '150ms',
+  			'normal': '200ms',
+  			'slow': '300ms',
+  		},
+  		transitionTimingFunction: {
+  			'smooth': 'cubic-bezier(0.4, 0, 0.2, 1)',
+  		},
+  		// Mobile-specific
+  		minTouch: '44px',
+  		// Enhanced font families
   		fontFamily: {
   			sans: [
   				'var(--font-sans)',
@@ -98,11 +145,6 @@ export default {
   				ring: 'hsl(var(--sidebar-ring))'
   			}
   		},
-  		borderRadius: {
-  			lg: 'var(--radius)',
-  			md: 'calc(var(--radius) - 2px)',
-  			sm: 'calc(var(--radius) - 4px)'
-  		},
   		keyframes: {
   			'accordion-down': {
   				from: {
@@ -160,17 +202,8 @@ export default {
   			'fade-in-delay-3': 'fade-in 0.6s ease-out 0.3s forwards',
   			'slide-in-right': 'slide-in-right 0.5s ease-out forwards',
   			'scale-in': 'scale-in 0.4s ease-out forwards'
-  		},
-  		boxShadow: {
-  			'2xs': 'var(--shadow-2xs)',
-  			xs: 'var(--shadow-xs)',
-  			sm: 'var(--shadow-sm)',
-  			md: 'var(--shadow-md)',
-  			lg: 'var(--shadow-lg)',
-  			xl: 'var(--shadow-xl)',
-  			'2xl': 'var(--shadow-2xl)'
   		}
   	}
   },
-  plugins: [require("tailwindcss-animate")],
+  plugins: [tailwindcssAnimate],
 } satisfies Config;

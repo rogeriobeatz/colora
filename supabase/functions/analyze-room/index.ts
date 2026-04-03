@@ -48,10 +48,18 @@ serve(async (req) => {
     }
 
     // 2. Body Validation
-    const { imageBase64 } = await req.json();
+    const { imageBase64, cropCoordinates, aspectMode } = await req.json();
+
     if (!imageBase64) {
       return jsonResponse({ error: "imageBase64 is required" }, 400, req);
     }
+
+    // Log dos dados recebidos para debug
+    console.log(`[analyze-room] Recebido:`, {
+      imageBase64: imageBase64 ? "present" : "missing",
+      cropCoordinates: cropCoordinates || "none",
+      aspectMode: aspectMode || "none"
+    });
 
     // 3. Caching Logic - TEMPORARIAMENTE DESABILITADO
     const imageHash = await simpleImageHash(imageBase64);

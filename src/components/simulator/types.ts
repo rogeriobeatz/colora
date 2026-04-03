@@ -7,6 +7,8 @@ export interface DetectedWall {
   description?: string;
 }
 
+export type AspectMode = "16-9" | "2-3" | "1-1";
+
 export interface WallSimulation {
   id: string;
   wallId: string;
@@ -22,6 +24,7 @@ export interface Room {
   name: string;
   imageUrl: string; // imagem atualmente selecionada (principal)
   originalImageUrl: string;
+  thumbnailUrl: string; // miniatura para exibição no dashboard
   currentBaseImage?: string; // base64 da última simulação aplicada (para acumular pinturas)
   walls: DetectedWall[];
   isAnalyzing: boolean;
@@ -34,6 +37,7 @@ export interface Room {
     width: number;
     height: number;
   };
+  aspectMode?: AspectMode; // ✅ NOVO: Aspect ratio selecionado pelo usuário
 }
 
 export interface SimulatorSessionData {

@@ -97,12 +97,38 @@ function isFontSet(v: any): v is FontSet {
 }
 
 export function StoreProvider({ children }: { children: ReactNode }) {
-  const [company, setCompanyState] = useState<Company | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [company, setCompanyState] = useState<Company | null>(() => {
+    // Carregamento inicial do cache para velocidade instantânea
+    try {
+      const cached = localStorage.getItem("colora_company_cache");
+      if (!cached) return null;
+      
+      const parsed = JSON.parse(cached);
+      // Validar estrutura básica do objeto Company
+      if (parsed && typeof parsed === 'object' && parsed.id && parsed.name) {
+        return parsed;
+      }
+      
+      console.warn('[StoreContext] Cache com estrutura inválida, ignorando');
+      return null;
+    } catch (error) {
+      console.error('[StoreContext] Erro ao carregar cache, limpando:', error);
+      localStorage.removeItem("colora_company_cache");
+      return null;
+    }
+  });
+  const [loading, setLoading] = useState(!company);
+
+  // Sincroniza o cache sempre que o estado muda
+  useEffect(() => {
+    if (company) {
+      localStorage.setItem("colora_company_cache", JSON.stringify(company));
+    }
+  }, [company]);
 
   const refreshData = async () => {
     try {
-      // Primeiro tentamos obter a sessão atual, que é mais rápido e menos propenso a erro 403 que getUser()
+      // Usar a sessão mais rápida possível
       const { data: { session } } = await supabase.auth.getSession();
       const user = session?.user;
       
@@ -111,30 +137,25 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         return;
       }
 
-      // Usamos maybeSingle() para evitar erro 406 se o perfil não existir
-      const { data: profile, error: profileError } = await supabase
-        .from('profiles')
-        .select('*')
-        .eq('id', user.id)
-        .maybeSingle() as any;
+      console.log("[StoreContext] Iniciando busca paralela de dados...");
 
-      if (profileError && profileError.code !== 'PGRST116') {
-        console.error("Erro ao buscar perfil:", profileError);
+      // BUSCA PARALELA: Perfil e Catálogos ao mesmo tempo
+      const [profileRes, catalogsRes] = await Promise.all([
+        supabase.from('profiles').select('*').eq('id', user.id).maybeSingle(),
+        supabase.from('catalogs').select('*, paints(*)').eq('company_id', user.id)
+      ]);
+
+      if (profileRes.error) {
+        console.error("Erro ao buscar perfil:", profileRes.error);
       }
+      
+      const profile = profileRes.data;
+      const catalogsData = catalogsRes.data;
 
       if (profile) {
-        // Buscamos catálogos. Se a tabela não existir, o Supabase retornará erro, que tratamos aqui.
-        const { data: catalogsData, error: catalogsError } = await supabase
-          .from('catalogs')
-          .select('*, paints(*)')
-          .eq('company_id', user.id) as any;
-
-        if (catalogsError) {
-          console.warn("Tabela 'catalogs' não encontrada ou erro na busca. Usando dados padrão.");
-        }
-
         const p = profile as Profile;
-
+        
+        // Montagem do objeto Company otimizada
         const formattedCompany: Company = {
           id: p.id,
           name: p.company_name || user?.user_metadata?.full_name || user?.user_metadata?.name || p.full_name || "Minha Loja",
@@ -142,7 +163,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
           primaryColor: p.primary_color || "#1a8a6a",
           secondaryColor: p.secondary_color || "#e87040",
           logo: p.avatar_url || undefined,
-          catalogs: catalogsData && catalogsData.length > 0 
+          catalogs: catalogsData && catalogsData.length > 0
             ? catalogsData.map((cat: any) => ({
                 id: cat.id,
                 name: cat.name,
@@ -159,21 +180,23 @@ export function StoreProvider({ children }: { children: ReactNode }) {
           headerStyle: isHeaderStyleMode(p.header_style) ? p.header_style : "glass",
           fontSet: isFontSet(p.font_set) ? p.font_set : "grotesk",
 
-          // Sistema de Tokens
           tokens: p.tokens || 0,
           tokensExpiresAt: p.tokens_expires_at,
           subscriptionStatus: (p.subscription_status as 'active' | 'inactive') || 'inactive',
           lastTokenDeposit: p.last_token_deposit,
         };
-        setCompanyState(formattedCompany);
-      } else {
-        // Se não houver perfil, inicializamos com dados padrão para o dashboard não quebrar
+        
+        // Verificação de igualdade profunda simples para evitar re-renders desnecessários
+        setCompanyState(prev => {
+          if (JSON.stringify(prev) === JSON.stringify(formattedCompany)) return prev;
+          return formattedCompany;
+        });
+      } else if (!company) {
         setCompanyState(createDefaultCompany(user?.user_metadata?.full_name || user?.user_metadata?.name || "Minha Loja"));
       }
     } catch (error) {
       console.error("Erro crítico no StoreContext:", error);
-      // Fallback para não travar a UI
-      setCompanyState(createDefaultCompany("Minha Loja"));
+      if (!company) setCompanyState(createDefaultCompany("Minha Loja"));
     } finally {
       setLoading(false);
     }
@@ -338,8 +361,10 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       if (error) throw error;
 
       const finalCatalog: Catalog = {
-        ...data,
-        paints: [],
+        id: data.id,
+        name: data.name,
+        active: data.active ?? true,
+        paints: []
       }
 
       setCompanyState({
@@ -525,8 +550,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     }
     
     try {
-      // Calcula data de expiração (100 dias a partir de agora)
-      const expiresAt = new Date(now.getTime() + 100 * 24 * 60 * 60 * 1000);
+      // Calcula data de expiração (180 dias a partir de agora - 6 meses)
+      const expiresAt = new Date(now.getTime() + 180 * 24 * 60 * 60 * 1000);
       
       // Deposita tokens
       const newTokens = company.tokens + 200;
@@ -548,7 +573,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
           });
       }
       
-      toast.success("200 tokens depositados com sucesso! Validade por 100 dias.");
+      toast.success("200 tokens depositados com sucesso! Validade por 6 meses.");
     } catch (error) {
       console.error("Erro ao depositar tokens:", error);
       toast.error("Erro ao depositar tokens");

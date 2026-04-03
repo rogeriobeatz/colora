@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useStore } from "@/contexts/StoreContext";
 import { toast } from "sonner";
@@ -11,99 +11,83 @@ export const useTokenManagement = () => {
   const [tokenHistory, setTokenHistory] = useState<any[]>([]);
   const [tokenHistoryLoading, setTokenHistoryLoading] = useState(false);
   const [isCheckoutLoading, setIsCheckoutLoading] = useState(false);
+  const [isPortalLoading, setIsPortalLoading] = useState(false);
 
-  // Carregar histórico de tokens
-  useEffect(() => {
-    const loadTokenHistory = async () => {
-      try {
-        setTokenHistoryLoading(true);
-        const { data, error } = await supabase
-          .from('token_consumptions')
-          .select('*')
-          .eq('user_id', user?.id)
-          .order('created_at', { ascending: false })
-          .limit(10);
+  // Carregar histórico de tokens com mais detalhes
+  const loadTokenHistory = useCallback(async () => {
+    if (!user) return;
+    try {
+      setTokenHistoryLoading(true);
+      const { data, error } = await supabase
+        .from('token_consumptions')
+        .select('*')
+        .eq('user_id', user?.id)
+        .order('created_at', { ascending: false })
+        .limit(20);
 
-        if (error) throw error;
-        setTokenHistory(data || []);
-      } catch (error) {
-        console.error("Erro ao carregar histórico de tokens:", error);
-      } finally {
-        setTokenHistoryLoading(false);
-      }
-    };
-
-    if (user) {
-      loadTokenHistory();
+      if (error) throw error;
+      setTokenHistory(data || []);
+    } catch (error) {
+      console.error("Erro ao carregar histórico de tokens:", error);
+    } finally {
+      setTokenHistoryLoading(false);
     }
   }, [user]);
 
-  // Funções auxiliares para tokens
+  useEffect(() => {
+    loadTokenHistory();
+  }, [loadTokenHistory]);
+
   const getTokenStatus = () => {
-    if (!company) return { status: 'loading', color: 'gray', text: 'Carregando...' };
-
-    if (company.tokens <= 0) {
-      return { status: 'empty', color: 'red', text: 'Sem tokens' };
-    }
-
+    if (!company) return { status: 'loading', text: 'Sincronizando...' };
+    if (company.tokens <= 0) return { status: 'empty', text: 'Saldo esgotado' };
+    
     if (company.tokensExpiresAt) {
       const expiryDate = new Date(company.tokensExpiresAt);
       const now = new Date();
       const daysLeft = Math.ceil((expiryDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
-
-      if (daysLeft <= 7) {
-        return { status: 'expiring', color: 'orange', text: `Expira em ${daysLeft} dias` };
-      }
+      if (daysLeft <= 0) return { status: 'expired', text: 'Tokens expirados' };
+      if (daysLeft <= 7) return { status: 'expiring', text: `Expira em ${daysLeft}d` };
     }
-
-    return { status: 'available', color: 'green', text: 'Disponíveis' };
+    return { status: 'available', text: 'Créditos ativos' };
   };
 
-  const formatTokenAmount = (amount: number) => {
-    return amount.toLocaleString('pt-BR');
-  };
+  const formatTokenAmount = (amount: number) => amount.toLocaleString('pt-BR');
 
   const handleCheckout = async (mode: "subscription" | "recharge") => {
     setIsCheckoutLoading(true);
     try {
-      const customerData = {
-        email: user?.email,
-        name: company?.name || user?.user_metadata?.full_name || user?.email?.split('@')[0],
-        company: company?.name,
-        phone: company?.phone,
-        document: '',
-        documentType: 'cpf'
-      };
-
       const { data, error } = await supabase.functions.invoke('create-checkout', {
-        body: {
-          mode,
-          customerData
-        }
+        body: { mode, customerData: { email: user?.email } }
       });
 
       if (error) throw error;
       if (data?.url) {
-        window.open(data.url, '_blank');
+        window.location.href = data.url; // Redireciona na mesma aba para consistência
       }
     } catch (error: any) {
-      console.error("Checkout error:", error);
-      toast.error("Erro ao iniciar pagamento. Tente novamente.");
+      toast.error("Não foi possível iniciar o checkout.");
     } finally {
       setIsCheckoutLoading(false);
     }
   };
 
   const handleManageSubscription = async () => {
+    setIsPortalLoading(true);
     try {
       const { data, error } = await supabase.functions.invoke('customer-portal');
       if (error) throw error;
       if (data?.url) {
         window.open(data.url, '_blank');
+      } else {
+        // Fallback: se não tiver portal, talvez não tenha assinatura. Abre o checkout.
+        toast.info("Você será redirecionado para a página de planos.");
+        handleCheckout("subscription");
       }
     } catch (error: any) {
-      console.error("Portal error:", error);
-      toast.error("Erro ao abrir portal. Verifique se possui uma assinatura ativa.");
+      toast.error("Erro ao acessar portal de gestão.");
+    } finally {
+      setIsPortalLoading(false);
     }
   };
 
@@ -111,9 +95,11 @@ export const useTokenManagement = () => {
     tokenHistory,
     tokenHistoryLoading,
     isCheckoutLoading,
+    isPortalLoading,
     getTokenStatus,
     formatTokenAmount,
     handleCheckout,
-    handleManageSubscription
+    handleManageSubscription,
+    refreshHistory: loadTokenHistory
   };
 };

@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useEffect, useState } from "react";
+import React, { createContext, useContext, useEffect, useState, useRef } from "react";
 import { Session, User } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
 
@@ -19,11 +19,29 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
   const [subscriptionChecked, setSubscriptionChecked] = useState(false);
+  
+  // ✅ MELHORIA: Cache para evitar múltiplas chamadas
+  const lastSubscriptionCheck = useRef<string | null>(null);
+  const subscriptionCheckTimeout = useRef<NodeJS.Timeout | null>(null);
 
   const checkSubscription = async () => {
     try {
       console.log("[Auth] Verificando assinatura...");
+      
+      // ✅ MELHORIA: Evitar chamadas duplicadas
+      const currentUserId = session?.user?.id;
+      const lastCheck = lastSubscriptionCheck.current;
+      
+      // Se não há usuário ou já verificou recentemente, pula
+      if (!currentUserId || (lastCheck === currentUserId)) {
+        console.log("[Auth] Skip: verificação já feita recentemente");
+        return;
+      }
+      
       const { data, error } = await supabase.functions.invoke('check-subscription');
+      
+      // Atualiza cache
+      lastSubscriptionCheck.current = currentUserId;
       
       if (error) {
         console.error("[Auth] Erro ao verificar assinatura:", error);
@@ -64,10 +82,10 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       setUser(session?.user ?? null);
       setLoading(false);
       
-      // Check subscription on login
-      if (session?.user) {
-        checkSubscription();
-      }
+      // ✅ REMOVIDO: Check subscription automático no login (evita sobrecarga)
+      // if (session?.user) {
+      //   checkSubscription();
+      // }
     });
 
     return () => subscription.unsubscribe();

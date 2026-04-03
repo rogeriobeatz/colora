@@ -1,23 +1,19 @@
-import { useState, useEffect, useRef } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
-import { useAuth } from "@/contexts/AuthContext";
-import { useStore } from "@/contexts/StoreContext";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
+import { useStore } from "@/contexts/StoreContext";
+import { useAuth } from "@/contexts/AuthContext";
+import { useSubscriptionCheck } from "@/hooks/useSubscriptionCheck"; // ✅ NOVO: Hook otimizado
 import { listSimulatorSessions, deleteSimulatorSession, checkSyncStatus, forceSyncFromSupabase, analyzeSupabaseTables } from "@/lib/simulator-db";
 import { ProjectListItem } from "@/components/simulator/ProjectDrawer";
 
 export const useDashboardState = () => {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
-  const { user, loading: authLoading, signOut, checkSubscription } = useAuth();
-  const {
-    company,
-    updateCompany,
-    updateCompanyLocal,
-    refreshData,
-    depositMonthlyTokens
-  } = useStore();
+  const { user, loading: authLoading, signOut } = useAuth();
+  const debouncedCheckSubscription = useSubscriptionCheck(); // ✅ NOVO: Usa hook otimizado
+  const { company, updateCompany, updateCompanyLocal, addCatalog, updateCatalog, deleteCatalog, importPaintsCSV, exportPaintsCSV, refreshData, depositMonthlyTokens } = useStore();
 
   // Estados principais
   const [isInitialLoading, setIsInitialLoading] = useState(true);
@@ -145,7 +141,8 @@ export const useDashboardState = () => {
           id: session.id || `session-${Math.random()}`,
           name: session.name || `Projeto ${new Date(session.createdAt || Date.now()).toLocaleDateString('pt-BR')}`,
           createdAt: session.createdAt || new Date().toISOString(),
-          updatedAt: session.updatedAt || session.createdAt || new Date().toISOString()
+          updatedAt: session.updatedAt || session.createdAt || new Date().toISOString(),
+          rooms: (session.data as any)?.rooms || [] // ✅ ADICIONADO: Extrair rooms do campo data
         }));
 
         setSessions(mappedSessions);
@@ -169,17 +166,12 @@ export const useDashboardState = () => {
       if (!user || !company) return;
 
       try {
-        const subscriptionStatus = await checkSubscription();
+        const subscriptionStatus = await debouncedCheckSubscription();
         console.log("[Dashboard] Status da assinatura:", subscriptionStatus);
 
-        if (subscriptionStatus === 'active') {
-          const deposited = await depositMonthlyTokens();
-          if (deposited) {
-            toast.success("Tokens mensais depositados!", {
-              description: "200 tokens foram adicionados à sua conta."
-            });
-            await refreshData();
-          }
+        if (subscriptionStatus && subscriptionStatus.subscriptionStatus === 'active') {
+          await depositMonthlyTokens();
+          await refreshData();
         }
       } catch (error) {
         console.error("Erro ao verificar assinatura:", error);
@@ -193,7 +185,7 @@ export const useDashboardState = () => {
     } else {
       setIsInitialLoading(false);
     }
-  }, [user, company, checkSubscription, depositMonthlyTokens, refreshData]);
+  }, [user, company, debouncedCheckSubscription, depositMonthlyTokens, refreshData]);
 
   // Handlers
   const handleSignOut = async () => {
@@ -339,7 +331,7 @@ export const useDashboardState = () => {
     setIsCheckoutLoading,
     displayData,
     updateCompanyLocal,
-    checkSubscription,
+    debouncedCheckSubscription, // ✅ CORRIGIDO: Exportar a função correta
     refreshData,
     
     // Estados de perfil

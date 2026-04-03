@@ -1,15 +1,11 @@
 import { useState, useMemo } from "react";
-import { Search, Palette, Loader2, Check, Sparkles, ChevronUp } from "lucide-react";
+import { Search, Palette, Loader2, Check, Sparkles, ChevronUp, ChevronDown, Box } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Paint, Catalog } from "@/data/defaultColors";
 import { useIsMobile } from "@/hooks/use-mobile";
-
-// Interfaces
-interface CatalogWithActive extends Catalog {
-  active: boolean;
-}
+import { cn } from "@/lib/utils";
 
 interface ColorPanelProps {
   catalogs: Catalog[];
@@ -20,7 +16,45 @@ interface ColorPanelProps {
   isPainting: boolean;
   selectedWallLabel?: string;
   primaryColor?: string;
+  isExpanded?: boolean;
+  onToggleExpand?: () => void;
 }
+
+const PaintSample = ({ paint, isSelected, onClick }: { paint: Paint, isSelected: boolean, onClick: () => void }) => {
+  const isLight = isLightColor(paint.hex);
+  
+  return (
+    <button
+      onClick={onClick}
+      className={cn(
+        "flex items-center gap-3 p-2.5 rounded-xl transition-all duration-200 border-2 text-left group",
+        isSelected 
+          ? "border-primary bg-primary/5 ring-1 ring-primary/20 shadow-sm" 
+          : "border-transparent bg-slate-50 hover:bg-white hover:border-slate-200"
+      )}
+    >
+      <div 
+        className="w-7 h-7 sm:w-9 sm:h-9 rounded-full shrink-0 shadow-inner flex items-center justify-center border border-black/5"
+        style={{ backgroundColor: paint.hex }}
+      >
+        {isSelected && (
+          <Check className={cn("w-4 h-4 stroke-[3]", isLight ? "text-black/70" : "text-white/70")} />
+        )}
+      </div>
+      <div className="min-w-0 flex flex-col gap-0.5">
+        <span className={cn(
+          "text-xs sm:text-sm font-bold leading-tight truncate",
+          isSelected ? "text-primary" : "text-foreground"
+        )}>
+          {paint.name}
+        </span>
+        <span className="text-[9px] sm:text-[11px] text-muted-foreground font-bold leading-none opacity-50 uppercase tracking-tighter">
+          {paint.code}
+        </span>
+      </div>
+    </button>
+  );
+};
 
 const ColorPanel = ({
   catalogs,
@@ -31,392 +65,256 @@ const ColorPanel = ({
   isPainting,
   selectedWallLabel,
   primaryColor,
+  isExpanded: isExpandedProp,
+  onToggleExpand,
 }: ColorPanelProps) => {
   const [searchTerm, setSearchTerm] = useState("");
   const [activeCatalogId, setActiveCatalogId] = useState<string | null>(null);
-  const [mobileExpanded, setMobileExpanded] = useState(false);
+  const [isExpandedLocal, setIsExpandedLocal] = useState(true);
   const isMobile = useIsMobile();
 
-  const activeCatalogs = catalogs.filter((c) => c.active);
-  const currentCatalog = activeCatalogs.find((c) => c.id === activeCatalogId) || activeCatalogs[0];
+  const isExpanded = isExpandedProp !== undefined ? isExpandedProp : isExpandedLocal;
+  
+  const handleToggle = () => {
+    if (onToggleExpand) {
+      onToggleExpand();
+    } else {
+      setIsExpandedLocal(!isExpandedLocal);
+    }
+  };
+
+  const activeCatalogs = useMemo(() => catalogs.filter((c) => c.active), [catalogs]);
+  const currentCatalog = useMemo(() => 
+    activeCatalogs.find((c) => c.id === activeCatalogId) || activeCatalogs[0],
+    [activeCatalogs, activeCatalogId]
+  );
 
   const filteredPaints = useMemo(() => {
     if (!currentCatalog) return [];
+    const term = searchTerm.toLowerCase();
     return currentCatalog.paints.filter(
-      (p) =>
-        p.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        p.code.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        p.hex.toLowerCase().includes(searchTerm.toLowerCase()),
+      (p) => p.name.toLowerCase().includes(term) || p.code.toLowerCase().includes(term) || p.hex.toLowerCase().includes(term)
     );
   }, [currentCatalog, searchTerm]);
 
-  const categories = useMemo(() => {
-    return [...new Set(filteredPaints.map((p) => p.category))];
-  }, [filteredPaints]);
+  const categories = useMemo(() => [...new Set(filteredPaints.map((p) => p.category))], [filteredPaints]);
 
-  const brandPrimary = primaryColor;
+  const catalogSelector = (
+    <div className="flex gap-1.5 overflow-x-auto pb-1 scrollbar-none">
+      {activeCatalogs.map((cat) => (
+        <button
+          key={cat.id}
+          onClick={() => setActiveCatalogId(cat.id)}
+          className={cn(
+            "px-3 py-1.5 rounded-lg text-[9px] sm:text-[10px] font-black uppercase tracking-widest whitespace-nowrap transition-all border",
+            currentCatalog?.id === cat.id 
+              ? "bg-primary text-primary-foreground border-primary shadow-sm" 
+              : "bg-white text-muted-foreground border-border hover:bg-slate-50"
+          )}
+          style={currentCatalog?.id === cat.id ? { backgroundColor: primaryColor, borderColor: primaryColor } : {}}
+        >
+          {cat.name}
+        </button>
+      ))}
+    </div>
+  );
 
-  // On mobile, render as a collapsible bottom panel
-  if (isMobile) {
-    return (
-      <>
-        {/* Collapsed bottom bar */}
-        {!mobileExpanded && (
-          <div
-            className="fixed bottom-0 inset-x-0 z-40 bg-card border-t border-border shadow-elevated p-3 safe-bottom"
-            style={{ borderTop: `2px solid ${primaryColor}` }}
-          >
-            <div className="flex items-center gap-3">
-              {selectedPaint ? (
-                <>
-                  <div className="w-10 h-10 rounded-lg border-2 border-white shadow-sm flex-shrink-0" style={{ backgroundColor: selectedPaint.hex }} />
-                  <div className="min-w-0 flex-1">
-                    <p className="text-xs font-bold text-foreground truncate">{selectedPaint.name}</p>
-                    <p className="text-[10px] text-muted-foreground">{selectedPaint.code} · {selectedWallLabel || "Selecione parede"}</p>
-                  </div>
-                  <Button
-                    size="sm"
-                    className="h-9 px-3 text-xs gap-1 flex-shrink-0"
-                    disabled={!canApply || isPainting}
-                    onClick={onApplyColor}
-                    style={{ backgroundColor: canApply && !isPainting ? primaryColor : undefined }}
-                  >
-                    {isPainting ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Sparkles className="w-3.5 h-3.5" />}
-                    Aplicar
-                  </Button>
-                </>
-              ) : (
-                <div className="flex-1 text-center">
-                  <p className="text-xs text-muted-foreground">Selecione uma cor do catálogo</p>
-                </div>
-              )}
-              <Button
-                variant="ghost"
-                size="sm"
-                className="h-9 w-9 p-0 flex-shrink-0"
-                onClick={() => setMobileExpanded(true)}
-              >
-                <ChevronUp className="w-5 h-5" />
-              </Button>
-            </div>
+  const colorsContent = (
+    <div className="p-4 sm:p-6 space-y-8 pb-24">
+      {categories.map(cat => (
+        <div key={cat} className="space-y-4">
+          <div className="flex items-center gap-3">
+            <p className="text-[9px] font-black text-muted-foreground uppercase tracking-[0.25em] px-1">{cat}</p>
+            <div className="h-px flex-1 bg-border/40" />
           </div>
-        )}
-
-        {/* Expanded full-screen panel */}
-        {mobileExpanded && (
-          <div className="fixed inset-0 z-50 bg-background flex flex-col">
-            {/* Header */}
-            <div className="flex-shrink-0 p-3 border-b border-border flex items-center justify-between" style={{ borderBottom: `2px solid ${primaryColor}` }}>
-              <h3 className="font-display font-bold text-foreground flex items-center gap-2 text-sm">
-                <Palette className="w-4 h-4" style={{ color: primaryColor }} />
-                Catálogo de Cores
-              </h3>
-              <Button variant="ghost" size="sm" onClick={() => setMobileExpanded(false)} className="text-xs h-8">
-                Fechar
-              </Button>
-            </div>
-
-            {/* Catalog Tabs */}
-            {activeCatalogs.length > 1 && (
-              <div className="flex-shrink-0 p-2 border-b border-border bg-muted/20">
-                <div className="flex gap-1.5 overflow-x-auto pb-1">
-                  {activeCatalogs.map((cat) => (
-                    <button
-                      key={cat.id}
-                      className={`px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition-all ${
-                        currentCatalog?.id === cat.id ? "text-white shadow-sm" : "bg-muted text-muted-foreground"
-                      }`}
-                      style={{ backgroundColor: currentCatalog?.id === cat.id ? primaryColor : undefined }}
-                      onClick={() => setActiveCatalogId(cat.id)}
-                    >
-                      {cat.name}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {/* Search */}
-            <div className="flex-shrink-0 p-2 border-b border-border">
-              <div className="relative">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                <Input
-                  placeholder="Buscar cor..."
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                  className="pl-9 h-9 text-sm bg-muted/30"
-                />
-              </div>
-            </div>
-
-            {/* Colors grid */}
-            <ScrollArea className="flex-1">
-              <div className="p-3 space-y-4">
-                {categories.map((cat) => (
-                  <div key={cat}>
-                    <p className="text-[10px] uppercase tracking-[0.15em] text-muted-foreground font-bold mb-2 px-1">
-                      {cat}
-                      <span className="ml-1 text-muted-foreground/60">({filteredPaints.filter((p) => p.category === cat).length})</span>
-                    </p>
-                    <div className="grid grid-cols-6 gap-2">
-                      {filteredPaints
-                        .filter((p) => p.category === cat)
-                        .map((paint) => {
-                          const isSelected = selectedPaint?.id === paint.id;
-                          const isLight = isLightColor(paint.hex);
-                          return (
-                            <button
-                              key={paint.id}
-                              className={`relative w-full aspect-square rounded-xl border-2 transition-all ${
-                                isSelected ? "scale-110 shadow-lg z-10 border-foreground" : "border-border"
-                              }`}
-                              style={{ backgroundColor: paint.hex }}
-                              onClick={() => {
-                                onSelectPaint(paint);
-                                setMobileExpanded(false);
-                              }}
-                            >
-                              {isSelected && (
-                                <div className={`absolute inset-0 flex items-center justify-center ${isLight ? "text-black" : "text-white"}`}>
-                                  <Check className="w-4 h-4" />
-                                </div>
-                              )}
-                            </button>
-                          );
-                        })}
-                    </div>
-                  </div>
-                ))}
-                {filteredPaints.length === 0 && (
-                  <div className="py-8 text-center">
-                    <Palette className="w-10 h-10 text-muted-foreground/30 mx-auto mb-2" />
-                    <p className="text-sm text-muted-foreground">Nenhuma cor encontrada</p>
-                  </div>
-                )}
-              </div>
-            </ScrollArea>
-
-            {/* Bottom apply bar */}
-            {selectedPaint && (
-              <div className="flex-shrink-0 p-3 border-t border-border bg-muted/20 safe-bottom">
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-lg border-2 border-white shadow-sm flex-shrink-0" style={{ backgroundColor: selectedPaint.hex }} />
-                  <div className="min-w-0 flex-1">
-                    <p className="text-xs font-bold text-foreground truncate">{selectedPaint.name}</p>
-                    <p className="text-[10px] text-muted-foreground">{selectedPaint.code}</p>
-                  </div>
-                  <Button
-                    size="sm"
-                    className="h-10 px-4 text-xs gap-1.5 flex-shrink-0"
-                    disabled={!canApply || isPainting}
-                    onClick={() => {
-                      onApplyColor();
-                      setMobileExpanded(false);
-                    }}
-                    style={{ backgroundColor: canApply && !isPainting ? primaryColor : undefined }}
-                  >
-                    {isPainting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />}
-                    Aplicar
-                  </Button>
-                </div>
-              </div>
-            )}
-          </div>
-        )}
-      </>
-    );
-  }
-
-  // Desktop layout (original)
-  return (
-    <div
-      className="bg-card rounded-2xl border border-border shadow-soft overflow-hidden"
-      style={{ borderTop: `3px solid ${primaryColor}` }}
-    >
-      <div className="p-4 border-b border-border bg-muted/30">
-        <h3 className="font-display font-bold text-foreground flex items-center gap-2">
-          <Palette className="w-5 h-5" style={{ color: primaryColor }} />
-          Catálogo de Cores
-        </h3>
-        <p className="text-xs text-muted-foreground mt-1">Selecione uma cor para aplicar na superfície</p>
-      </div>
-
-      {activeCatalogs.length > 1 && (
-        <div className="p-3 border-b border-border bg-muted/20">
-          <div className="flex gap-1.5 overflow-x-auto pb-1">
-            {activeCatalogs.map((cat) => (
-              <button
-                key={cat.id}
-                className={`px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition-all ${
-                  currentCatalog?.id === cat.id ? "text-white shadow-sm" : "bg-muted text-muted-foreground hover:bg-muted/80"
-                }`}
-                style={{ backgroundColor: currentCatalog?.id === cat.id ? primaryColor : undefined }}
-                onClick={() => setActiveCatalogId(cat.id)}
-              >
-                {cat.name}
-              </button>
+          <div className="grid grid-cols-2 gap-2">
+            {filteredPaints.filter(p => p.category === cat).map(paint => (
+              <PaintSample 
+                key={paint.id} 
+                paint={paint} 
+                isSelected={selectedPaint?.id === paint.id} 
+                onClick={() => onSelectPaint(paint)} 
+              />
             ))}
           </div>
         </div>
+      ))}
+      {filteredPaints.length === 0 && (
+        <div className="py-20 text-center opacity-20 flex flex-col items-center">
+          <Palette className="w-12 h-12 mb-3" />
+          <p className="text-[11px] font-black uppercase tracking-[0.3em]">Nenhuma cor encontrada</p>
+        </div>
       )}
+    </div>
+  );
 
-      <div className="p-3 border-b border-border">
+  if (isMobile) {
+    return (
+      <div className={cn(
+        "fixed bottom-0 inset-x-0 z-40 bg-white border-t border-border shadow-[0_-8px_30px_rgb(0,0,0,0.12)] transition-all duration-500 ease-in-out pb-safe",
+        isExpanded ? "h-[75vh]" : "h-20"
+      )}>
+        <div className="flex flex-col h-full">
+          <div className="p-4 flex items-center justify-between border-b border-border/40 shrink-0 bg-white" onClick={handleToggle}>
+            <div className="flex items-center gap-3">
+              {!selectedWallLabel ? (
+                <div className="flex items-center gap-2">
+                  <div className="w-8 h-8 rounded-full bg-primary/10 text-primary flex items-center justify-center font-black text-xs border border-primary/20">1</div>
+                  <div className="min-w-0">
+                    <p className="text-[10px] font-black text-primary uppercase tracking-widest leading-none mb-1">Passo 1</p>
+                    <p className="text-xs font-bold text-foreground truncate">Selecione uma parede</p>
+                  </div>
+                </div>
+              ) : !selectedPaint ? (
+                <div className="flex items-center gap-2">
+                  <div className="w-8 h-8 rounded-full bg-primary text-white flex items-center justify-center font-black text-xs shadow-lg shadow-primary/20 animate-pulse">2</div>
+                  <div className="min-w-0">
+                    <p className="text-[10px] font-black text-primary uppercase tracking-widest leading-none mb-1">Passo 2</p>
+                    <p className="text-xs font-bold text-foreground truncate">Escolha a cor para {selectedWallLabel}</p>
+                  </div>
+                </div>
+              ) : (
+                <div className="flex items-center gap-3 animate-in slide-in-from-left duration-300">
+                  <div className="w-10 h-10 rounded-xl border-2 border-white shadow-md shrink-0 flex items-center justify-center" style={{ backgroundColor: selectedPaint.hex }}>
+                     <Check className={cn("w-4 h-4", isLightColor(selectedPaint.hex) ? "text-black/40" : "text-white/50")} />
+                  </div>
+                  <div className="min-w-0">
+                    <p className="text-xs font-black text-foreground truncate uppercase tracking-tight">{selectedPaint.name}</p>
+                    <p className="text-[9px] text-muted-foreground font-bold uppercase tracking-widest flex items-center gap-1.5">
+                      <Box className="w-3 h-3 text-primary" /> {selectedWallLabel}
+                    </p>
+                  </div>
+                </div>
+              )}
+            </div>
+            
+            <div className="flex items-center gap-2.5">
+              {selectedPaint && selectedWallLabel && (
+                <Button 
+                  size="sm" 
+                  className="h-10 px-5 rounded-xl font-black text-[10px] uppercase tracking-[0.15em] shadow-lg animate-in zoom-in duration-300"
+                  disabled={!canApply || isPainting}
+                  onClick={(e) => { e.stopPropagation(); onApplyColor(); }}
+                  style={{ backgroundColor: primaryColor }}
+                >
+                  {isPainting ? <Loader2 className="w-4 h-4 animate-spin" /> : "Pintar Agora"}
+                </Button>
+              )}
+              {isExpanded ? <ChevronDown className="w-5 h-5 text-muted-foreground/40" /> : <ChevronUp className="w-5 h-5 text-muted-foreground/40" />}
+            </div>
+          </div>
+
+          <div className={cn("flex-1 flex flex-col overflow-hidden transition-opacity duration-300", isExpanded ? "opacity-100" : "opacity-0 pointer-events-none")}>
+            <div className="p-3 border-b border-border/40 bg-slate-50/50 space-y-3">
+               <p className="text-[9px] font-black text-muted-foreground uppercase tracking-widest px-1">Selecione o Catálogo</p>
+               {catalogSelector}
+               <div className="relative">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground/40" />
+                  <Input 
+                    placeholder="Buscar por nome ou código..." 
+                    value={searchTerm} 
+                    onChange={(e) => setSearchTerm(e.target.value)} 
+                    className="h-10 pl-10 rounded-xl border-border/60 text-xs bg-white shadow-inner"
+                  />
+               </div>
+            </div>
+            <ScrollArea className="flex-1 bg-white">
+              {colorsContent}
+            </ScrollArea>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="bg-white rounded-2xl border border-border/50 shadow-soft flex flex-col h-[750px] overflow-hidden transition-all duration-500">
+      <div className="p-6 border-b border-border/40 bg-slate-50/30 shrink-0">
+        <div className="flex items-center gap-2 text-primary font-black uppercase tracking-[0.3em] text-[10px] mb-2" style={{ color: primaryColor }}>
+          <Palette className="w-4 h-4" /> Seletor de Cores
+        </div>
+        <h3 className="text-xl font-black text-foreground leading-tight tracking-tight">Catálogo de Tintas</h3>
+      </div>
+
+      <div className="p-4 border-b border-border/40 bg-white shrink-0">
+        <p className="text-[9px] font-black text-muted-foreground uppercase tracking-widest mb-3 px-1">Selecione o Catálogo</p>
+        {catalogSelector}
+      </div>
+
+      <div className="p-5 border-b border-border/40 shrink-0">
         <div className="relative">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+          <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground/30" />
           <Input
-            placeholder="Buscar cor, código ou hex..."
+            placeholder="Buscar por nome, código ou hex..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            className="pl-9 h-10 text-sm bg-muted/30"
+            className="h-11 pl-11 rounded-xl bg-slate-50/50 border-border/60 focus:ring-primary/5 text-sm"
           />
         </div>
       </div>
 
-      <ScrollArea className="h-[400px]">
-        <div className="p-3 space-y-5">
-          {categories.map((cat) => (
-            <div key={cat}>
-              <p className="text-[10px] uppercase tracking-[0.15em] text-muted-foreground font-bold mb-2.5 px-1">
-                {cat}
-                <span className="ml-1 text-muted-foreground/60">({filteredPaints.filter((p) => p.category === cat).length})</span>
-              </p>
-              <div className="grid grid-cols-5 gap-2">
-                {filteredPaints
-                  .filter((p) => p.category === cat)
-                  .map((paint) => {
-                    const isSelected = selectedPaint?.id === paint.id;
-                    const isLight = isLightColor(paint.hex);
-                    const selectedBorderColor = brandPrimary || paint.hex;
-                    const ratio = brandPrimary ? contrastRatio(brandPrimary, paint.hex) : 999;
-                    const needsAssistRing = isSelected && brandPrimary ? ratio < 2.2 : false;
-                    const assistRingColor = isLight ? "rgba(0,0,0,0.75)" : "rgba(255,255,255,0.92)";
-                    const selectionShadow = isSelected
-                      ? needsAssistRing
-                        ? `0 0 0 2px ${assistRingColor}, 0 0 0 5px ${selectedBorderColor}`
-                        : `0 0 0 5px ${selectedBorderColor}`
-                      : undefined;
-
-                    return (
-                      <button
-                        key={paint.id}
-                        className={`group relative w-full aspect-square rounded-xl border-2 transition-all duration-200 hover:scale-105 hover:shadow-md ${
-                          isSelected ? "scale-110 shadow-lg z-10" : "border-border hover:border-muted-foreground"
-                        }`}
-                        style={{
-                          backgroundColor: paint.hex,
-                          borderColor: isSelected ? selectedBorderColor : undefined,
-                          boxShadow: selectionShadow,
-                        }}
-                        onClick={() => onSelectPaint(paint)}
-                        title={`${paint.name} - ${paint.hex}`}
-                      >
-                        {isSelected && (
-                          <div className={`absolute inset-0 flex items-center justify-center ${isLight ? "text-black" : "text-white"}`}>
-                            <Check className="w-4 h-4 font-bold" />
-                          </div>
-                        )}
-                        <div className="absolute -top-10 left-1/2 -translate-x-1/2 bg-foreground text-background text-xs font-medium px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none z-20">
-                          {paint.name}
-                        </div>
-                      </button>
-                    );
-                  })}
-              </div>
-            </div>
-          ))
-          }
-
-          {filteredPaints.length === 0 && (
-            <div className="py-8 text-center">
-              <Palette className="w-10 h-10 text-muted-foreground/30 mx-auto mb-2" />
-              <p className="text-sm text-muted-foreground">Nenhuma cor encontrada</p>
-              <p className="text-xs text-muted-foreground/60">Tente buscar por outro termo</p>
-            </div>
-          )}
-        </div>
+      <ScrollArea className="flex-1 bg-white">
+        {colorsContent}
       </ScrollArea>
 
-      {selectedPaint && (
-        <div className="p-4 border-t border-border bg-muted/20 animate-fade-in">
-          <div className="flex items-center gap-3 mb-4">
-            <div className="w-14 h-14 rounded-xl border-2 border-white shadow-md flex-shrink-0" style={{ backgroundColor: selectedPaint.hex }} />
-            <div className="min-w-0 flex-1">
-              <p className="text-sm font-bold text-foreground truncate">{selectedPaint.name}</p>
-              <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
-                {selectedPaint.code} · {selectedPaint.hex}
-              </p>
-              <p className="text-[10px] text-muted-foreground mt-0.5">{selectedPaint.category}</p>
+      <div className="p-5 border-t border-border/40 bg-white shrink-0 space-y-4">
+        {selectedPaint ? (
+          <>
+            <div className="flex items-center gap-4 animate-in slide-in-from-bottom-2 duration-300">
+              <div className="w-12 h-12 rounded-xl border-2 border-white shadow-md shrink-0" style={{ backgroundColor: selectedPaint.hex }} />
+              <div className="min-w-0">
+                <p className="text-xs font-black text-foreground truncate uppercase">{selectedPaint.name}</p>
+                <p className="text-[10px] text-muted-foreground font-bold">{selectedPaint.code} · {selectedPaint.hex.toUpperCase()}</p>
+              </div>
             </div>
+            
+            <div className="flex flex-col gap-2">
+              {selectedWallLabel && (
+                <div className="flex items-center gap-2 text-[9px] font-bold text-muted-foreground uppercase tracking-widest bg-slate-50 p-2 rounded-lg border border-border/40">
+                  <Box className="w-3 h-3" /> Aplicar em: <span className="font-black" style={{ color: primaryColor }}>{selectedWallLabel}</span>
+                </div>
+              )}
+              <Button
+                className="w-full h-12 font-black text-[10px] uppercase tracking-[0.2em] shadow-lg gap-2 rounded-xl"
+                disabled={!canApply || isPainting}
+                onClick={onApplyColor}
+                style={{ backgroundColor: primaryColor }}
+              >
+                {isPainting ? (
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                ) : (
+                  <>
+                    <Sparkles className="w-4 h-4" /> Pintar Superfície
+                  </>
+                )}
+              </Button>
+            </div>
+          </>
+        ) : (
+          <div className="h-24 flex flex-col items-center justify-center text-center opacity-30">
+             <Palette className="w-8 h-8 mb-2" />
+             <p className="text-[10px] font-black uppercase tracking-[0.2em]">Aguardando seleção</p>
           </div>
-
-          {selectedWallLabel && (
-            <div className="flex items-center gap-2 text-xs bg-card p-2 rounded-lg border border-border mb-4">
-              <span className="text-muted-foreground">Aplicar em:</span>
-              <span className="font-bold text-foreground">{selectedWallLabel}</span>
-            </div>
-          )}
-
-          <Button
-            className="w-full h-12 font-bold text-sm shadow-sm gap-2"
-            disabled={!canApply || isPainting}
-            onClick={onApplyColor}
-            style={{
-              backgroundColor: canApply && !isPainting ? primaryColor : undefined,
-              opacity: canApply ? 1 : 0.5,
-            }}
-          >
-            {isPainting ? (
-              <>
-                <Loader2 className="w-4 h-4 animate-spin" /> Processando...
-              </>
-            ) : (
-              <>
-                <Sparkles className="w-4 h-4" /> Aplicar Cor
-              </>
-            )}
-          </Button>
-        </div>
-      )}
+        )}
+      </div>
     </div>
   );
 };
 
 function isLightColor(hex: string): boolean {
-  const c = normalizeHex(hex);
-  const rgb = parseInt(c.substring(1), 16);
-  const r = (rgb >> 16) & 0xff;
-  const g = (rgb >> 8) & 0xff;
-  const b = (rgb >> 0) & 0xff;
+  const cleanHex = hex.replace('#', '');
+  let r, g, b;
+  if (cleanHex.length === 3) {
+    r = parseInt(cleanHex[0] + cleanHex[0], 16);
+    g = parseInt(cleanHex[1] + cleanHex[1], 16);
+    b = parseInt(cleanHex[2] + cleanHex[2], 16);
+  } else {
+    r = parseInt(cleanHex.substring(0, 2), 16);
+    g = parseInt(cleanHex.substring(2, 4), 16);
+    b = parseInt(cleanHex.substring(4, 6), 16);
+  }
   const luma = 0.2126 * r + 0.7152 * g + 0.0722 * b;
   return luma > 150;
-}
-
-function normalizeHex(hex: string): string {
-  const h = (hex || "").trim();
-  if (/^#[0-9A-Fa-f]{6}$/.test(h)) return h;
-  if (/^#[0-9A-Fa-f]{3}$/.test(h)) {
-    const r = h[1]; const g = h[2]; const b = h[3];
-    return `#${r}${r}${g}${g}${b}${b}`;
-  }
-  return "#000000";
-}
-
-function hexToRgb01(hex: string) {
-  const h = normalizeHex(hex).substring(1);
-  const num = parseInt(h, 16);
-  return { r: ((num >> 16) & 255) / 255, g: ((num >> 8) & 255) / 255, b: (num & 255) / 255 };
-}
-
-function relLuminance(hex: string) {
-  const { r, g, b } = hexToRgb01(hex);
-  const t = (c: number) => (c <= 0.03928 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4));
-  return 0.2126 * t(r) + 0.7152 * t(g) + 0.0722 * t(b);
-}
-
-function contrastRatio(hexA: string, hexB: string) {
-  const L1 = relLuminance(hexA);
-  const L2 = relLuminance(hexB);
-  return (Math.max(L1, L2) + 0.05) / (Math.min(L1, L2) + 0.05);
 }
 
 export default ColorPanel;

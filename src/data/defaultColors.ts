@@ -13,10 +13,11 @@ export interface Catalog {
   name: string;
   active: boolean;
   paints: Paint[];
+  description?: string;
 }
 
 export type HeaderContentMode = "logo+name" | "logo" | "name";
-export type HeaderStyleMode = "glass" | "gradient" | "card" | "primary";
+export type HeaderStyleMode = "glass" | "gradient" | "card" | "minimal" | "primary" | "white" | "white-accent";
 export type FontSet = "grotesk" | "rounded" | "neo";
 
 export interface CropCoordinates {
@@ -163,6 +164,7 @@ export function createDefaultCatalog(): Catalog {
     name: "Cores Básicas",
     active: true,
     paints: [...defaultPaints],
+    description: "Catálogo padrão com cores básicas para simulação"
   };
 }
 

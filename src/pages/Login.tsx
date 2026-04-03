@@ -5,8 +5,9 @@ import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Loader2, Mail, Lock, ArrowLeft, Eye, EyeOff } from "lucide-react";
+import { Mail, Lock, ArrowLeft, Eye, EyeOff } from "lucide-react";
 import { toast } from "sonner";
+import { ColoraSpinner } from "@/components/ui/colora-spinner";
 import logoSvg from "@/assets/colora-logo.svg";
 
 type Step = "info" | "credentials" | "login";
@@ -215,7 +216,7 @@ const Login = () => {
                 </div>
               </div>
               <Button type="submit" className="w-full h-12 text-base shadow-soft" disabled={loading}>
-                {loading ? <Loader2 className="w-5 h-5 animate-spin mr-2" /> : "Criar Conta Gratuita"}
+                {loading ? <ColoraSpinner size="sm" /> : "Criar Conta Gratuita"}
               </Button>
             </div>
           </form>
@@ -283,7 +284,7 @@ const Login = () => {
                 </div>
               </div>
               <Button type="submit" className="w-full h-12 text-base shadow-soft" disabled={loading}>
-                {loading ? <Loader2 className="w-5 h-5 animate-spin mr-2" /> : "Entrar no Painel"}
+                {loading ? <ColoraSpinner size="sm" /> : "Entrar no Painel"}
               </Button>
               <div className="text-center pt-4">
                 <Link to="/checkout" className="text-sm text-muted-foreground hover:text-primary transition-colors">

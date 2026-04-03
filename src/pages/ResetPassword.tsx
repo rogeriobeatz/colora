@@ -4,8 +4,9 @@ import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Loader2, Lock, Eye, EyeOff, CheckCircle, AlertCircle } from "lucide-react";
+import { Lock, Eye, EyeOff, CheckCircle, AlertCircle } from "lucide-react";
 import { toast } from "sonner";
+import { ColoraSpinner } from "@/components/ui/colora-spinner";
 import logoSvg from "@/assets/colora-logo.svg";
 
 const ResetPassword = () => {
@@ -156,7 +157,7 @@ const ResetPassword = () => {
         </div>
         <div className="w-full max-w-md">
           <div className="bg-card p-8 rounded-3xl border border-border shadow-elevated text-center space-y-6">
-            <Loader2 className="w-8 h-8 animate-spin mx-auto text-primary" />
+            <ColoraSpinner size="lg" className="mx-auto" />
             <p className="text-muted-foreground">Verificando link de recuperação...</p>
           </div>
         </div>
@@ -308,7 +309,7 @@ const ResetPassword = () => {
             <Button type="submit" className="w-full h-12" disabled={loading || !password || !confirmPassword || password !== confirmPassword}>
               {loading ? (
                 <>
-                  <Loader2 className="w-5 h-5 animate-spin mr-2" />
+                  <ColoraSpinner size="sm" className="mr-2" />
                   Redefinindo Senha...
                 </>
               ) : (

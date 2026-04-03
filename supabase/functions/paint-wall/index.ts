@@ -14,156 +14,108 @@ const jsonResponse = (data: any, status = 200, req: Request) => {
 };
 
 serve(async (req) => {
-  if (req.method === "OPTIONS") {
-    return createCorsResponse(req);
-  }
+  if (req.method === "OPTIONS") return createCorsResponse(req);
 
   try {
-    // 1. Environment and Auth Validation
-    const { KIE_API_KEY, SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, SUPABASE_ANON_KEY } = {
+    const env = {
       KIE_API_KEY: Deno.env.get("KIE_API_KEY"),
       SUPABASE_URL: Deno.env.get("SUPABASE_URL"),
-      SUPABASE_SERVICE_ROLE_KEY: Deno.env.get("SUPABASE_SERVICE_ROLE_KEY"),
-      SUPABASE_ANON_KEY: Deno.env.get("SUPABASE_ANON_KEY")
+      SUPABASE_SERVICE_ROLE_KEY: Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")
     };
 
-    if (!KIE_API_KEY || !SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY || !SUPABASE_ANON_KEY) {
-      console.error("Environment variables not configured");
-      return jsonResponse({ error: "Internal server configuration error." }, 500, req);
+    if (!env.KIE_API_KEY || !env.SUPABASE_URL || !env.SUPABASE_SERVICE_ROLE_KEY) {
+      throw new Error("Variáveis de ambiente KIE_API_KEY ou SUPABASE_URL não configuradas.");
     }
     
-    const serviceRoleClient = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
-    const userClient = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
-      global: { headers: { Authorization: req.headers.get("Authorization")! } },
+    const serviceRoleClient = createClient(env.SUPABASE_URL, env.SUPABASE_SERVICE_ROLE_KEY);
+    
+    // Auth Check
+    const authHeader = req.headers.get("Authorization");
+    if (!authHeader) throw new Error("Header de autorização ausente.");
+    
+    const userClient = createClient(env.SUPABASE_URL, Deno.env.get("SUPABASE_ANON_KEY") || "", {
+      global: { headers: { Authorization: authHeader } },
     });
     
     const { data: { user }, error: userError } = await userClient.auth.getUser();
+    if (userError || !user) return jsonResponse({ error: "Sessão inválida." }, 401, req);
 
-    if (userError || !user) {
-      return jsonResponse({ error: "Authentication required." }, 401, req);
-    }
+    // Get Profile for Tokens
+    const { data: profile, error: profErr } = await serviceRoleClient.from('profiles').select('tokens').eq('id', user.id).single();
+    if (profErr || !profile) return jsonResponse({ error: "Perfil não encontrado." }, 404, req);
 
-    // 2. Token Check (before any processing)
-    const { data: profile, error: profileError } = await serviceRoleClient.from('profiles').select('tokens, tokens_expires_at').eq('id', user.id).single();
-
-    if (profileError || !profile) {
-      return jsonResponse({ error: "User profile not found." }, 404, req);
-    }
-
-    // Verifica se tem tokens disponíveis
-    const tokensAvailable = profile.tokens > 0 && (
-      !profile.tokens_expires_at || 
-      new Date(profile.tokens_expires_at) > new Date()
-    );
-
-    if (!tokensAvailable) {
-      return jsonResponse({ error: "Tokens insuficientes ou expirados. Assine um plano para receber tokens mensais!" }, 402, req);
+    const body = await req.json();
+    const { imageBase64, paintColor, wallLabel, wallLabelEn, aspectMode } = body;
+    
+    let publicUrl = "";
+    if (imageBase64.startsWith('http')) {
+      publicUrl = imageBase64;
+    } else {
+      const cleanBase64 = imageBase64.replace(/^data:image\/[a-z]+;base64,/, "");
+      const rawBytes = decodeBase64(cleanBase64);
+      const tempFileName = `input_${user.id}_${Date.now()}.png`;
+      await serviceRoleClient.storage.from('images').upload(tempFileName, rawBytes, { contentType: 'image/png' });
+      const { data } = serviceRoleClient.storage.from('images').getPublicUrl(tempFileName);
+      publicUrl = data.publicUrl;
     }
     
-    console.log(`[paint-wall] User ${user.id} has ${profile.tokens} tokens. Proceeding...`);
-
-    // 3. Body validation
-    const { imageBase64, paintColor, wallLabel, wallLabelEn, cropCoordinates } = await req.json();
-
-    if (!imageBase64 || !paintColor) {
-      throw new Error("Image and Color are required");
-    }
-    const technicalWallName = wallLabelEn || wallLabel || "wall";
-
-    // 4. Image Processing - decode base64 to raw bytes
-    const rawBytes = decodeBase64(imageBase64.replace(/^data:image\/[^;]+;base64,/, ""));
+    const aspectRatio = (aspectMode || "16-9").replace("-", ":");
+    const prompt = `Repaint the ${wallLabelEn || wallLabel || "wall"} to the color ${paintColor}. High realism.`;
     
-    // Determine aspect ratio from crop coordinates if available
-    let aspectRatio = "16:9";
-    if (cropCoordinates) {
-      const ratio = cropCoordinates.width / cropCoordinates.height;
-      if (Math.abs(ratio - 1) < 0.1) {
-        aspectRatio = "1:1";
-      } else if (ratio > 1.5) {
-        aspectRatio = "16:9";
-      } else {
-        aspectRatio = "2:3";
-      }
-    }
-    
-    console.log(`[paint-wall] Using aspect ratio: ${aspectRatio}`);
-
-    const fileName = `input_${Date.now()}_${Math.random().toString(36).substring(7)}.png`;
-    const { error: uploadError } = await serviceRoleClient.storage.from('images').upload(fileName, rawBytes, { contentType: 'image/png' });
-    if (uploadError) throw new Error(`Upload failed: ${uploadError.message}`);
-    const { data: { publicUrl } } = serviceRoleClient.storage.from('images').getPublicUrl(fileName);
-
-    const prompt = `Repaint ONLY the "${technicalWallName}" surface to the exact color "${paintColor}".
-
-STRICT RULES — DO NOT VIOLATE:
-1. NEVER add, remove, move, or reshape ANY architectural element (walls, columns, beams, arches, doors, windows, stairs, pillars). The building structure must remain PIXEL-PERFECT identical.
-2. NEVER add, remove, or move ANY object (furniture, decor, plants, appliances, people, pets). Every item stays exactly where it is.
-3. NEVER change the camera angle, perspective, field of view, or crop.
-4. NEVER alter lighting direction, shadow positions, or ambient light color.  
-5. ONLY change the paint color of the specified surface. Preserve its original texture (matte, satin, glossy, rough, smooth).
-6. Keep ALL other surfaces (floor, ceiling, other walls, trim, molding) at their original colors.
-7. Maintain exact same image resolution, sharpness, and photographic quality.
-
-Style: Photorealistic interior photograph, natural lighting, high resolution.`;
-
-    const payload = { model: "flux-2/pro-image-to-image", input: { input_urls: [publicUrl], prompt, aspect_ratio: aspectRatio, resolution: "1K" }};
-    
+    // 1. Create Task
     const createRes = await fetch(`${KIE_BASE_URL}/api/v1/jobs/createTask`, {
       method: "POST",
-      headers: { "Authorization": `Bearer ${KIE_API_KEY}`, "Content-Type": "application/json" },
-      body: JSON.stringify(payload)
+      headers: { "Authorization": `Bearer ${env.KIE_API_KEY}`, "Content-Type": "application/json" },
+      body: JSON.stringify({
+        model: "flux-2/pro-image-to-image",
+        input: { input_urls: [publicUrl], prompt, aspect_ratio: aspectRatio, resolution: "1K" }
+      })
     });
     
-    if (!createRes.ok) throw new Error(`Kie Create Error (${createRes.status}): ${await createRes.text()}`);
-    
     const createData = await createRes.json();
-    if (createData.code !== 200) throw new Error(`Kie API Error: ${createData.msg}`);
+    if (createData.code !== 200) throw new Error(`Kie API (Create): ${createData.msg}`);
     
     const taskId = createData.data.taskId;
-    const finalImageUrl = await pollKieTask(taskId, KIE_API_KEY);
+    let finalImageUrl = "";
 
-    // 6. Post-Success Token Deduction
-    try {
-      // Registra consumo de token
-      await serviceRoleClient
-        .from('token_consumptions')
-        .insert({
-          user_id: user.id,
-          amount: -1,
-          description: "Pintura de parede"
-        });
+    // 2. Polling loop
+    for (let i = 0; i < 45; i++) {
+      await new Promise(r => setTimeout(r, 2000));
+      const pollRes = await fetch(`${KIE_BASE_URL}/api/v1/jobs/recordInfo?taskId=${taskId}`, {
+        headers: { "Authorization": `Bearer ${env.KIE_API_KEY}` }
+      });
+      if (!pollRes.ok) continue;
       
-      // Atualiza saldo de tokens
-      const newTokens = profile.tokens - 1;
-      await serviceRoleClient
-        .from('profiles')
-        .update({ tokens: newTokens })
-        .eq('id', user.id);
-        
-      console.log(`[paint-wall] Successfully consumed 1 token from user ${user.id}`);
-    } catch (e) {
-      console.error(`CRITICAL: Failed to consume token for user ${user.id} after successful AI call.`, e);
+      const pollData = await pollRes.json();
+      if (pollData.data?.state === "success") {
+        const result = pollData.data.resultJson;
+        const parsed = typeof result === 'string' ? JSON.parse(result) : result;
+        finalImageUrl = parsed?.resultUrls?.[0] || pollData.data?.recordUrls?.[0];
+        if (finalImageUrl) break;
+      }
+      if (pollData.data?.state === "fail") throw new Error(`Kie falhou: ${pollData.data.failMsg}`);
     }
-    
-    // Cleanup
-    setTimeout(() => serviceRoleClient.storage.from('images').remove([fileName]), 3600000);
 
-    return jsonResponse({ imageUrl: finalImageUrl, sucesso: true, details: { aspectRatio, wallName: technicalWallName } }, 200, req);
+    if (!finalImageUrl) throw new Error("Tempo limite de processamento esgotado.");
+
+    // 3. Update tokens (opcionalmente silencioso para não travar o retorno)
+    try {
+      await serviceRoleClient.from('profiles').update({ tokens: Math.max(0, profile.tokens - 1) }).eq('id', user.id);
+      await serviceRoleClient.from('token_consumptions').insert({ 
+        user_id: user.id, 
+        amount: -1, 
+        description: "Pintura IA",
+        metadata: { task_id: taskId }
+      });
+    } catch (dbErr) {
+      console.error("Erro ao atualizar tokens, mas retornando imagem:", dbErr);
+    }
+
+    return jsonResponse({ imageUrl: finalImageUrl, sucesso: true }, 200, req);
 
   } catch (error: any) {
-    console.error("[paint-wall] FATAL ERROR:", error.message);
+    console.error("[paint-wall] ERROR:", error.message);
+    // Retornamos o erro no JSON para você ver no console
     return jsonResponse({ error: error.message, sucesso: false }, 500, req);
   }
 });
-
-async function pollKieTask(taskId: string, apiKey: string): Promise<string> {
-  for (let i = 0; i < 30; i++) {
-    await new Promise(r => setTimeout(r, 2000));
-    const res = await fetch(`${KIE_BASE_URL}/api/v1/jobs/recordInfo?taskId=${taskId}`, { headers: { "Authorization": `Bearer ${apiKey}` } });
-    if (!res.ok) continue;
-    const body = await res.json();
-    if (body.data.state === "success") return JSON.parse(body.data.resultJson).resultUrls[0];
-    if (body.data.state === "fail") throw new Error(`Kie failed: ${body.data.failMsg}`);
-  }
-  throw new Error("Timeout: Processing took too long.");
-}

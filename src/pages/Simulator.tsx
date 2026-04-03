@@ -1,9 +1,18 @@
-import { useEffect, useMemo, useState, useCallback } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useStore } from "@/contexts/StoreContext";
 import { toast } from "sonner";
-import { Palette, Loader2, ImagePlus, Sparkles, PencilLine } from "lucide-react";
+import { 
+  Palette, 
+  Loader2, 
+  ImagePlus, 
+  Sparkles, 
+  PencilLine, 
+  LayoutPanelTop,
+  History
+} from "lucide-react";
+import { useNavigate } from "react-router-dom";
 
-import SimulatorHeader from "@/components/simulator/SimulatorHeader";
+import UnifiedHeader from "@/components/shared/UnifiedHeader";
 import UploadArea from "@/components/simulator/UploadArea";
 import RoomGallery from "@/components/simulator/RoomGallery";
 import ImageViewer from "@/components/simulator/ImageViewer";
@@ -13,13 +22,16 @@ import { useSimulator } from "@/components/simulator/useSimulator";
 import ProjectNameDialog from "@/components/simulator/ProjectNameDialog";
 import ProjectDrawer from "@/components/simulator/ProjectDrawer";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import StoreFooter from "@/components/StoreFooter";
 import { ImageCropper } from "@/components/ImageCropper";
-
-type AspectMode = "16-9" | "2-3" | "1-1";
+import { AspectMode } from "@/components/simulator/types";
+import { cn } from "@/lib/utils";
+import { ColoraSpinner } from "@/components/ui/colora-spinner";
 
 const Simulator = ({ companySlug }: { companySlug?: string }) => {
   const { company } = useStore();
+  const navigate = useNavigate();
 
   const {
     session,
@@ -52,6 +64,7 @@ const Simulator = ({ companySlug }: { companySlug?: string }) => {
   const [projectDialogOpen, setProjectDialogOpen] = useState(false);
   const [projectsOpen, setProjectsOpen] = useState(false);
   const [pendingFirstUpload, setPendingFirstUpload] = useState(false);
+  const [isColorPanelExpanded, setIsColorPanelExpanded] = useState(false);
 
   // Crop states
   const [cropperOpen, setCropperOpen] = useState(false);
@@ -62,15 +75,10 @@ const Simulator = ({ companySlug }: { companySlug?: string }) => {
   const selectedWall = useMemo(() => activeRoom?.walls.find((w) => w.id === selectedWallId), [activeRoom, selectedWallId]);
 
   useEffect(() => {
-    // Se começou o primeiro upload e ainda está com nome padrão, abre o dialog enquanto analisa
     if (!pendingFirstUpload) return;
     if (!activeRoom) return;
-
-    if (session?.name === "") {
-      setProjectDialogOpen(true);
-    }
     setPendingFirstUpload(false);
-  }, [pendingFirstUpload, activeRoom, session?.name]);
+  }, [pendingFirstUpload, activeRoom]);
 
   const handleGeneratePDF = () => {
     toast.success("Funcionalidade em desenvolvimento", {
@@ -78,34 +86,32 @@ const Simulator = ({ companySlug }: { companySlug?: string }) => {
     });
   };
 
-  // Função para detectar o aspect ratio da imagem
+  const handleSelectWall = (id: string) => {
+    selectWall(id);
+    // Wizard Mobile: Expande o painel automaticamente ao selecionar a parede
+    if (window.innerWidth < 1024) {
+      setIsColorPanelExpanded(true);
+    }
+  };
+
   const detectAspectRatio = (file: File): Promise<AspectMode> => {
     return new Promise((resolve) => {
       const img = new Image();
       img.onload = () => {
         const { width, height } = img;
         const ratio = width / height;
-        
-        // Define os limites para cada aspect ratio
         const TOLERANCE = 0.15;
-        
-        if (Math.abs(ratio - 1) < TOLERANCE) {
-          resolve('1-1'); // Quadrado
-        } else if (ratio < 1 - TOLERANCE) {
-          resolve('2-3'); // Mais vertical
-        } else {
-          resolve('16-9'); // Mais horizontal
-        }
+        if (Math.abs(ratio - 1) < TOLERANCE) resolve('1-1');
+        else if (ratio < 1 - TOLERANCE) resolve('2-3');
+        else resolve('16-9');
       };
       img.src = URL.createObjectURL(file);
     });
   };
 
   const handleUpload = async (file: File) => {
-    // Detecta o aspect ratio automaticamente
     const detectedRatio = await detectAspectRatio(file);
     setDetectedAspectRatio(detectedRatio);
-    
     const reader = new FileReader();
     reader.onload = (e) => {
       setImageToCrop(e.target?.result as string);
@@ -118,31 +124,26 @@ const Simulator = ({ companySlug }: { companySlug?: string }) => {
   const handleCropComplete = async (croppedDataUrl: string, coordinates: { x: number; y: number; width: number; height: number }) => {
     setCropperOpen(false);
     setImageToCrop(null);
-    
     if (pendingFile) {
-      setPendingFirstUpload(true);
-      // Passa as coordenadas de crop para o addRoom
-      await addRoom(pendingFile, coordinates);
-      setPendingFile(null);
+      const response = await fetch(croppedDataUrl);
+      const blob = await response.blob();
+      const croppedFile = new File([blob], pendingFile.name, { type: pendingFile.type });
+      await addRoom(croppedFile, coordinates, detectedAspectRatio);
     }
   };
 
   const handleCropCancel = () => {
     setCropperOpen(false);
     setImageToCrop(null);
-    setPendingFile(null);
   };
 
-  // Função para ativar o input de upload
   const triggerUpload = () => {
     const input = document.createElement('input');
     input.type = 'file';
     input.accept = 'image/*';
     input.onchange = (e) => {
       const file = (e.target as HTMLInputElement).files?.[0];
-      if (file) {
-        handleUpload(file);
-      }
+      if (file) handleUpload(file);
     };
     input.click();
   };
@@ -150,56 +151,42 @@ const Simulator = ({ companySlug }: { companySlug?: string }) => {
   if (loadingSession || !company) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
-        <Loader2 className="w-8 h-8 animate-spin text-primary" />
+        <ColoraSpinner size="lg" />
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-background flex flex-col">
-      <SimulatorHeader
-        companySlug={companySlug}
+    <div className="min-h-screen bg-background flex flex-col font-sans">
+      <UnifiedHeader
+        variant="simulator"
+        showBackButton={true}
+        backTo={companySlug ? `/empresa/${companySlug}` : "/dashboard"}
+        hasUnsavedChanges={hasUnsavedChanges}
         hasSimulations={totalSimulations > 0}
+        tokens={company?.tokens ?? 0}
+        projectName={session?.name}
+        onRename={(newName) => setSessionName(newName)}
         onGeneratePDF={handleGeneratePDF}
         onSave={manualSave}
         onOpenProjects={() => setProjectsOpen(true)}
-        projectName={session?.name ?? null}
       />
 
       <div className="container mx-auto px-2 sm:px-4 py-3 sm:py-8 max-w-7xl flex-1 pb-24 sm:pb-20 lg:pb-8">
         {!activeRoom ? (
-          <div className="animate-fade-in">
-            <div className="text-center mb-8 max-w-xl mx-auto">
-              <div
-                className="w-16 h-16 rounded-2xl mx-auto mb-4 flex items-center justify-center"
-                style={{ backgroundColor: `${company.primaryColor}15` }}
-              >
-                <Palette className="w-8 h-8" style={{ color: company.primaryColor }} />
+          <div className="animate-in fade-in duration-700">
+            <div className="text-center mb-8 max-w-xl mx-auto space-y-4">
+              <div className="w-16 h-16 rounded-2xl mx-auto mb-4 flex items-center justify-center bg-primary/10">
+                <Palette className="w-8 h-8 text-primary" />
               </div>
-
-              <h1 className="text-2xl sm:text-3xl font-display font-bold text-foreground mb-3">Simulador de Ambientes</h1>
+              <h1 className="text-2xl sm:text-3xl font-bold text-foreground">Simulador de Ambientes</h1>
               <p className="text-muted-foreground text-lg">
                 Envie uma foto, selecione a parede e aplique uma cor com realismo.
               </p>
-
-              <div className="mt-5 flex items-center justify-center gap-2">
-                <Button variant="outline" onClick={() => setProjectsOpen(true)} className="gap-2">
-                  Abrir projetos salvos
-                </Button>
-                <Button
-                  onClick={() => createNewSession()}
-                  className="gap-2"
-                  style={{ backgroundColor: company.primaryColor }}
-                >
-                  Novo projeto
-                </Button>
-              </div>
             </div>
-
             <div className="max-w-2xl mx-auto">
               <UploadArea onUpload={handleUpload} />
             </div>
-
             <div className="grid md:grid-cols-3 gap-6 mt-12 max-w-4xl mx-auto">
               {[
                 { icon: ImagePlus, title: "1. Envie a Foto", desc: "Fotografe qualquer ambiente interno" },
@@ -207,11 +194,8 @@ const Simulator = ({ companySlug }: { companySlug?: string }) => {
                 { icon: Sparkles, title: "3. Veja o Resultado", desc: "IA aplica a cor com realismo" },
               ].map((step, i) => (
                 <div key={i} className="text-center p-6 rounded-2xl bg-card border border-border">
-                  <div
-                    className="w-12 h-12 rounded-xl mx-auto mb-3 flex items-center justify-center"
-                    style={{ backgroundColor: `${company.primaryColor}15` }}
-                  >
-                    <step.icon className="w-6 h-6" style={{ color: company.primaryColor }} />
+                  <div className="w-12 h-12 rounded-xl mx-auto mb-3 flex items-center justify-center bg-primary/10">
+                    <step.icon className="w-6 h-6 text-primary" />
                   </div>
                   <h3 className="font-bold text-foreground mb-1">{step.title}</h3>
                   <p className="text-sm text-muted-foreground">{step.desc}</p>
@@ -220,25 +204,23 @@ const Simulator = ({ companySlug }: { companySlug?: string }) => {
             </div>
           </div>
         ) : (
-          <div className="animate-fade-in">
-            <div className="flex items-center justify-between gap-2 mb-3 sm:mb-6">
+          <div className="animate-in fade-in duration-500">
+            <div className="flex items-center justify-between gap-2 mb-3 sm:mb-6 px-1">
               <div className="min-w-0 flex-1">
                 <div className="flex items-center gap-2">
-                  <p className="text-sm sm:text-lg font-display font-bold truncate">{session?.name || ""}</p>
+                  <p className="text-sm sm:text-lg font-bold truncate">{session?.name || ""}</p>
                   {hasUnsavedChanges && (
-                    <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full bg-amber-100 text-amber-700 text-[10px] font-medium flex-shrink-0">
-                      <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse" />
-                    </span>
+                    <Badge variant="secondary" className="bg-amber-100 text-amber-700 border-none text-[10px] font-medium flex-shrink-0">
+                      <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse mr-1.5" /> Pendente
+                    </Badge>
                   )}
                 </div>
               </div>
-
               <Button
                 variant="ghost"
                 size="sm"
-                className="gap-1.5 h-7 sm:h-9 px-2 sm:px-3 text-xs flex-shrink-0"
+                className="gap-1.5 h-7 sm:h-9 px-2 sm:px-3 text-xs flex-shrink-0 text-muted-foreground hover:text-primary"
                 onClick={() => setProjectDialogOpen(true)}
-                title="Renomear projeto"
               >
                 <PencilLine className="w-3.5 h-3.5" />
                 <span className="hidden sm:inline">Renomear</span>
@@ -247,18 +229,20 @@ const Simulator = ({ companySlug }: { companySlug?: string }) => {
 
             <div className="grid lg:grid-cols-[1fr_360px] gap-3 sm:gap-8">
               <div className="space-y-3 sm:space-y-6">
-                <ImageViewer
-                  room={activeRoom}
-                  selectedWallId={selectedWallId}
-                  onSelectWall={selectWall}
-                  onRetryAnalysis={retryAnalysis}
-                  onSelectSimulation={(simId) => selectSimulation(activeRoom.id, simId)}
-                  primaryColor={company.primaryColor}
-                />
+                <div className="bg-card rounded-2xl border border-border shadow-soft overflow-hidden p-1 sm:p-2">
+                  <ImageViewer
+                    room={activeRoom}
+                    selectedWallId={selectedWallId}
+                    onSelectWall={handleSelectWall}
+                    onRetryAnalysis={retryAnalysis}
+                    onSelectSimulation={(simId) => selectSimulation(activeRoom.id, simId)}
+                    primaryColor={company.primaryColor}
+                  />
+                </div>
 
                 {rooms.length > 0 && (
-                  <div className="bg-card p-2.5 sm:p-4 rounded-xl sm:rounded-2xl border border-border shadow-soft">
-                    <p className="text-[9px] sm:text-[10px] font-bold text-muted-foreground uppercase tracking-widest mb-2 sm:mb-3 px-1">
+                  <div className="bg-card p-3 sm:p-6 rounded-2xl border border-border shadow-sm">
+                    <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest mb-3 px-1">
                       Ambientes ({rooms.length})
                     </p>
                     <RoomGallery rooms={rooms} activeRoomId={activeRoomId} onSelectRoom={selectRoom} onAddRoom={addRoom} onUploadClick={triggerUpload} onDeleteRoom={clearRoom} />
@@ -270,7 +254,8 @@ const Simulator = ({ companySlug }: { companySlug?: string }) => {
                 )}
               </div>
 
-              <div className="animate-slide-in-right hidden lg:block">
+              {/* Desktop ColorPanel */}
+              <div className="animate-in slide-in-from-right duration-500 hidden lg:block">
                 <ColorPanel
                   catalogs={company.catalogs}
                   selectedPaint={selectedPaint}
@@ -284,8 +269,8 @@ const Simulator = ({ companySlug }: { companySlug?: string }) => {
               </div>
             </div>
 
-            {/* Mobile ColorPanel - rendered outside grid */}
-            <div className="lg:hidden">
+            {/* Mobile ColorPanel (Wizard Flow) */}
+            <div className="lg:hidden mt-4">
               <ColorPanel
                 catalogs={company.catalogs}
                 selectedPaint={selectedPaint}
@@ -295,6 +280,8 @@ const Simulator = ({ companySlug }: { companySlug?: string }) => {
                 isPainting={isPainting}
                 selectedWallLabel={selectedWall?.label}
                 primaryColor={company.primaryColor}
+                isExpanded={isColorPanelExpanded}
+                onToggleExpand={() => setIsColorPanelExpanded(!isColorPanelExpanded)}
               />
             </div>
           </div>
@@ -304,32 +291,24 @@ const Simulator = ({ companySlug }: { companySlug?: string }) => {
       <StoreFooter company={company} />
 
       {isPainting && (
-        <div className="fixed inset-0 z-[100] bg-background/90 backdrop-blur-md flex items-center justify-center">
-          <div className="bg-card rounded-3xl p-10 text-center shadow-elevated animate-scale-in border border-border max-w-sm w-full mx-4">
-            <div className="relative w-24 h-24 mx-auto mb-6">
-              <div
-                className="absolute inset-0 rounded-full animate-ping opacity-20"
-                style={{ backgroundColor: selectedPaint?.hex || company.primaryColor }}
-              />
-              <div
-                className="relative w-24 h-24 rounded-full border-4 border-white shadow-elevated flex items-center justify-center overflow-hidden"
-                style={{ backgroundColor: selectedPaint?.hex || company.primaryColor }}
-              >
-                <Sparkles className="w-10 h-10 text-white/90" />
+        <div className="fixed inset-0 z-[100] bg-background/80 backdrop-blur-md flex items-center justify-center animate-in fade-in duration-300">
+          <div className="bg-card rounded-3xl p-10 text-center shadow-2xl border border-border max-w-sm w-full mx-4 space-y-6">
+            <div className="relative w-20 h-20 mx-auto">
+              <div className="absolute inset-0 rounded-full animate-ping opacity-20 bg-primary" />
+              <div className="relative w-20 h-20 rounded-full bg-primary flex items-center justify-center shadow-xl">
+                <Sparkles className="w-8 h-8 text-primary-foreground" />
               </div>
             </div>
-            <h2 className="font-display font-bold text-2xl text-foreground mb-2">Aplicando Cor com IA</h2>
-            <p className="text-muted-foreground mb-2">
-              Pintando a <span className="font-bold text-foreground">{selectedWall?.label || "superfície"}</span> de{" "}
-              <span className="font-bold" style={{ color: selectedPaint?.hex }}>
-                {selectedPaint?.name}
-              </span>
-            </p>
-            <div className="mt-6 flex items-center justify-center gap-2">
-              <Loader2 className="w-5 h-5 animate-spin" style={{ color: company.primaryColor }} />
-              <span className="text-sm font-medium text-muted-foreground">Processando...</span>
+            <div className="space-y-2">
+              <h2 className="font-bold text-xl text-foreground">Aplicando Cor</h2>
+              <p className="text-sm text-muted-foreground leading-relaxed">
+                Nossa IA está pintando a <span className="font-bold text-foreground">{selectedWall?.label || "superfície"}</span>.
+              </p>
             </div>
-            <p className="text-xs text-muted-foreground mt-4">Isso pode levar alguns segundos</p>
+            <div className="flex items-center justify-center gap-2 pt-2 text-primary">
+              <Loader2 className="w-4 h-4 animate-spin" />
+              <span className="text-[10px] font-black uppercase tracking-widest">Processando...</span>
+            </div>
           </div>
         </div>
       )}

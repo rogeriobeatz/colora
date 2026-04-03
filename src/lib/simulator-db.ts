@@ -17,7 +17,7 @@ type MetaRecord = {
 };
 
 const DB_NAME = "colora_simulator";
-const DB_VERSION = 1;
+const DB_VERSION = 11; // Incrementado para resolver conflito de versão
 
 function getDB() {
   return openDB(DB_NAME, DB_VERSION, {
@@ -119,7 +119,18 @@ export async function getSimulatorSession(id: string): Promise<SimulatorSessionR
 
 export async function listSimulatorSessions(): Promise<SimulatorSessionRecord[]> {
   try {
-    const { data: { user } } = await supabase.auth.getUser();
+    // Tenta getUser com timeout curto ou fallback imediato para getSession
+    // para evitar NavigatorLockAcquireTimeoutError
+    const { data: { user } } = await Promise.race([
+      supabase.auth.getUser(),
+      new Promise<any>((resolve) => 
+        setTimeout(async () => {
+          const { data } = await supabase.auth.getSession();
+          resolve({ data: { user: data.session?.user || null } });
+        }, 1000)
+      )
+    ]);
+
     if (!user) {
       const db = await getDB();
       const all = await db.getAllFromIndex('sessions', 'updatedAt');
@@ -128,7 +139,7 @@ export async function listSimulatorSessions(): Promise<SimulatorSessionRecord[]>
 
     const { data, error } = await (supabase as any)
       .from('simulator_sessions')
-      .select('id, name, created_at, updated_at, data')
+      .select('id, name, created_at, updated_at, data') // Incluído campo data completo
       .eq('user_id', user.id)
       .order('updated_at', { ascending: false });
 
