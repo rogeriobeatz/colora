@@ -17,7 +17,7 @@ interface ProjectDrawerProps {
   onOpenChange: (open: boolean) => void;
   currentProjectId: string | null;
   listProjects: () => Promise<ProjectListItem[]>;
-  onLoad: (id: string) => Promise<void>;
+  onLoad: (id: string) => Promise<boolean | void>;
   onDelete: (id: string) => Promise<void>;
   onNew: () => void;
 }

@@ -4,6 +4,7 @@ import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 import { useStore } from "@/contexts/StoreContext";
 import { useContrastColor } from "@/hooks/useContrastColor";
+import { TokenBadge } from "@/components/ui/token-badge";
 import { 
   FileDown, 
   Palette, 
@@ -153,11 +154,8 @@ const UnifiedHeader = ({
         {/* LADO DIREITO: AÇÕES & TOKENS */}
         <div className="flex items-center gap-2 sm:gap-4">
           
-          {/* Tokens Minimalist */}
-          <div className="flex items-center gap-2 px-3 py-1.5 rounded-full border border-current/10 bg-current/5 transition-all">
-            <Sparkles className="w-3 h-3 opacity-60" />
-            <span className="text-[10px] font-bold">{tokens}</span>
-          </div>
+          {/* Tokens Minimalist - Standardized */}
+          <TokenBadge tokens={tokens} />
 
           <div className="h-4 w-px bg-current opacity-10 mx-1 hidden sm:block" />
 

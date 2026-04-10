@@ -7,7 +7,7 @@ interface ImageViewerProps {
   room: Room;
   selectedWallId: string | null;
   onSelectWall: (wallId: string) => void;
-  onRetryAnalysis?: () => void;
+  onRetryAnalysis?: (id: string) => void;
   onSelectSimulation: (simId: string | null) => void;
   primaryColor?: string;
 }
@@ -107,7 +107,7 @@ const ImageViewer = ({
             <p className="text-xs text-muted-foreground mt-2 mb-4">
               Tente uma foto mais nítida, com boa iluminação e pegando o ambiente inteiro.
             </p>
-            <Button size="sm" onClick={onRetryAnalysis} className="gap-2" style={{ backgroundColor: primaryColor }}>
+            <Button size="sm" onClick={() => onRetryAnalysis && onRetryAnalysis(room.id)} className="gap-2" style={{ backgroundColor: primaryColor }}>
               <RefreshCw className="w-4 h-4" /> Tentar novamente
             </Button>
           </div>

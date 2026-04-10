@@ -2,8 +2,9 @@ import { Link } from "react-router-dom";
 import { useState, useEffect } from "react";
 import {
   Upload, Palette, Layers, Sparkles, Monitor, ArrowRight, Check,
-  Shield, Users, Star, Store, FileDown, Smartphone, Video, X,
-  Mail, Phone, MapPin, Instagram, Linkedin, Play, MousePointer2, ExternalLink, Lock
+  Shield, Users, Star, Store, FileDown, Video, X,
+  Mail, Phone, Instagram, Linkedin, Play, MousePointer2, ExternalLink, Lock,
+  HelpCircle, ShieldCheck
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import heroWhite from "@/assets/HeroWhite.jpg";
@@ -16,98 +17,78 @@ const stats = [
   { value: "Instantâneo", label: "Renderização IA", icon: Sparkles },
   { value: "200+", label: "Lojas Parceiras", icon: Store },
   { value: "White-label", label: "Sua Identidade", icon: Monitor },
-  { value: "PDF", label: "Proposta Estética", icon: FileDown },
+  { value: "PDF", label: "Orçamento Visual", icon: FileDown },
 ];
 
-const steps = [
+const faqs = [
   {
-    icon: Upload,
-    title: "Início",
-    desc: "A foto do ambiente é o ponto de partida para a criação.",
+    q: "Funciona com qualquer marca de tinta?",
+    a: "Sim. Você pode importar catálogos de qualquer fabricante via CSV ou cadastrar suas cores personalizadas manualmente."
   },
   {
-    icon: Palette,
-    title: "Curadoria",
-    desc: "Navegue por tonalidades que compõem sua marca.",
+    q: "O cliente precisa baixar algum aplicativo?",
+    a: "Não. O simulador funciona 100% no navegador, tanto em computadores quanto em celulares (iOS e Android)."
   },
   {
-    icon: Sparkles,
-    title: "Harmonia",
-    desc: "A inteligência aplica a cor com suavidade e precisão.",
+    q: "Como funciona o White-Label?",
+    a: "Você sobe sua logo, escolhe suas cores e o sistema gera um link exclusivo onde o cliente vê apenas a sua marca."
   },
   {
-    icon: FileDown,
-    title: "Entrega",
-    desc: "Um convite visual pronto para inspirar seu cliente.",
-  },
-];
-
-const features = [
-  {
-    icon: Sparkles,
-    title: "Finesse Tecnológica",
-    desc: "Sombras e texturas preservadas para um realismo quase tátil.",
-  },
-  {
-    icon: Monitor,
-    title: "Presença Digital",
-    desc: "Uma extensão fluida da sua loja no ambiente online.",
-  },
-  {
-    icon: Smartphone,
-    title: "Mobilidade Leve",
-    desc: "Perfeito para o atendimento próximo, lado a lado com o cliente.",
-  },
-  {
-    icon: Store,
-    title: "Personalização",
-    desc: "Seus catálogos integrados de forma limpa e organizada.",
-  },
+    q: "Posso cancelar a qualquer momento?",
+    a: "Sim. Não temos contratos de fidelidade. Você paga o mês e, se não quiser continuar, cancela com um clique no painel."
+  }
 ];
 
 const Landing = () => {
   const [currentImage, setCurrentImage] = useState(0);
   const [showVideoModal, setShowVideoModal] = useState(false);
   const [scrolled, setScrolled] = useState(false);
+  const [openFaq, setOpenFaq] = useState<number | null>(null);
   
   const roomImages = [
     {
       src: heroWhite,
       colorName: "Branco Minimalista",
       colorCode: "#F8F9FA",
-      description: "A pureza do espaço original."
+      label: "Original"
     },
     {
       src: heroYellowstone,
       colorName: "Sândalo Suave",
       colorCode: "#E5D1B8",
-      description: "Aqueça o ambiente com elegância."
+      label: "Tons Quentes"
     },
     {
       src: heroTiffany,
       colorName: "Brisa Serena",
       colorCode: "#A8DADC",
-      description: "Leveza e frescor em cada detalhe."
+      label: "Tons Frios"
     }
   ];
 
   useEffect(() => {
+    document.body.classList.add('landing-page');
     const handleScroll = () => setScrolled(window.scrollY > 10);
     window.addEventListener("scroll", handleScroll, { passive: true });
-    
-    const interval = setInterval(() => {
-      if (document.hidden) return;
-      setCurrentImage((prev) => (prev + 1) % roomImages.length);
-    }, 6000);
-    
     return () => {
       window.removeEventListener("scroll", handleScroll);
-      clearInterval(interval);
+      document.body.classList.remove('landing-page');
     };
-  }, [roomImages.length]);
+  }, []);
 
   return (
     <div className="min-h-screen bg-white font-sans selection:bg-primary/5 selection:text-primary overflow-x-hidden tracking-tight text-slate-700">
+      
+      {/* Sticky CTA Mobile */}
+      <div className={cn(
+        "fixed bottom-0 left-0 right-0 z-[110] p-4 bg-white/90 backdrop-blur-md border-t border-slate-100 flex gap-3 md:hidden transition-transform duration-500",
+        scrolled ? "translate-y-0" : "translate-y-full"
+      )}>
+        <Button variant="default" size="lg" asChild className="flex-1 rounded-full bg-slate-800 text-[12px] uppercase tracking-widest font-medium h-12">
+          <Link to="/checkout">Assinar Agora</Link>
+        </Button>
+      </div>
+
       {/* Navbar Minimalista */}
       <nav className={cn(
         "fixed top-0 left-0 right-0 z-[100] transition-all duration-700 px-6",
@@ -122,11 +103,9 @@ const Landing = () => {
           </Link>
           
           <div className="hidden md:flex items-center gap-12">
-            {["Funcionalidades", "Estética", "Planos"].map((item) => (
-              <a key={item} href={`#${item.toLowerCase()}`} className="text-[13px] font-medium text-slate-400 hover:text-primary transition-colors tracking-widest uppercase">
-                {item}
-              </a>
-            ))}
+            <a href="#funcionalidades" className="text-[13px] font-medium text-slate-400 hover:text-primary transition-colors tracking-widest uppercase">Funcionalidades</a>
+            <a href="#proposta" className="text-[13px] font-medium text-slate-400 hover:text-primary transition-colors tracking-widest uppercase">Resultados</a>
+            <a href="#faq" className="text-[13px] font-medium text-slate-400 hover:text-primary transition-colors tracking-widest uppercase">Dúvidas</a>
           </div>
 
           <div className="flex items-center gap-6">
@@ -134,112 +113,94 @@ const Landing = () => {
               Área do cliente
             </Link>
             <Button variant="outline" size="sm" asChild className="rainbow-border h-9 px-6 rounded-full font-medium text-[12px] uppercase tracking-widest border-none shadow-none hover:shadow-sm transition-all duration-500">
-              <Link to="/checkout">
-                Assinar
-              </Link>
+              <Link to="/checkout">Assinar</Link>
             </Button>
           </div>
         </div>
       </nav>
 
-      {/* Hero Section - Reduzida e Aérea */}
-      <section className="relative pt-40 pb-20 lg:pt-56 lg:pb-32 px-6">
-        <div className="absolute top-0 left-1/2 -translate-x-1/2 w-full h-full -z-10 pointer-events-none">
-          <div className="absolute top-[10%] left-[15%] w-[30%] h-[30%] rounded-full bg-blue-50/40 blur-[100px]" />
-          <div className="absolute bottom-[20%] right-[15%] w-[25%] h-[25%] rounded-full bg-purple-50/40 blur-[100px]" />
-        </div>
-
+      {/* Hero Section - Aérea */}
+      <section className="relative pt-40 pb-20 lg:pt-52 lg:pb-32 px-6">
         <div className="container mx-auto max-w-6xl">
-          <div className="flex flex-col items-center text-center space-y-12 animate-fade-in">
-            <div className="space-y-6 max-w-3xl">
-              <div className="inline-flex items-center gap-2 px-4 py-1 rounded-full bg-slate-50/50 border border-slate-100 shadow-[0_2px_10px_rgba(0,0,0,0.02)]">
-                <Sparkles className="w-3 h-3 text-slate-400" />
-                <span className="text-[10px] font-medium uppercase tracking-[0.3em] text-slate-400">Harmonia Visual & IA</span>
+          <div className="grid lg:grid-cols-2 gap-16 items-center animate-fade-in">
+            <div className="space-y-10 text-left">
+              <div className="space-y-6">
+                <div className="inline-flex items-center gap-2 px-4 py-1 rounded-full bg-slate-50 border border-slate-100">
+                  <Sparkles className="w-3 h-3 text-primary" />
+                  <span className="text-[10px] font-medium uppercase tracking-[0.3em] text-slate-400">Harmonia Visual & IA</span>
+                </div>
+                
+                <h1 className="text-4xl md:text-6xl font-light leading-[1.15] text-slate-800 tracking-tight">
+                  A beleza de simular <br />
+                  <span className="text-gradient-subtle font-normal italic">novas atmosferas</span>
+                </h1>
+                
+                <p className="text-lg md:text-xl text-slate-400 max-w-xl leading-relaxed font-light">
+                  Uma experiência fluida para transformar a percepção de cor e encantar seus clientes com delicadeza técnica.
+                </p>
               </div>
               
-              <h1 className="text-4xl md:text-6xl font-light leading-[1.15] text-slate-800 tracking-tight">
-                A beleza de simular <br />
-                <span className="text-gradient-subtle font-normal italic">novas atmosferas</span>
-              </h1>
-              
-              <p className="text-lg md:text-xl text-slate-400 max-w-xl mx-auto leading-relaxed font-light tracking-normal">
-                Uma experiência fluida para transformar a percepção de cor e encantar seus clientes com delicadeza técnica.
-              </p>
-            </div>
-            
-            <div className="flex flex-col sm:flex-row gap-6 pt-4">
-              <Button variant="default" size="lg" asChild className="h-12 px-10 rounded-full bg-slate-800 hover:bg-slate-900 text-white font-light tracking-widest text-[13px] uppercase transition-all shadow-none">
-                <Link to="/checkout">
-                  Começar Experiência
-                </Link>
-              </Button>
-              <button 
-                onClick={() => setShowVideoModal(true)}
-                className="flex items-center gap-3 px-8 text-slate-400 hover:text-slate-600 transition-all text-[13px] uppercase tracking-widest font-medium"
-              >
-                <div className="flex h-8 w-8 items-center justify-center rounded-full border border-slate-100 bg-white">
-                  <Play className="w-3 h-3 fill-slate-400 text-slate-400" />
-                </div>
-                Ver Demo
-              </button>
+              <div className="flex flex-col sm:flex-row gap-6 pt-4">
+                <Button variant="default" size="lg" asChild className="h-12 px-10 rounded-full bg-slate-800 hover:bg-slate-900 text-white font-light tracking-widest text-[13px] uppercase transition-all shadow-none">
+                  <Link to="/checkout">Começar Experiência</Link>
+                </Button>
+                <button 
+                  onClick={() => setShowVideoModal(true)}
+                  className="flex items-center gap-3 text-slate-400 hover:text-slate-600 transition-all text-[13px] uppercase tracking-widest font-medium"
+                >
+                  <div className="flex h-8 w-8 items-center justify-center rounded-full border border-slate-100 bg-white shadow-sm">
+                    <Play className="w-3 h-3 fill-slate-400 text-slate-400" />
+                  </div>
+                  Ver Demo
+                </button>
+              </div>
             </div>
 
-            {/* Mockup Refinado */}
-            <div className="relative w-full max-w-4xl pt-12">
-              <div className="relative bg-white rounded-[2rem] p-2 shadow-[0_40px_100px_-20px_rgba(0,0,0,0.05)] border border-slate-50 overflow-hidden">
-                <div className="relative aspect-[16/10] rounded-[1.5rem] overflow-hidden group">
+            {/* Mockup Interativo Minimalista */}
+            <div className="relative group">
+              <div className="relative bg-white rounded-[2.5rem] p-2 shadow-[0_40px_100px_-20px_rgba(0,0,0,0.05)] border border-slate-50 overflow-hidden">
+                <div className="relative aspect-[4/5] sm:aspect-square rounded-[2rem] overflow-hidden">
                   {roomImages.map((image, index) => (
-                    <div
+                    <img
                       key={index}
+                      src={image.src}
+                      alt={image.colorName}
                       className={cn(
-                        "absolute inset-0 transition-opacity duration-[1500ms] ease-in-out",
+                        "absolute inset-0 w-full h-full object-cover transition-opacity duration-1000",
                         index === currentImage ? "opacity-100" : "opacity-0"
-                      )}
-                    >
-                      <img src={image.src} alt={image.colorName} className="w-full h-full object-cover" />
-                    </div>
+                      )}                    />
                   ))}
-
-                  <div className="absolute inset-0 bg-gradient-to-t from-white/20 via-transparent to-transparent pointer-events-none" />
-
-                  <div className="absolute bottom-10 left-10 right-10 flex items-end justify-between">
-                    <div className="bg-white/60 backdrop-blur-xl rounded-2xl p-5 border border-white/40 shadow-sm max-w-xs animate-in fade-in slide-in-from-bottom-4 duration-1000">
-                      <div className="flex items-center gap-4">
-                        <div 
-                          className="w-10 h-10 rounded-full shadow-inner border border-black/5 transition-all duration-1000" 
-                          style={{ backgroundColor: roomImages[currentImage].colorCode }}
-                        />
-                        <div className="space-y-0.5">
-                          <p className="text-[9px] font-medium text-slate-400 uppercase tracking-widest leading-none">Simulação Atual</p>
-                          <p className="text-sm font-medium text-slate-800 tracking-tight">{roomImages[currentImage].colorName}</p>
-                        </div>
-                      </div>
-                    </div>
-
-                    <div className="flex gap-2">
-                      {roomImages.map((_, i) => (
-                        <button
-                          key={i}
-                          onClick={() => setCurrentImage(i)}
-                          className={cn(
-                            "h-1 rounded-full transition-all duration-1000",
-                            i === currentImage ? "bg-slate-800 w-8" : "bg-slate-200 w-2 hover:bg-slate-300"
-                          )}
-                        />
-                      ))}
-                    </div>
+                  
+                  <div className="absolute bottom-10 left-1/2 -translate-x-1/2 flex gap-3 p-3 bg-white/80 backdrop-blur-md rounded-full border border-white/40 shadow-sm">
+                    {roomImages.map((image, i) => (
+                      <button
+                        key={i}
+                        onClick={() => setCurrentImage(i)}
+                        className={cn(
+                          "w-8 h-8 rounded-full border-2 transition-all duration-500",
+                          i === currentImage ? "border-slate-800 scale-110 shadow-md" : "border-transparent opacity-60 hover:opacity-100"
+                        )}
+                        style={{ backgroundColor: image.colorCode }}
+                      />
+                    ))}
                   </div>
                 </div>
+              </div>
+              <div className="absolute -bottom-6 -right-6 bg-white p-4 rounded-2xl shadow-xl border border-slate-50 flex items-center gap-3 animate-bounce-slow">
+                <div className="w-8 h-8 rounded-lg bg-green-50 flex items-center justify-center text-green-600">
+                  <Check className="w-4 h-4" />
+                </div>
+                <p className="text-[11px] font-bold uppercase tracking-widest text-slate-600">Fechado com IA</p>
               </div>
             </div>
           </div>
         </div>
       </section>
 
-      {/* Stats - Mais sutis */}
+      {/* Stats Sutis */}
       <section className="py-20 border-y border-slate-50">
         <div className="container mx-auto max-w-5xl px-6">
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-12">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-12 text-center">
             {stats.map((s, i) => (
               <div key={i} className="flex flex-col items-center space-y-3">
                 <p className="text-2xl font-light text-slate-800 tracking-tight">{s.value}</p>
@@ -250,23 +211,70 @@ const Landing = () => {
         </div>
       </section>
 
-      {/* Como Funciona - Minimalista */}
-      <section id="estética" className="py-24 bg-white">
-        <div className="container mx-auto max-w-6xl px-6">
-          <div className="text-center max-w-2xl mx-auto mb-20 space-y-4">
-            <h2 className="text-[11px] font-medium uppercase tracking-[0.4em] text-slate-300">Simplicidade Fluida</h2>
-            <h3 className="text-3xl md:text-4xl font-light text-slate-800 tracking-tight">O percurso da inspiração</h3>
-          </div>
-
-          <div className="grid md:grid-cols-4 gap-16">
-            {steps.map((step, i) => (
-              <div key={i} className="flex flex-col items-center text-center space-y-6">
-                <div className="w-12 h-12 rounded-full border border-slate-100 flex items-center justify-center text-slate-300 group-hover:border-primary transition-all duration-500">
-                  <step.icon className="w-4 h-4" />
+      {/* Seção Dor vs Solução */}
+      <section id="proposta" className="py-24 bg-slate-50/50">
+        <div className="container mx-auto max-w-5xl px-6">
+          <div className="grid md:grid-cols-2 gap-16 items-center">
+            <div className="space-y-8 text-left">
+              <h3 className="text-3xl font-light text-slate-800 tracking-tight">O fim da indecisão no balcão</h3>
+              <div className="space-y-6">
+                <div className="flex gap-4">
+                  <div className="mt-1 w-5 h-5 rounded-full border border-red-100 flex items-center justify-center text-red-400 flex-shrink-0">
+                    <X className="w-3 h-3" />
+                  </div>
+                  <div>
+                    <p className="text-sm font-medium text-slate-600 mb-1">Processo Antigo</p>
+                    <p className="text-sm text-slate-400 font-light">Leques de cores confusos, amostras caras e clientes inseguros.</p>
+                  </div>
                 </div>
-                <div className="space-y-2">
-                  <h4 className="text-[13px] font-medium uppercase tracking-widest text-slate-800">{step.title}</h4>
-                  <p className="text-sm text-slate-400 font-light leading-relaxed">{step.desc}</p>
+                <div className="flex gap-4">
+                  <div className="mt-1 w-5 h-5 rounded-full border border-green-100 flex items-center justify-center text-green-400 flex-shrink-0">
+                    <Check className="w-3.5 h-3.5" />
+                  </div>
+                  <div>
+                    <p className="text-sm font-medium text-slate-800 mb-1">Efeito Colora</p>
+                    <p className="text-sm text-slate-500 font-light">Visualização instantânea e confiança total para fechar o pedido.</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div className="bg-slate-900 rounded-[2.5rem] p-10 text-white space-y-6 shadow-2xl">
+              <div className="w-12 h-12 rounded-2xl bg-white/10 flex items-center justify-center text-primary">
+                <FileDown className="w-6 h-6" />
+              </div>
+              <h4 className="text-xl font-light">Orçamento Visual Premium</h4>
+              <p className="text-slate-400 font-light text-sm leading-relaxed">
+                Ao final da simulação, gere um PDF profissional com sua logo e a foto do ambiente pintado. O cliente leva a inspiração com o seu contato.
+              </p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* FAQ Inteligente */}
+      <section id="faq" className="py-24 bg-white">
+        <div className="container mx-auto max-w-3xl px-6">
+          <div className="text-center mb-16 space-y-4">
+            <HelpCircle className="w-8 h-8 mx-auto text-slate-200" />
+            <h3 className="text-3xl font-light text-slate-800 tracking-tight">Perguntas Frequentes</h3>
+          </div>
+          <div className="space-y-4">
+            {faqs.map((faq, i) => (
+              <div key={i} className="bg-white rounded-2xl border border-slate-100 overflow-hidden transition-all duration-500 hover:border-slate-200">
+                <button 
+                  onClick={() => setOpenFaq(openFaq === i ? null : i)}
+                  className="w-full px-8 py-6 text-left flex justify-between items-center"
+                >
+                  <span className="text-[14px] font-medium text-slate-700 uppercase tracking-widest">{faq.q}</span>
+                  <div className={cn("transition-transform duration-300", openFaq === i ? "rotate-45" : "")}>
+                    <PlusIcon className="w-4 h-4 text-slate-300" />
+                  </div>
+                </button>
+                <div className={cn(
+                  "px-8 transition-all duration-500 ease-in-out",
+                  openFaq === i ? "max-h-40 pb-8 opacity-100" : "max-h-0 opacity-0"
+                )}>
+                  <p className="text-sm text-slate-400 font-light leading-relaxed">{faq.a}</p>
                 </div>
               </div>
             ))}
@@ -274,49 +282,17 @@ const Landing = () => {
         </div>
       </section>
 
-      {/* Features - Dark Refinado */}
-      <section id="funcionalidades" className="py-24 bg-slate-900 relative overflow-hidden">
-        <div className="container mx-auto max-w-6xl px-6 relative z-10">
-          <div className="grid lg:grid-cols-2 gap-24 items-center">
-            <div className="space-y-16">
-              <div className="space-y-6">
-                <h2 className="text-[11px] font-medium uppercase tracking-[0.4em] text-slate-500">Infraestrutura Invisível</h2>
-                <h3 className="text-3xl md:text-5xl font-light text-white leading-tight">Tecnologia que <br />respeita a visão.</h3>
-              </div>
-
-              <div className="grid sm:grid-cols-2 gap-12">
-                {features.map((f, i) => (
-                  <div key={i} className="space-y-4">
-                    <div className="w-10 h-10 rounded-full bg-white/5 flex items-center justify-center text-slate-400">
-                      <f.icon className="w-4 h-4" />
-                    </div>
-                    <h4 className="text-[13px] font-medium uppercase tracking-widest text-white">{f.title}</h4>
-                    <p className="text-slate-500 leading-relaxed text-[13px] font-light">{f.desc}</p>
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            <div className="relative aspect-square rounded-[3rem] overflow-hidden border border-white/5 opacity-80">
-              <img src={heroTiffany} alt="Estética" className="w-full h-full object-cover" />
-              <div className="absolute inset-0 bg-slate-900/40" />
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* Planos - Leveza */}
-      <section id="planos" className="py-24 bg-white">
+      {/* Preços - Leveza */}
+      <section id="planos" className="py-24 bg-slate-50/30">
         <div className="container mx-auto max-w-6xl px-6">
           <div className="flex flex-col items-center text-center space-y-16">
             <div className="space-y-4 max-w-xl">
               <h2 className="text-[11px] font-medium uppercase tracking-[0.4em] text-slate-300">Investimento</h2>
-              <h3 className="text-3xl md:text-4xl font-light text-slate-800 tracking-tight">O plano para sua evolução</h3>
+              <h3 className="text-3xl md:text-4xl font-light text-slate-800 tracking-tight leading-tight">O custo de uma lata de tinta, <br />o valor de centenas de vendas.</h3>
             </div>
 
             <div className="w-full max-w-md bg-white rounded-[2.5rem] p-12 border border-slate-100 shadow-[0_20px_50px_rgba(0,0,0,0.02)] space-y-10 relative group hover:border-slate-200 transition-all duration-700">
               <div className="text-center space-y-4">
-                <p className="text-[10px] font-medium text-slate-400 uppercase tracking-[0.3em]">Assinatura Profissional</p>
                 <div className="flex items-baseline justify-center">
                   <span className="text-5xl font-light text-slate-800 tracking-tighter">R$ 59</span>
                   <div className="text-left ml-1">
@@ -332,7 +308,7 @@ const Landing = () => {
                 {[
                   "200 Simulações IA de alta fidelidade",
                   "Catálogos de marcas ilimitados",
-                  "Plataforma White-Label",
+                  "Plataforma 100% White-Label",
                   "Propostas Visuais em PDF"
                 ].map((item, i) => (
                   <li key={i} className="text-slate-400 font-light text-sm tracking-normal">
@@ -342,12 +318,16 @@ const Landing = () => {
               </ul>
 
               <Button variant="default" size="lg" asChild className="w-full h-12 rounded-full bg-slate-800 hover:bg-slate-900 text-[12px] uppercase tracking-[0.2em] font-medium transition-all shadow-none">
-                <Link to="/checkout">Ativar Simulador</Link>
+                <Link to="/checkout">Quero vender com IA</Link>
               </Button>
               
-              <div className="flex items-center justify-center gap-3 text-[9px] font-medium text-slate-300 uppercase tracking-widest">
-                <Lock className="w-3 h-3" />
-                Segurança Stripe de ponta a ponta
+              <div className="pt-4 space-y-4">
+                <div className="flex items-center justify-center gap-2 text-[10px] font-bold text-slate-400 uppercase tracking-widest">
+                  <ShieldCheck className="w-4 h-4 text-emerald-500" /> Cancelamento em 1 clique
+                </div>
+                <div className="flex items-center justify-center gap-4 opacity-40">
+                  <img src="https://stripe.com/img/v3/home/social.png" alt="Stripe" className="h-4 grayscale" />
+                </div>
               </div>
             </div>
           </div>
@@ -358,10 +338,10 @@ const Landing = () => {
       <footer className="bg-slate-950 pt-24 pb-12 text-white/90">
         <div className="container mx-auto max-w-6xl px-8">
           <div className="grid grid-cols-1 md:grid-cols-12 gap-16 mb-20">
-            <div className="md:col-span-5 space-y-8">
+            <div className="md:col-span-5 space-y-8 text-left">
               <img src={logoSvg} alt="Colora" className="h-7 brightness-0 invert opacity-90" />
               <p className="text-slate-500 text-lg font-light leading-relaxed max-w-sm">
-                Inovação estética para o varejo moderno de tintas e revestimentos.
+                A tecnologia que une inspiração estética e decisão comercial.
               </p>
               <div className="flex gap-4">
                 {[Instagram, Linkedin].map((Icon, i) => (
@@ -372,16 +352,16 @@ const Landing = () => {
               </div>
             </div>
             
-            <div className="md:col-span-3 space-y-6">
-              <h4 className="text-[10px] font-medium uppercase tracking-[0.3em] text-slate-500">Navegação</h4>
+            <div className="md:col-span-3 space-y-6 text-left">
+              <h4 className="text-[10px] font-medium uppercase tracking-[0.3em] text-slate-500">Plataforma</h4>
               <ul className="space-y-4">
-                {["Funcionalidades", "Planos", "Estética"].map(item => (
+                {["Funcionalidades", "Resultados", "Planos"].map(item => (
                   <li key={item}><a href="#" className="text-slate-400 text-[13px] font-light hover:text-white transition-colors">{item}</a></li>
                 ))}
               </ul>
             </div>
 
-            <div className="md:col-span-4 space-y-6">
+            <div className="md:col-span-4 space-y-6 text-left">
               <h4 className="text-[10px] font-medium uppercase tracking-[0.3em] text-slate-500">Contato</h4>
               <ul className="space-y-4 text-[13px] font-light text-slate-400">
                 <li className="flex items-center gap-4">
@@ -429,7 +409,7 @@ const Landing = () => {
                 <div className="w-10 h-10 rounded-full bg-slate-50 flex items-center justify-center text-slate-400">
                   <Video className="w-4 h-4" />
                 </div>
-                <h3 className="text-sm font-medium text-slate-800 uppercase tracking-widest">A Harmonia das Cores</h3>
+                <h3 className="text-sm font-medium text-slate-800 uppercase tracking-widest">Simulação na Prática</h3>
               </div>
               <button onClick={() => setShowVideoModal(false)} className="p-2 hover:bg-slate-50 rounded-full transition-colors text-slate-300">
                 <X className="w-5 h-5" />
@@ -442,7 +422,7 @@ const Landing = () => {
                   <div className="w-20 h-20 rounded-full bg-white shadow-xl flex items-center justify-center mx-auto cursor-pointer hover:scale-105 transition-transform">
                     <Play className="w-6 h-6 text-slate-300 fill-slate-300 ml-1" />
                   </div>
-                  <p className="text-slate-400 font-light text-lg">Assista à delicadeza do Colora em ação.</p>
+                  <p className="text-slate-400 font-light text-lg">Assista à demonstração técnica do Colora.</p>
                </div>
             </div>
 
@@ -461,5 +441,11 @@ const Landing = () => {
     </div>
   );
 };
+
+const PlusIcon = ({ className }: { className?: string }) => (
+  <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+  </svg>
+);
 
 export default Landing;

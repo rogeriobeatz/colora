@@ -252,7 +252,8 @@ export const useDashboardState = () => {
         name: profileData.companyName,
         phone: profileData.phone,
         website: profileData.website,
-        address: profileData.address
+        address: profileData.address,
+        documentNumber: profileData.documentNumber
       });
 
       await refreshData();

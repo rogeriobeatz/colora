@@ -4,7 +4,7 @@ import type { FontSet } from "@/data/defaultColors";
 import { WCAG_CONSTANTS } from "@/constants/wcag";
 
 function normalizeFontSet(v: any): FontSet {
-  if (v === "rounded" || v === "neo" || v === "grotesk") return v;
+  if (v === "rounded" || v === "neo" || v === "grotesk" || v === "technical") return v;
   return "grotesk";
 }
 
@@ -96,14 +96,27 @@ const BrandingApplier = () => {
   const { company } = useStore();
 
   useEffect(() => {
+    const root = document.documentElement;
+    
+    // 0. DEFAULT FALLBACKS (If no company data)
+    const defaultP = { h: 222, s: 47, l: 11 }; // Slate-950
+    const defaultS = { h: 222, s: 47, l: 31 }; // Slate-700
+    
+    root.style.setProperty("--header-bg", "rgba(255, 255, 255, 0.8)");
+    root.style.setProperty("--header-fg", "hsl(222 47% 11%)");
+    root.style.setProperty("--header-blur", "12px");
+    root.style.setProperty("--header-border", "1px solid rgba(0, 0, 0, 0.06)");
+    root.style.setProperty("--header-float", "0px");
+    root.style.setProperty("--header-radius", "0px");
+    root.style.setProperty("--header-shadow", "none");
+
     if (!company) return;
 
-    const root = document.documentElement;
     const p = hexToHsl(company.primaryColor || "#3b82f6");
     const s = hexToHsl(company.secondaryColor || "#1d4ed8");
     const fontSet = normalizeFontSet(company.fontSet);
 
-    const isMinimal = company.headerStyle === "glass" || company.headerStyle === "card";
+    const isMinimal = company.headerStyle === "glass" || company.headerStyle === "card" || company.headerStyle === "minimal" || company.headerStyle === "white" || !company.headerStyle;
 
     // 1. BASE VARIABLES with WCAG-safe foregrounds
     root.style.setProperty("--primary", `${p.h} ${p.s}% ${p.l}%`);
@@ -117,10 +130,52 @@ const BrandingApplier = () => {
     const safeL = p.l > 55 ? 35 : p.l;
     root.style.setProperty("--primary-safe", `${p.h} ${p.s}% ${safeL}%`);
 
-    // 2. GEOMETRY
-    const radiusMap: Record<string, string> = { rounded: "1.5rem", grotesk: "0.6rem", neo: "0px" };
-    root.style.setProperty("--radius", radiusMap[fontSet] || "0.5rem");
+    // Ensure platform background/foreground are applied
+    root.style.setProperty("--background", "0 0% 100%");
+    root.style.setProperty("--foreground", "222 47% 11%");
+
+    // 2. GEOMETRY (Independent control)
+    let finalRadius = "0.6rem"; // default soft
+    
+    if (company.border_radius === "square") {
+      finalRadius = "0px";
+    } else if (company.border_radius === "rounded") {
+      finalRadius = "1.5rem";
+    } else if (company.border_radius === "soft") {
+      finalRadius = "0.6rem";
+    }
+
+    root.style.setProperty("--radius", finalRadius);
     root.dataset.font = fontSet;
+
+    // 2.5 TYPOGRAPHY mapping (Independent control)
+    const fontMap: Record<string, string> = {
+      grotesk: "'Outfit', sans-serif",   // Técnico/Moderno
+      rounded: "'Jost', sans-serif",     // Orgânico/Geométrico
+      neo: "'Inter', sans-serif",         // Industrial/Sóbrio
+      technical: "'Helvetica', 'Arial', sans-serif" // Técnico Puro
+    };
+    
+    const selectedFont = fontMap[fontSet] || "'Outfit', sans-serif";
+    
+    // Only apply if not on landing page
+    if (!document.body.classList.contains('landing-page')) {
+      root.style.setProperty("--font-sans", selectedFont);
+      root.style.setProperty("--font-display", selectedFont);
+      // Forçar aplicação imediata no body para garantir sincronia
+      document.body.style.fontFamily = selectedFont;
+    }
+
+    // 2.6 Dynamic Favicon
+    if (company.logo) {
+      let link = document.querySelector("link[rel~='icon']") as HTMLLinkElement;
+      if (!link) {
+        link = document.createElement('link');
+        link.rel = 'icon';
+        document.head.appendChild(link);
+      }
+      link.href = company.logo;
+    }
 
     // 3. HEADER & SIDEBAR ARCHITECTURE
     if (isMinimal) {
@@ -129,7 +184,7 @@ const BrandingApplier = () => {
       root.style.setProperty("--header-fg", "hsl(222 47% 11%)");
       root.style.setProperty("--header-border", "1px solid rgba(0, 0, 0, 0.06)");
       root.style.setProperty("--header-float", "0px");
-      root.style.setProperty("--header-radius", "0px");
+      root.style.setProperty("--header-radius", finalRadius);
       root.style.setProperty("--header-shadow", "none");
 
       root.style.setProperty("--sidebar-background", "0 0% 100%");
@@ -144,7 +199,7 @@ const BrandingApplier = () => {
       root.style.setProperty("--header-bg", `linear-gradient(135deg, hsl(${p.h} ${p.s}% ${p.l}%), hsl(${s.h} ${s.s}% ${s.l}%))`);
       root.style.setProperty("--header-fg", `hsl(${primaryFg})`);
       root.style.setProperty("--header-float", "10px");
-      root.style.setProperty("--header-radius", "1rem");
+      root.style.setProperty("--header-radius", finalRadius);
       root.style.setProperty("--header-shadow", "0 10px 20px -5px rgba(0,0,0,0.1)");
       root.style.setProperty("--header-border", "none");
       root.style.setProperty("--header-blur", "0px");
@@ -159,7 +214,13 @@ const BrandingApplier = () => {
       root.style.setProperty("--sidebar-blur", "0px");
     }
 
-  }, [company?.primaryColor, company?.secondaryColor, company?.fontSet, company?.headerStyle]);
+  }, [
+    company?.primaryColor, 
+    company?.secondaryColor, 
+    company?.fontSet, 
+    company?.headerStyle, 
+    company?.border_radius
+  ]);
 
   return null;
 };

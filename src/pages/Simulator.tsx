@@ -172,7 +172,7 @@ const Simulator = ({ companySlug }: { companySlug?: string }) => {
         onOpenProjects={() => setProjectsOpen(true)}
       />
 
-      <div className="container mx-auto px-2 sm:px-4 py-3 sm:py-8 max-w-7xl flex-1 pb-24 sm:pb-20 lg:pb-8">
+      <div className="container mx-auto px-4 py-8 max-w-6xl flex-1 pb-24 sm:pb-20 lg:pb-8">
         {!activeRoom ? (
           <div className="animate-in fade-in duration-700">
             <div className="text-center mb-8 max-w-xl mx-auto space-y-4">
@@ -234,7 +234,7 @@ const Simulator = ({ companySlug }: { companySlug?: string }) => {
                     room={activeRoom}
                     selectedWallId={selectedWallId}
                     onSelectWall={handleSelectWall}
-                    onRetryAnalysis={retryAnalysis}
+                    onRetryAnalysis={() => retryAnalysis(activeRoom.id)}
                     onSelectSimulation={(simId) => selectSimulation(activeRoom.id, simId)}
                     primaryColor={company.primaryColor}
                   />

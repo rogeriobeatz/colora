@@ -1,5 +1,5 @@
-import Landing from "./Landing";
+import LandingV2 from "./LandingV2";
 
-const Index = () => <Landing />;
+const Index = () => <LandingV2 />;
 
 export default Index;

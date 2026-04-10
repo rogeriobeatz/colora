@@ -20,102 +20,88 @@ serve(async (req) => {
     const env = {
       KIE_API_KEY: Deno.env.get("KIE_API_KEY"),
       SUPABASE_URL: Deno.env.get("SUPABASE_URL"),
-      SUPABASE_SERVICE_ROLE_KEY: Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")
+      SUPABASE_SERVICE_ROLE_KEY: Deno.env.get("SUPABASE_SERVICE_ROLE_KEY"),
+      SUPABASE_ANON_KEY: Deno.env.get("SUPABASE_ANON_KEY")
     };
 
-    if (!env.KIE_API_KEY || !env.SUPABASE_URL || !env.SUPABASE_SERVICE_ROLE_KEY) {
-      throw new Error("Variáveis de ambiente KIE_API_KEY ou SUPABASE_URL não configuradas.");
-    }
+    if (!env.KIE_API_KEY || !env.SUPABASE_URL || !env.SUPABASE_SERVICE_ROLE_KEY) throw new Error("Configurações ausentes.");
     
     const serviceRoleClient = createClient(env.SUPABASE_URL, env.SUPABASE_SERVICE_ROLE_KEY);
-    
-    // Auth Check
-    const authHeader = req.headers.get("Authorization");
-    if (!authHeader) throw new Error("Header de autorização ausente.");
-    
-    const userClient = createClient(env.SUPABASE_URL, Deno.env.get("SUPABASE_ANON_KEY") || "", {
-      global: { headers: { Authorization: authHeader } },
+    const userClient = createClient(env.SUPABASE_URL, env.SUPABASE_ANON_KEY, {
+      global: { headers: { Authorization: req.headers.get("Authorization")! } },
     });
     
     const { data: { user }, error: userError } = await userClient.auth.getUser();
     if (userError || !user) return jsonResponse({ error: "Sessão inválida." }, 401, req);
 
-    // Get Profile for Tokens
-    const { data: profile, error: profErr } = await serviceRoleClient.from('profiles').select('tokens').eq('id', user.id).single();
-    if (profErr || !profile) return jsonResponse({ error: "Perfil não encontrado." }, 404, req);
+    const { data: profile } = await serviceRoleClient.from('profiles').select('tokens').eq('id', user.id).single();
+    if (!profile || profile.tokens <= 0) return jsonResponse({ error: "Saldo insuficiente." }, 403, req);
 
-    const body = await req.json();
-    const { imageBase64, paintColor, wallLabel, wallLabelEn, aspectMode } = body;
-    
-    let publicUrl = "";
-    if (imageBase64.startsWith('http')) {
-      publicUrl = imageBase64;
-    } else {
+    const { imageBase64, imageUrl, paintColor, wallLabel, wallLabelEn, aspectMode } = await req.json();
+
+    // 1. ATOMIC DEBIT (ONLY ONCE)
+    const { error: debitError } = await serviceRoleClient.from('profiles')
+      .update({ tokens: profile.tokens - 1 })
+      .eq('id', user.id)
+      .gt('tokens', 0);
+
+    if (debitError) throw new Error("Erro ao debitar token.");
+
+    const { data: consumption } = await serviceRoleClient.from('token_consumptions').insert({ 
+      user_id: user.id, 
+      amount: -1, 
+      description: `Pintura: ${wallLabel || 'Parede'}`,
+      metadata: { status: 'processing', paintColor }
+    }).select().single();
+
+    // 2. Prepare Image
+    let publicUrl = imageUrl;
+    if (!publicUrl && imageBase64) {
       const cleanBase64 = imageBase64.replace(/^data:image\/[a-z]+;base64,/, "");
-      const rawBytes = decodeBase64(cleanBase64);
-      const tempFileName = `input_${user.id}_${Date.now()}.png`;
-      await serviceRoleClient.storage.from('images').upload(tempFileName, rawBytes, { contentType: 'image/png' });
-      const { data } = serviceRoleClient.storage.from('images').getPublicUrl(tempFileName);
-      publicUrl = data.publicUrl;
+      const fileName = `input_${user.id}_${Date.now()}.png`;
+      await serviceRoleClient.storage.from('images').upload(fileName, decodeBase64(cleanBase64), { contentType: 'image/png' });
+      publicUrl = serviceRoleClient.storage.from('images').getPublicUrl(fileName).data.publicUrl;
     }
-    
-    const aspectRatio = (aspectMode || "16-9").replace("-", ":");
-    const prompt = `Repaint the ${wallLabelEn || wallLabel || "wall"} to the color ${paintColor}. High realism.`;
-    
-    // 1. Create Task
+
+    // 3. AI Task
+    const prompt = `Repaint the ${wallLabelEn || "wall"} to color ${paintColor}. High realism.`;
     const createRes = await fetch(`${KIE_BASE_URL}/api/v1/jobs/createTask`, {
       method: "POST",
       headers: { "Authorization": `Bearer ${env.KIE_API_KEY}`, "Content-Type": "application/json" },
       body: JSON.stringify({
         model: "flux-2/pro-image-to-image",
-        input: { input_urls: [publicUrl], prompt, aspect_ratio: aspectRatio, resolution: "1K" }
+        input: { input_urls: [publicUrl], prompt, aspect_ratio: (aspectMode || "16:9").replace("-", ":") }
       })
     });
     
-    const createData = await createRes.json();
-    if (createData.code !== 200) throw new Error(`Kie API (Create): ${createData.msg}`);
-    
-    const taskId = createData.data.taskId;
-    let finalImageUrl = "";
+    const taskId = (await createRes.json()).data?.taskId;
+    if (!taskId) throw new Error("Falha na IA.");
 
-    // 2. Polling loop
+    let finalImageUrl = "";
     for (let i = 0; i < 45; i++) {
       await new Promise(r => setTimeout(r, 2000));
-      const pollRes = await fetch(`${KIE_BASE_URL}/api/v1/jobs/recordInfo?taskId=${taskId}`, {
+      const poll = await (await fetch(`${KIE_BASE_URL}/api/v1/jobs/recordInfo?taskId=${taskId}`, {
         headers: { "Authorization": `Bearer ${env.KIE_API_KEY}` }
-      });
-      if (!pollRes.ok) continue;
+      })).json();
       
-      const pollData = await pollRes.json();
-      if (pollData.data?.state === "success") {
-        const result = pollData.data.resultJson;
-        const parsed = typeof result === 'string' ? JSON.parse(result) : result;
-        finalImageUrl = parsed?.resultUrls?.[0] || pollData.data?.recordUrls?.[0];
+      if (poll.data?.state === "success") {
+        const res = typeof poll.data.resultJson === 'string' ? JSON.parse(poll.data.resultJson) : poll.data.resultJson;
+        finalImageUrl = res?.resultUrls?.[0] || poll.data?.recordUrls?.[0];
         if (finalImageUrl) break;
       }
-      if (pollData.data?.state === "fail") throw new Error(`Kie falhou: ${pollData.data.failMsg}`);
     }
 
-    if (!finalImageUrl) throw new Error("Tempo limite de processamento esgotado.");
-
-    // 3. Update tokens (opcionalmente silencioso para não travar o retorno)
-    try {
-      await serviceRoleClient.from('profiles').update({ tokens: Math.max(0, profile.tokens - 1) }).eq('id', user.id);
-      await serviceRoleClient.from('token_consumptions').insert({ 
-        user_id: user.id, 
-        amount: -1, 
-        description: "Pintura IA",
-        metadata: { task_id: taskId }
-      });
-    } catch (dbErr) {
-      console.error("Erro ao atualizar tokens, mas retornando imagem:", dbErr);
+    if (finalImageUrl) {
+      await serviceRoleClient.from('token_consumptions').update({ 
+        metadata: { status: 'success', task_id: taskId, result_url: finalImageUrl } 
+      }).eq('id', consumption.id);
+      return jsonResponse({ imageUrl: finalImageUrl, sucesso: true });
+    } else {
+      await serviceRoleClient.from('token_consumptions').update({ metadata: { status: 'timeout' } }).eq('id', consumption.id);
+      throw new Error("IA Timeout.");
     }
-
-    return jsonResponse({ imageUrl: finalImageUrl, sucesso: true }, 200, req);
 
   } catch (error: any) {
-    console.error("[paint-wall] ERROR:", error.message);
-    // Retornamos o erro no JSON para você ver no console
     return jsonResponse({ error: error.message, sucesso: false }, 500, req);
   }
 });

@@ -18,7 +18,7 @@ export interface Catalog {
 
 export type HeaderContentMode = "logo+name" | "logo" | "name";
 export type HeaderStyleMode = "glass" | "gradient" | "card" | "minimal" | "primary" | "white" | "white-accent";
-export type FontSet = "grotesk" | "rounded" | "neo";
+export type FontSet = "grotesk" | "rounded" | "neo" | "technical";
 
 export interface CropCoordinates {
   x: number;
@@ -45,6 +45,7 @@ export interface Company {
   headerContent?: HeaderContentMode;
   headerStyle?: HeaderStyleMode;
   fontSet?: FontSet;
+  border_radius?: "square" | "rounded" | "soft";
 
   // Sistema de Tokens
   tokens: number;

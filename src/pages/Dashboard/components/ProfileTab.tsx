@@ -183,19 +183,35 @@ export const ProfileTab = ({
                 <div className="space-y-6">
                   <div className="grid sm:grid-cols-2 gap-6">
                     <div className="space-y-2">
-                      <Label className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Nome Completo</Label>
+                      <Label className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground ml-1">Nome Completo</Label>
                       <Input value={profileData?.fullName || ""} onChange={(e) => setProfileData({ ...profileData, fullName: e.target.value })} className="h-11 rounded-xl" />
                     </div>
                     <div className="space-y-2">
-                      <Label className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Telefone</Label>
+                      <Label className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground ml-1">WhatsApp Comercial</Label>
                       <Input value={profileData?.phone || ""} onChange={(e) => setProfileData({ ...profileData, phone: e.target.value })} className="h-11 rounded-xl" />
+                    </div>
+                    <div className="space-y-2">
+                      <Label className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground ml-1">Nome da Empresa</Label>
+                      <Input value={profileData?.companyName || ""} onChange={(e) => setProfileData({ ...profileData, companyName: e.target.value })} className="h-11 rounded-xl" />
+                    </div>
+                    <div className="space-y-2">
+                      <Label className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground ml-1">CNPJ / CPF</Label>
+                      <Input value={profileData?.documentNumber || ""} onChange={(e) => setProfileData({ ...profileData, documentNumber: e.target.value })} className="h-11 rounded-xl" />
+                    </div>
+                    <div className="space-y-2">
+                      <Label className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground ml-1">Website</Label>
+                      <Input value={profileData?.website || ""} onChange={(e) => setProfileData({ ...profileData, website: e.target.value })} className="h-11 rounded-xl" />
+                    </div>
+                    <div className="space-y-2 sm:col-span-2">
+                      <Label className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground ml-1">Endereço Completo</Label>
+                      <Input value={profileData?.address || ""} onChange={(e) => setProfileData({ ...profileData, address: e.target.value })} className="h-11 rounded-xl" />
                     </div>
                   </div>
                   <div className="flex gap-2 pt-4 border-t border-border/40">
                     <Button variant="ghost" onClick={handleCancelEditProfile} disabled={isSavingProfile} className="text-xs font-bold">Cancelar</Button>
                     <Button onClick={handleSaveProfile} disabled={isSavingProfile} className="text-xs font-bold px-6">
                       {isSavingProfile ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4 mr-2" />}
-                      Salvar
+                      Salvar Alterações
                     </Button>
                   </div>
                 </div>

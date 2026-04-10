@@ -1,6 +1,3 @@
-/* Font Imports - Otimizados: Jost (estilo Futura) e Outfit */
-@import url('https://fonts.googleapis.com/css2?family=Jost:ital,wght@0,100..900;1,100..900&family=Outfit:wght@100..900&family=Space+Mono:wght@400;700&display=swap');
-
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -50,10 +47,12 @@
       hsl(184, 74%, 70%)
     );
 
-    /* Font Families */
-    --font-display: 'Jost', sans-serif;
-    --font-sans: 'Jost', sans-serif;
+    /* Font Families - Defaults for the platform */
+    --font-display: 'League Spartan', sans-serif;
+    --font-sans: 'League Spartan', sans-serif;
     --font-mono: 'Space Mono', monospace;
+
+    /* Sidebar Variables */
     --sidebar-background: 0 0% 98%;
     --sidebar-foreground: 265 4% 12.9%;
     --sidebar-primary: 266 4% 20.8%;
@@ -147,15 +146,30 @@
     --sidebar-muted: 266 4% 20.8%;
     --sidebar-muted-foreground: 248 0.3% 98.4%;
   }
-}
 
-@layer base {
+  /* Global Base Styles */
   * {
     @apply border-border;
   }
+  
   body {
     @apply bg-background text-foreground;
     font-feature-settings: "rlig" 1, "calt" 1;
+  }
+
+  /* Specific styles for Landing Page to keep it original */
+  .landing-page {
+    --font-display: 'League Spartan', sans-serif !important;
+    --font-sans: 'League Spartan', sans-serif !important;
+  }
+
+  /* Apply dynamic fonts to the rest of the app */
+  body:not(.landing-page) {
+    font-family: var(--font-sans);
+  }
+
+  h1, h2, h3, h4, h5, h6 {
+    font-family: var(--font-display);
   }
 }
 
@@ -207,9 +221,6 @@
       min-width: var(--mobile-min-touch);
     }
   }
-
-  /* Animation utilities placeholder - using tailwind config animations instead */
-
 
   /* Landing page specific styles */
   .gradient-primary {
@@ -330,11 +341,6 @@
     filter: var(--tw-blur);
   }
 
-  .backdrop-blur-sm {
-    --tw-backdrop-blur: blur(4px);
-    backdrop-filter: var(--tw-backdrop-blur);
-  }
-
   .tracking-wide {
     letter-spacing: 0.05em;
   }
@@ -373,14 +379,6 @@
 
   .h-\[300px\] {
     height: 300px;
-  }
-
-  .h-\[400px\] {
-    height: 400px;
-  }
-
-  .h-\[500px\] {
-    height: 500px;
   }
 
   .-\[3\.4rem\] {

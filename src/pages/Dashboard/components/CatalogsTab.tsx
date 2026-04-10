@@ -12,11 +12,22 @@ import {
   Layers,
   ChevronRight,
   CheckCircle2,
-  Box
+  Box,
+  LayoutGrid
 } from "lucide-react";
 import PaintDialog from "@/components/simulator/PaintDialog";
 import { Paint } from "@/data/defaultColors";
 import { cn } from "@/lib/utils";
+import { useState } from "react";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Label } from "@/components/ui/label";
 
 interface CatalogsTabProps {
   company: any;
@@ -106,6 +117,13 @@ export const CatalogsTab = ({
   setSelectedCatalogId,
   searchTerm,
   setSearchTerm,
+  newCatalogName = "",
+  setNewCatalogName = () => {},
+  editingCatalogId = null,
+  editingCatalogName = "",
+  setEditingCatalogId = () => {},
+  setEditingCatalogName = () => {},
+  handleSaveCatalog = () => {},
   activeCatalog,
   filteredPaints,
   categories,
@@ -124,6 +142,8 @@ export const CatalogsTab = ({
   handleSavePaint,
   isSavingPaint
 }: CatalogsTabProps) => {
+  const [newCatalogDialogOpen, setNewCatalogDialogOpen] = useState(false);
+
   return (
     <div className="space-y-12 animate-in fade-in duration-700">
       
@@ -139,68 +159,70 @@ export const CatalogsTab = ({
           </p>
         </div>
         <div className="flex items-center gap-2">
-           <input type="file" ref={fileInputRef} className="hidden" accept=".csv" onChange={handleImportCSV} />
-           <Button variant="outline" className="h-11 px-5 rounded-xl font-bold text-xs" onClick={() => fileInputRef.current?.click()}>
-              <FileUp className="w-4 h-4 mr-2" /> Importar CSV
-           </Button>
-           <Button onClick={handleAddCatalog} className="h-11 px-6 rounded-xl font-bold text-sm shadow-sm">
+           <Button onClick={() => setNewCatalogDialogOpen(true)} className="h-11 px-6 rounded-xl font-bold text-sm shadow-sm">
             <Plus className="w-4 h-4 mr-2" /> Novo Catálogo
           </Button>
         </div>
       </div>
 
-      <div className="flex flex-col lg:flex-row gap-10 items-start">
-        {/* Sidebar de Catálogos */}
-        <div className="w-full lg:w-64 shrink-0 space-y-6">
-          <h3 className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground px-1">Suas Coleções</h3>
-          <div className="space-y-1">
-            {company?.catalogs?.map((catalog: any) => (
-              <div key={catalog.id} className="group relative">
-                <button
-                  onClick={() => setSelectedCatalogId(catalog.id)}
-                  className={cn(
-                    "w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all border text-left",
-                    selectedCatalogId === catalog.id
-                      ? "bg-white border-primary/20 shadow-sm ring-1 ring-primary/10"
-                      : "bg-transparent border-transparent hover:bg-slate-100/50"
-                  )}
-                >
-                  <div className={cn("w-8 h-8 rounded-lg flex items-center justify-center shrink-0 transition-colors", selectedCatalogId === catalog.id ? "bg-primary text-primary-foreground" : "bg-slate-100 text-muted-foreground")}>
-                    <Box className="w-4 h-4" />
+      {company?.catalogs?.length > 0 ? (
+        <div className="flex flex-col lg:flex-row gap-10 items-start">
+          {/* Sidebar de Catálogos */}
+          <div className="w-full lg:w-64 shrink-0 space-y-6">
+            <h3 className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground px-1">Suas Coleções</h3>
+            <div className="space-y-1">
+              {company?.catalogs?.map((catalog: any) => (
+                <div key={catalog.id} className="group relative">
+                  <button
+                    onClick={() => setSelectedCatalogId(catalog.id)}
+                    className={cn(
+                      "w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all border text-left",
+                      selectedCatalogId === catalog.id
+                        ? "bg-white border-primary/20 shadow-sm ring-1 ring-primary/10"
+                        : "bg-transparent border-transparent hover:bg-slate-100/50"
+                    )}
+                  >
+                    <div className={cn("w-8 h-8 rounded-lg flex items-center justify-center shrink-0 transition-colors", selectedCatalogId === catalog.id ? "bg-primary text-primary-foreground" : "bg-slate-100 text-muted-foreground")}>
+                      <Box className="w-4 h-4" />
+                    </div>
+                    <div className="flex-1 min-w-0 pr-4">
+                      <span className="text-xs font-bold truncate block">{catalog.name}</span>
+                      <span className="text-[9px] font-medium text-muted-foreground uppercase">{catalog.paints?.length || 0} Cores</span>
+                    </div>
+                  </button>
+                  <div className="absolute right-2 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 transition-all flex items-center gap-1">
+                    <Button size="icon" variant="ghost" className="h-6 w-6 rounded-md bg-white border shadow-sm" onClick={(e) => { e.stopPropagation(); handleEditCatalog(catalog.id); }}>
+                      <Pencil className="w-3 h-3" />
+                    </Button>
+                    <Button size="icon" variant="ghost" className="h-6 w-6 rounded-md bg-white border shadow-sm text-red-500" onClick={(e) => { e.stopPropagation(); handleDeleteCatalog(catalog.id); }}>
+                      <Trash2 className="w-3 h-3" />
+                    </Button>
                   </div>
-                  <div className="flex-1 min-w-0 pr-4">
-                    <span className="text-xs font-bold truncate block">{catalog.name}</span>
-                    <span className="text-[9px] font-medium text-muted-foreground uppercase">{catalog.paints?.length || 0} Cores</span>
-                  </div>
-                </button>
-                <div className="absolute right-2 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 transition-all flex items-center gap-1">
-                  <Button size="icon" variant="ghost" className="h-6 w-6 rounded-md bg-white border shadow-sm" onClick={(e) => { e.stopPropagation(); handleEditCatalog(catalog.id); }}>
-                    <Pencil className="w-3 h-3" />
-                  </Button>
-                  <Button size="icon" variant="ghost" className="h-6 w-6 rounded-md bg-white border shadow-sm text-red-500" onClick={(e) => { e.stopPropagation(); handleDeleteCatalog(catalog.id); }}>
-                    <Trash2 className="w-3 h-3" />
-                  </Button>
                 </div>
-              </div>
-            ))}
+              ))}
+            </div>
           </div>
-        </div>
 
-        {/* Grid de Cores */}
-        <div className="flex-1 w-full space-y-10">
-          {activeCatalog ? (
-            <>
-              <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-                <div className="flex items-center gap-3">
-                  <CheckCircle2 className="w-5 h-5 text-primary" />
-                  <h3 className="text-lg font-bold text-foreground">{activeCatalog.name}</h3>
+          {/* Grid de Cores */}
+          <div className="flex-1 w-full space-y-10">
+            {activeCatalog ? (
+              <>
+                <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                  <div className="flex items-center gap-3">
+                    <CheckCircle2 className="w-5 h-5 text-primary" />
+                    <h3 className="text-lg font-bold text-foreground">{activeCatalog.name}</h3>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <input type="file" ref={fileInputRef} className="hidden" accept=".csv" onChange={handleImportCSV} />
+                    <Button variant="ghost" size="sm" className="text-[10px] font-bold uppercase tracking-widest text-primary hover:bg-primary/5" onClick={() => fileInputRef.current?.click()}>
+                      <FileUp className="w-3.5 h-3.5 mr-1.5" /> Importar CSV
+                    </Button>
+                    <div className="h-4 w-px bg-border/60" />
+                    <Button variant="ghost" size="sm" className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground" onClick={handleExportCSV}>Exportar</Button>
+                    <div className="h-4 w-px bg-border/60" />
+                    <Button variant="ghost" size="sm" className="text-[10px] font-bold uppercase tracking-widest text-primary" onClick={handleAddPaint}>Add Cor</Button>
+                  </div>
                 </div>
-                <div className="flex items-center gap-2">
-                  <Button variant="ghost" size="sm" className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground" onClick={handleExportCSV}>Exportar</Button>
-                  <div className="h-4 w-px bg-border/60" />
-                  <Button variant="ghost" size="sm" className="text-[10px] font-bold uppercase tracking-widest text-primary" onClick={handleAddPaint}>Add Cor</Button>
-                </div>
-              </div>
 
               <div className="relative">
                 <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground/30" />
@@ -245,9 +267,93 @@ export const CatalogsTab = ({
             </div>
           )}
         </div>
-      </div>
+      ) : (
+        <div className="py-24 text-center border-2 border-dashed border-border/40 rounded-[2.5rem] bg-slate-50/50 flex flex-col items-center gap-6">
+          <div className="w-16 h-16 rounded-2xl bg-primary/10 flex items-center justify-center">
+            <LayoutGrid className="w-8 h-8 text-primary" />
+          </div>
+          <div className="space-y-2">
+            <h3 className="text-xl font-bold text-foreground">Nenhum catálogo encontrado</h3>
+            <p className="text-muted-foreground text-sm max-w-xs mx-auto">
+              Crie seu primeiro catálogo para começar a cadastrar suas cores de tinta.
+            </p>
+          </div>
+          <Button onClick={() => setNewCatalogDialogOpen(true)} className="rounded-xl font-bold">
+            Criar Primeiro Catálogo
+          </Button>
+        </div>
+      )}
 
       <PaintDialog open={paintDialogOpen} onOpenChange={setPaintDialogOpen} paint={editingPaint} onSave={handleSavePaint} isSaving={isSavingPaint} />
+
+      {/* DIALOG: NOVO CATÁLOGO */}
+      <Dialog open={newCatalogDialogOpen} onOpenChange={setNewCatalogDialogOpen}>
+        <DialogContent className="rounded-[2rem] max-w-sm">
+          <DialogHeader>
+            <DialogTitle className="text-xl font-bold">Novo Catálogo</DialogTitle>
+            <DialogDescription className="text-xs">Dê um nome para sua nova coleção de cores.</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label htmlFor="catalogName" className="text-[10px] font-bold uppercase tracking-widest ml-1">Nome da Coleção</Label>
+              <Input 
+                id="catalogName"
+                placeholder="Ex: Coleção Verão 2024"
+                value={newCatalogName}
+                onChange={(e) => setNewCatalogName(e.target.value)}
+                className="h-12 rounded-xl"
+                autoFocus
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" className="rounded-xl h-11" onClick={() => setNewCatalogDialogOpen(false)}>Cancelar</Button>
+            <Button 
+              className="rounded-xl h-11 px-8 font-bold" 
+              onClick={() => {
+                handleAddCatalog();
+                setNewCatalogDialogOpen(false);
+              }}
+            >
+              Criar Catálogo
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* DIALOG: EDITAR CATÁLOGO */}
+      <Dialog open={!!editingCatalogId} onOpenChange={(open) => !open && setEditingCatalogId(null)}>
+        <DialogContent className="rounded-[2rem] max-w-sm">
+          <DialogHeader>
+            <DialogTitle className="text-xl font-bold">Editar Catálogo</DialogTitle>
+            <DialogDescription className="text-xs">Altere o nome da sua coleção.</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label htmlFor="editCatalogName" className="text-[10px] font-bold uppercase tracking-widest ml-1">Nome da Coleção</Label>
+              <Input 
+                id="editCatalogName"
+                value={editingCatalogName}
+                onChange={(e) => setEditingCatalogName(e.target.value)}
+                className="h-12 rounded-xl"
+                autoFocus
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" className="rounded-xl h-11" onClick={() => setEditingCatalogId(null)}>Cancelar</Button>
+            <Button 
+              className="rounded-xl h-11 px-8 font-bold" 
+              onClick={() => {
+                handleSaveCatalog();
+                setEditingCatalogId(null);
+              }}
+            >
+              Salvar Alterações
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };

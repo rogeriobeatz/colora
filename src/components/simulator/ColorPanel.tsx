@@ -111,7 +111,6 @@ const ColorPanel = ({
               ? "bg-primary text-primary-foreground border-primary shadow-sm" 
               : "bg-white text-muted-foreground border-border hover:bg-slate-50"
           )}
-          style={currentCatalog?.id === cat.id ? { backgroundColor: primaryColor, borderColor: primaryColor } : {}}
         >
           {cat.name}
         </button>
@@ -192,10 +191,9 @@ const ColorPanel = ({
               {selectedPaint && selectedWallLabel && (
                 <Button 
                   size="sm" 
-                  className="h-10 px-5 rounded-xl font-black text-[10px] uppercase tracking-[0.15em] shadow-lg animate-in zoom-in duration-300"
+                  className="h-10 px-5 rounded-xl font-black text-[10px] uppercase tracking-[0.15em] shadow-lg animate-in zoom-in duration-300 bg-primary text-primary-foreground hover:bg-primary/90"
                   disabled={!canApply || isPainting}
                   onClick={(e) => { e.stopPropagation(); onApplyColor(); }}
-                  style={{ backgroundColor: primaryColor }}
                 >
                   {isPainting ? <Loader2 className="w-4 h-4 animate-spin" /> : "Pintar Agora"}
                 </Button>
@@ -230,7 +228,7 @@ const ColorPanel = ({
   return (
     <div className="bg-white rounded-2xl border border-border/50 shadow-soft flex flex-col h-[750px] overflow-hidden transition-all duration-500">
       <div className="p-6 border-b border-border/40 bg-slate-50/30 shrink-0">
-        <div className="flex items-center gap-2 text-primary font-black uppercase tracking-[0.3em] text-[10px] mb-2" style={{ color: primaryColor }}>
+        <div className="flex items-center gap-2 text-primary font-black uppercase tracking-[0.3em] text-[10px] mb-2">
           <Palette className="w-4 h-4" /> Seletor de Cores
         </div>
         <h3 className="text-xl font-black text-foreground leading-tight tracking-tight">Catálogo de Tintas</h3>
@@ -271,14 +269,13 @@ const ColorPanel = ({
             <div className="flex flex-col gap-2">
               {selectedWallLabel && (
                 <div className="flex items-center gap-2 text-[9px] font-bold text-muted-foreground uppercase tracking-widest bg-slate-50 p-2 rounded-lg border border-border/40">
-                  <Box className="w-3 h-3" /> Aplicar em: <span className="font-black" style={{ color: primaryColor }}>{selectedWallLabel}</span>
+                  <Box className="w-3 h-3" /> Aplicar em: <span className="font-black text-primary">{selectedWallLabel}</span>
                 </div>
               )}
               <Button
-                className="w-full h-12 font-black text-[10px] uppercase tracking-[0.2em] shadow-lg gap-2 rounded-xl"
+                className="w-full h-12 font-black text-[10px] uppercase tracking-[0.2em] shadow-lg gap-2 rounded-xl bg-primary text-primary-foreground hover:bg-primary/90"
                 disabled={!canApply || isPainting}
                 onClick={onApplyColor}
-                style={{ backgroundColor: primaryColor }}
               >
                 {isPainting ? (
                   <Loader2 className="w-4 h-4 animate-spin" />

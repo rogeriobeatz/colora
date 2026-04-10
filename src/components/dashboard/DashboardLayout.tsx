@@ -2,9 +2,10 @@ import React, { useState } from "react";
 import { DashboardSidebar } from "./DashboardSidebar";
 import { cn } from "@/lib/utils";
 import { useStore } from "@/contexts/StoreContext";
-import { Menu, X, Palette, Sparkles } from "lucide-react";
+import { Menu, X, Palette } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
+import { TokenBadge } from "@/components/ui/token-badge";
 
 interface DashboardLayoutProps {
   children: React.ReactNode;
@@ -97,22 +98,14 @@ export const DashboardLayout = ({
 
             <div className="flex items-center gap-3 lg:gap-6">
               {/* Tokens Minimalist - Standardized with Simulator */}
-              <div className={cn(
-                "flex items-center gap-2 px-3 py-1.5 rounded-full border transition-all shrink-0",
-                (headerStyle === "primary" || headerStyle === "gradient")
-                  ? "bg-white/20 border-white/20 text-white"
-                  : "bg-primary/5 border-primary/10 text-primary"
-              )}>
-                <Sparkles className="w-3 h-3 opacity-60" />
-                <span className="text-[10px] font-bold">{tokens}</span>
-              </div>
+              <TokenBadge tokens={tokens} />
             </div>
           </header>
         </div>
 
         {/* Content Container */}
-        <div className="flex-1 overflow-y-auto overflow-x-hidden p-4 lg:p-12">
-          <div className="max-w-5xl mx-auto animate-in fade-in duration-700">
+        <div className="flex-1 overflow-y-auto overflow-x-hidden p-4 lg:p-8">
+          <div className="max-w-6xl mx-auto animate-in fade-in duration-700">
             {children}
           </div>
         </div>
