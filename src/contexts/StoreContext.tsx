@@ -16,7 +16,7 @@ interface Profile {
   header_content: string | null;
   header_style: string | null;
   font_set: string | null;
-  border_radius: string | null;
+  border_radius?: string | null;
   document_number: string | null;
   tokens: number | null;
   tokens_expires_at: string | null;
