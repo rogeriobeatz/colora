@@ -27,7 +27,7 @@ serve(async (req) => {
     if (!env.KIE_API_KEY || !env.SUPABASE_URL || !env.SUPABASE_SERVICE_ROLE_KEY) throw new Error("Configurações ausentes.");
     
     const serviceRoleClient = createClient(env.SUPABASE_URL, env.SUPABASE_SERVICE_ROLE_KEY);
-    const userClient = createClient(env.SUPABASE_URL, env.SUPABASE_ANON_KEY, {
+    const userClient = createClient(env.SUPABASE_URL!, env.SUPABASE_ANON_KEY!, {
       global: { headers: { Authorization: req.headers.get("Authorization")! } },
     });
     
@@ -95,7 +95,7 @@ serve(async (req) => {
       await serviceRoleClient.from('token_consumptions').update({ 
         metadata: { status: 'success', task_id: taskId, result_url: finalImageUrl } 
       }).eq('id', consumption.id);
-      return jsonResponse({ imageUrl: finalImageUrl, sucesso: true });
+      return jsonResponse({ imageUrl: finalImageUrl, sucesso: true }, 200, req);
     } else {
       await serviceRoleClient.from('token_consumptions').update({ metadata: { status: 'timeout' } }).eq('id', consumption.id);
       throw new Error("IA Timeout.");

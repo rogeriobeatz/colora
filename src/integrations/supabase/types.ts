@@ -87,7 +87,6 @@ export type Database = {
       profiles: {
         Row: {
           avatar_url: string | null
-          border_radius: string | null
           company_address: string | null
           company_name: string | null
           company_phone: string | null

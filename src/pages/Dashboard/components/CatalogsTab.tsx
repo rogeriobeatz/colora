@@ -267,6 +267,7 @@ export const CatalogsTab = ({
             </div>
           )}
         </div>
+        </div>
       ) : (
         <div className="py-24 text-center border-2 border-dashed border-border/40 rounded-[2.5rem] bg-slate-50/50 flex flex-col items-center gap-6">
           <div className="w-16 h-16 rounded-2xl bg-primary/10 flex items-center justify-center">
