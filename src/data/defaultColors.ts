@@ -52,6 +52,7 @@ export interface Company {
   tokensExpiresAt: string | null;
   subscriptionStatus: 'active' | 'inactive';
   lastTokenDeposit: string | null;
+  accountType: 'trial' | 'subscriber' | 'churned';
 
   // Documento da empresa
   documentNumber?: string;
@@ -200,5 +201,6 @@ export function createDefaultCompany(name: string): Company {
     tokensExpiresAt: null,
     subscriptionStatus: 'inactive',
     lastTokenDeposit: null,
+    accountType: 'trial',
   };
 }

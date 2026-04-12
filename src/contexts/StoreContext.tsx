@@ -22,6 +22,7 @@ interface Profile {
   tokens_expires_at: string | null;
   subscription_status: string | null;
   last_token_deposit: string | null;
+  account_type: string | null;
 }
 
 interface StoreContextType {
@@ -84,6 +85,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
           tokensExpiresAt: p.tokens_expires_at,
           subscriptionStatus: (p.subscription_status as 'active' | 'inactive') || 'inactive',
           lastTokenDeposit: p.last_token_deposit,
+          accountType: (p.account_type as 'trial' | 'subscriber' | 'churned') || 'trial',
         };
         setCompanyState(formatted);
       }
