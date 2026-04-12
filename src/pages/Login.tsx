@@ -5,7 +5,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Mail, Lock, ArrowLeft, Eye, EyeOff } from "lucide-react";
+import { Mail, Lock, ArrowLeft, Eye, EyeOff, Sparkles } from "lucide-react";
 import { toast } from "sonner";
 import { ColoraSpinner } from "@/components/ui/colora-spinner";
 import PublicLayout from "@/components/layouts/PublicLayout";
@@ -36,20 +36,21 @@ const Login = () => {
     e.preventDefault();
     setLoading(true);
     try {
-      const { error: signUpError, data } = await supabase.auth.signUp({
+      const { error: signUpError } = await supabase.auth.signUp({
         email, password,
-        options: { data: { full_name: fullName, user_type: 'company', company_name: companyName, company_slug: generateSlug(companyName) } }
+        options: { 
+          data: { 
+            full_name: fullName, 
+            user_type: 'trial', 
+            company_name: companyName, 
+            company_slug: generateSlug(companyName) 
+          } 
+        }
       });
       if (signUpError) throw signUpError;
-      if (data.user?.id) {
-        const { error: profileError } = await supabase.from('profiles').insert({
-          id: data.user.id, full_name: fullName, company_name: companyName, company_slug: generateSlug(companyName),
-          tokens: 0, subscription_status: 'inactive', document_type: 'cpf', document_number: '', stripe_customer_id: null,
-        });
-        if (profileError) throw new Error('Erro ao criar perfil. Tente novamente.');
-      }
-      toast.success("Conta criada com sucesso!", { description: "Sua conta foi criada com saldo zerado. Assine um plano para obter tokens." });
-      setStep("login");
+      toast.success("Conta criada com sucesso!", { 
+        description: "Você ganhou 3 simulações grátis para testar o Colora!" 
+      });
     } catch (error: any) {
       toast.error("Erro ao criar conta", { description: error.message });
     } finally {
@@ -80,8 +81,8 @@ const Login = () => {
               <ArrowLeft className="w-4 h-4" /> Voltar
             </button>
             <div className="text-center mb-6">
-              <h2 className="text-2xl font-display font-bold text-foreground">Criar Conta Gratuita</h2>
-              <p className="text-sm text-muted-foreground mt-1">Cadastre sua empresa e comece a usar o Colora</p>
+              <h2 className="text-2xl font-display font-bold text-foreground">Testar Gratuitamente</h2>
+              <p className="text-sm text-muted-foreground mt-1">Ganhe 3 simulações grátis para conhecer o Colora</p>
             </div>
             <div className="space-y-4">
               <div className="space-y-2">
@@ -92,7 +93,7 @@ const Login = () => {
                 <Label htmlFor="fullName">Seu Nome Completo</Label>
                 <Input id="fullName" placeholder="Ex: João Silva" value={fullName} onChange={(e) => setFullName(e.target.value)} className="h-12" />
               </div>
-              <Button className="w-full h-12 text-base" disabled={!fullName || !companyName} onClick={() => setStep("credentials")}>Continuar</Button>
+              <Button className="w-full h-12 text-base bg-emerald-600 hover:bg-emerald-700" disabled={!fullName || !companyName} onClick={() => setStep("credentials")}>Continuar</Button>
             </div>
           </div>
         );
@@ -124,8 +125,8 @@ const Login = () => {
                   </button>
                 </div>
               </div>
-              <Button type="submit" className="w-full h-12 text-base" disabled={loading}>
-                {loading ? <ColoraSpinner size="sm" /> : "Criar Conta Gratuita"}
+              <Button type="submit" className="w-full h-12 text-base bg-emerald-600 hover:bg-emerald-700" disabled={loading}>
+                {loading ? <ColoraSpinner size="sm" /> : "Criar Conta e Testar Grátis"}
               </Button>
             </div>
           </form>
@@ -161,16 +162,16 @@ const Login = () => {
               <Button type="submit" className="w-full h-12 text-base" disabled={loading}>
                 {loading ? <ColoraSpinner size="sm" /> : "Entrar no Painel"}
               </Button>
-              <div className="text-center pt-4">
-                <Link to="/checkout" className="text-sm text-muted-foreground hover:text-primary transition-colors">
-                  Quer tokens? <span className="font-bold">Assine um plano</span>
-                </Link>
-                <div className="mt-2">
-                  <button type="button" onClick={() => setStep("info")} className="text-xs text-muted-foreground hover:text-primary transition-colors">
-                    Ou <span className="font-bold">crie conta gratuita</span>
-                  </button>
-                </div>
+              <div className="relative my-6">
+                <div className="absolute inset-0 flex items-center"><div className="w-full border-t border-border" /></div>
+                <div className="relative flex justify-center text-xs uppercase"><span className="bg-card px-2 text-muted-foreground">ou</span></div>
               </div>
+              <Button type="button" variant="outline" className="w-full h-12 text-base border-emerald-300 text-emerald-700 hover:bg-emerald-50 gap-2" onClick={() => setStep("info")}>
+                <Sparkles className="w-4 h-4" /> Testar Gratuitamente
+              </Button>
+              <p className="text-[11px] text-center text-muted-foreground mt-2">
+                Ganhe 3 simulações grátis, sem cartão de crédito
+              </p>
             </div>
           </form>
         );
