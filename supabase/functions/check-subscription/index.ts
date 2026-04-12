@@ -51,7 +51,7 @@ serve(async (req) => {
 
     if (customers.data.length === 0) {
       logStep("No Stripe customer found");
-      await updateProfileStatus(supabaseAdmin, user.id, 'inactive');
+      await updateProfileStatus(supabaseAdmin, user.id, 'inactive', 'trial');
       return new Response(JSON.stringify({ subscribed: false }), {
         headers: { ...headers, "Content-Type": "application/json" },
         status: 200,
@@ -88,10 +88,17 @@ serve(async (req) => {
       } catch { /* ignore date parsing errors */ }
       
       logStep("Active subscription", { subscriptionId: sub.id, end: subscriptionEnd });
-      await updateProfileStatus(supabaseAdmin, user.id, 'active');
+      await updateProfileStatus(supabaseAdmin, user.id, 'active', 'subscriber');
     } else {
       logStep("No active subscription");
-      await updateProfileStatus(supabaseAdmin, user.id, 'inactive');
+      // Don't override trial users to churned if they never subscribed
+      const { data: profile } = await supabaseAdmin
+        .from('profiles')
+        .select('account_type')
+        .eq('id', user.id)
+        .maybeSingle();
+      const newAccountType = profile?.account_type === 'trial' ? 'trial' : 'churned';
+      await updateProfileStatus(supabaseAdmin, user.id, 'inactive', newAccountType);
     }
 
     return new Response(JSON.stringify({
@@ -110,7 +117,7 @@ serve(async (req) => {
   }
 });
 
-async function updateProfileStatus(supabase: any, userId: string, status: string) {
+async function updateProfileStatus(supabase: any, userId: string, status: string, accountType?: string) {
   const { data: profile } = await supabase
     .from('profiles')
     .select('id')
@@ -118,9 +125,11 @@ async function updateProfileStatus(supabase: any, userId: string, status: string
     .maybeSingle();
 
   if (profile) {
+    const updates: any = { subscription_status: status, updated_at: new Date().toISOString() };
+    if (accountType) updates.account_type = accountType;
     await supabase
       .from('profiles')
-      .update({ subscription_status: status, updated_at: new Date().toISOString() })
+      .update(updates)
       .eq('id', userId);
   }
 }
