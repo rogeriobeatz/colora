@@ -45,7 +45,8 @@ serve(async (req) => {
         const amount = 200; // Valor padrão da assinatura
         await supabaseAdmin.from("profiles").update({ 
           tokens: (profile.tokens || 0) + amount,
-          subscription_status: "active" 
+          subscription_status: "active",
+          account_type: "subscriber"
         }).eq("id", profile.id);
 
         await supabaseAdmin.from("token_consumptions").insert({
@@ -62,7 +63,7 @@ serve(async (req) => {
 
     if (event.type === "customer.subscription.deleted") {
       const sub = event.data.object as Stripe.Subscription;
-      await supabaseAdmin.from("profiles").update({ subscription_status: "inactive" }).eq("stripe_customer_id", sub.customer as string);
+      await supabaseAdmin.from("profiles").update({ subscription_status: "inactive", account_type: "churned" }).eq("stripe_customer_id", sub.customer as string);
       logStep("Subscription Terminated", { customer: sub.customer });
     }
 

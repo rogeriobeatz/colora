@@ -150,6 +150,7 @@ serve(async (req) => {
         id: userId,
         tokens: newTokens,
         subscription_status: 'active',
+        account_type: 'subscriber',
         updated_at: new Date().toISOString(),
       };
 

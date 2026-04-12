@@ -86,6 +86,7 @@ export type Database = {
       }
       profiles: {
         Row: {
+          account_type: string
           avatar_url: string | null
           border_radius: string | null
           company_address: string | null
@@ -110,6 +111,7 @@ export type Database = {
           updated_at: string | null
         }
         Insert: {
+          account_type?: string
           avatar_url?: string | null
           border_radius?: string | null
           company_address?: string | null
@@ -134,6 +136,7 @@ export type Database = {
           updated_at?: string | null
         }
         Update: {
+          account_type?: string
           avatar_url?: string | null
           border_radius?: string | null
           company_address?: string | null
@@ -191,21 +194,27 @@ export type Database = {
           amount: number
           created_at: string | null
           description: string | null
+          external_id: string | null
           id: string
+          source: string | null
           user_id: string
         }
         Insert: {
           amount: number
           created_at?: string | null
           description?: string | null
+          external_id?: string | null
           id?: string
+          source?: string | null
           user_id: string
         }
         Update: {
           amount?: number
           created_at?: string | null
           description?: string | null
+          external_id?: string | null
           id?: string
+          source?: string | null
           user_id?: string
         }
         Relationships: []

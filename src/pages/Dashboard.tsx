@@ -22,6 +22,7 @@ import { useTokenManagement } from "./Dashboard/hooks/useTokenManagement";
 import { useCatalogManagement } from "./Dashboard/hooks/useCatalogManagement";
 import { useAccessibleStyles } from "@/hooks/useAccessibleStyles";
 import { ColoraSpinner } from "@/components/ui/colora-spinner";
+import { TrialBanner } from "@/components/ui/trial-banner";
 
 const Dashboard = () => {
   // Hooks principais
@@ -133,6 +134,9 @@ const Dashboard = () => {
       recentProjects={dashboardState.sessions}
       onOpenProject={dashboardState.handleOpenProject}
     >
+
+      {/* Trial Banner */}
+      <TrialBanner variant="dashboard" className="mb-6" />
 
       {/* ── CONTEÚDO DINÂMICO BASEADO NA ABA ATIVA ────────────────────────── */}
       

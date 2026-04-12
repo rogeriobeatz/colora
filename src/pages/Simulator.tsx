@@ -28,6 +28,7 @@ import { ImageCropper } from "@/components/ImageCropper";
 import { AspectMode } from "@/components/simulator/types";
 import { cn } from "@/lib/utils";
 import { ColoraSpinner } from "@/components/ui/colora-spinner";
+import { TrialBanner } from "@/components/ui/trial-banner";
 
 const Simulator = ({ companySlug }: { companySlug?: string }) => {
   const { company } = useStore();
@@ -172,6 +173,7 @@ const Simulator = ({ companySlug }: { companySlug?: string }) => {
         onOpenProjects={() => setProjectsOpen(true)}
       />
 
+      <TrialBanner variant="simulator" />
       <div className="container mx-auto px-4 py-8 max-w-6xl flex-1 pb-24 sm:pb-20 lg:pb-8">
         {!activeRoom ? (
           <div className="animate-in fade-in duration-700">
