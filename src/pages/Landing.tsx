@@ -366,11 +366,7 @@ const Landing = () => {
               <ul className="space-y-4 text-[13px] font-light text-slate-400">
                 <li className="flex items-center gap-4">
                   <Mail className="w-4 h-4 opacity-30" />
-                  contato@colora.com.br
-                </li>
-                <li className="flex items-center gap-4">
-                  <Phone className="w-4 h-4 opacity-30" />
-                  (11) 91234-5678
+                  contato@colora.app.br
                 </li>
               </ul>
             </div>
@@ -379,7 +375,7 @@ const Landing = () => {
           <div className="pt-12 border-t border-white/5 flex flex-col md:flex-row justify-between items-center gap-10">
             <div className="text-center md:text-left space-y-2">
               <p className="text-[10px] font-medium text-slate-600 uppercase tracking-widest">
-                © 2026 Colora IA. CNPJ: 54.321.987/0001-00
+                © {new Date().getFullYear()} Colora IA. Todos os direitos reservados.
               </p>
               <p className="text-[9px] text-slate-700 font-medium uppercase tracking-tighter">Powered by Stripe & Google Cloud</p>
             </div>

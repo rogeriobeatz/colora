@@ -101,9 +101,20 @@ serve(async (req) => {
       await updateProfileStatus(supabaseAdmin, user.id, 'inactive', newAccountType);
     }
 
+    // Get updated profile for response
+    const { data: finalProfile } = await supabaseAdmin
+      .from('profiles')
+      .select('tokens, subscription_status, account_type')
+      .eq('id', user.id)
+      .maybeSingle();
+
     return new Response(JSON.stringify({
+      success: true,
       subscribed: hasActiveSub,
       subscription_end: subscriptionEnd,
+      subscriptionStatus: finalProfile?.subscription_status || (hasActiveSub ? 'active' : 'inactive'),
+      tokens: finalProfile?.tokens ?? 0,
+      accountType: finalProfile?.account_type || 'trial',
     }), {
       headers: { ...headers, "Content-Type": "application/json" },
       status: 200,
