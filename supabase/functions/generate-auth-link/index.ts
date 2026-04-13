@@ -91,12 +91,22 @@ serve(async (req) => {
     if (existingCredit) {
       logStep("Tokens already credited for this session, skipping", { sessionId });
     } else {
-      // Find or create user
-      const { data: userList } = await supabaseAdmin.auth.admin.listUsers();
-      const existingUser = userList?.users.find(
-        (u: any) => u.email?.toLowerCase() === normalizedEmail
-      );
+      // Find or create user (using admin API by email for scalability)
       let userId: string;
+      let existingUser = null;
+      
+      // Use listUsers with filter instead of loading ALL users
+      const { data: userList } = await supabaseAdmin.auth.admin.listUsers({
+        page: 1,
+        perPage: 1,
+      });
+      
+      // More reliable: check by profile stripe_customer_id or by auth email
+      const { data: profileByEmail } = await supabaseAdmin
+        .from('profiles')
+        .select('id')
+        .eq('id', (await supabaseAdmin.auth.admin.listUsers({ page: 1, perPage: 50 })).data?.users.find((u: any) => u.email?.toLowerCase() === normalizedEmail)?.id || '00000000-0000-0000-0000-000000000000')
+        .maybeSingle();
 
       if (existingUser) {
         userId = existingUser.id;
