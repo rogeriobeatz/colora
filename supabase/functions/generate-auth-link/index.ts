@@ -91,44 +91,39 @@ serve(async (req) => {
     if (existingCredit) {
       logStep("Tokens already credited for this session, skipping", { sessionId });
     } else {
-      // Find or create user (using admin API by email for scalability)
+      // Find or create user - try to create first, handle "already exists"
       let userId: string;
-      let existingUser = null;
-      
-      // Use listUsers with filter instead of loading ALL users
-      const { data: userList } = await supabaseAdmin.auth.admin.listUsers({
-        page: 1,
-        perPage: 1,
-      });
-      
-      // More reliable: check by profile stripe_customer_id or by auth email
-      const { data: profileByEmail } = await supabaseAdmin
-        .from('profiles')
-        .select('id')
-        .eq('id', (await supabaseAdmin.auth.admin.listUsers({ page: 1, perPage: 50 })).data?.users.find((u: any) => u.email?.toLowerCase() === normalizedEmail)?.id || '00000000-0000-0000-0000-000000000000')
-        .maybeSingle();
 
-      if (existingUser) {
-        userId = existingUser.id;
-        logStep("Existing user found", { userId });
-      } else {
-        // Create new user
-        const tempPassword = `Colora@${crypto.randomUUID().slice(0, 12)}`;
-        const { data: newUser, error: createError } = await supabaseAdmin.auth.admin.createUser({
-          email: normalizedEmail,
-          password: tempPassword,
-          email_confirm: true,
-          user_metadata: { 
-            full_name: customerName, 
-            source: 'stripe_checkout',
-            needs_password: true,
-            payment_session: sessionId
-          }
-        });
-
-        if (createError) {
-          throw new Error(`User creation failed: ${createError.message}`);
+      const { data: newUser, error: createError } = await supabaseAdmin.auth.admin.createUser({
+        email: normalizedEmail,
+        password: `Colora@${crypto.randomUUID().slice(0, 12)}`,
+        email_confirm: true,
+        user_metadata: { 
+          full_name: customerName, 
+          source: 'stripe_checkout',
+          needs_password: true,
+          payment_session: sessionId
         }
+      });
+
+      if (createError) {
+        // User already exists - find them via magic link generation (which returns user data)
+        // or by generating a recovery link
+        logStep("User already exists, looking up", { error: createError.message });
+        
+        // Use generateLink to find user ID
+        const { data: linkData, error: linkError } = await supabaseAdmin.auth.admin.generateLink({
+          type: 'magiclink',
+          email: normalizedEmail,
+        });
+        
+        if (linkError || !linkData?.user) {
+          throw new Error(`Cannot find existing user: ${linkError?.message || 'Unknown error'}`);
+        }
+        
+        userId = linkData.user.id;
+        logStep("Existing user found via generateLink", { userId });
+      } else {
         userId = newUser.user.id;
         logStep("New user created", { userId });
       }
