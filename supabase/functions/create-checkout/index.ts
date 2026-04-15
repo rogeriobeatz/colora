@@ -122,8 +122,8 @@ serve(async (req) => {
     });
 
     // Verificar se os preços existem antes de criar sessão
-    const subscriptionPrice = isSubscription ? "price_1T458zRjNIKJreFo2hsTiIKO" : null;
-    const rechargePrice = !isSubscription ? "price_1T459DRjNIKJreFoNCmabUQM" : null;
+    const subscriptionPrice = isSubscription ? "price_1TMJyxDjnFXv6Lea0fS0peL1" : null;
+    const rechargePrice = !isSubscription ? "price_1TMJz5DjnFXv6LeaLN6eugl2" : null;
     
     logStep("PRICE CHECK", {
       isSubscription,
