@@ -99,6 +99,17 @@ export const useCatalogManagement = () => {
     }
   };
 
+  const handleToggleCatalog = async (catalogId: string, active: boolean) => {
+    console.log('handleToggleCatalog called:', catalogId, active);
+    try {
+      await updateCatalog(catalogId, { active });
+      toast.success(active ? "Catálogo ativado!" : "Catálogo desativado!");
+    } catch (error) {
+      console.error("Erro ao alternar catálogo:", error);
+      toast.error("Erro ao alternar catálogo");
+    }
+  };
+
   const handleImportCSV = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -231,6 +242,7 @@ export const useCatalogManagement = () => {
     handleDeleteCatalog,
     handleEditCatalog,
     handleSaveCatalog,
+    handleToggleCatalog,
     handleImportCSV,
     handleExportCSV,
     handleAddPaint,

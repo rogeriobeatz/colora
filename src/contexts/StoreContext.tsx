@@ -60,7 +60,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
 
       const [profileRes, catalogsRes] = await Promise.all([
         supabase.from('profiles').select('*').eq('id', session.user.id).maybeSingle(),
-        supabase.from('catalogs').select('*, paints(*)').eq('company_id', session.user.id)
+        supabase.from('catalogs').select('*, paints(*)').or(`company_id.eq.${session.user.id},is_default.eq.true`)
       ]);
 
       if (profileRes.data) {
@@ -128,8 +128,10 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   };
 
   const updateCatalog = async (id: string, updates: Partial<Catalog>) => {
+    console.log('updateCatalog called:', id, updates);
     if (!company) return;
     const { error } = await supabase.from('catalogs').update(updates).eq('id', id);
+    console.log('updateCatalog result:', error);
     if (!error) {
       setCompanyState({ ...company, catalogs: company.catalogs.map(c => c.id === id ? { ...c, ...updates } : c) });
     }
@@ -137,6 +139,14 @@ export function StoreProvider({ children }: { children: ReactNode }) {
 
   const deleteCatalog = async (id: string) => {
     if (!company) return;
+    
+    // Impedir exclusão de catálogo padrão
+    const catalog = company.catalogs.find(c => c.id === id);
+    if (catalog && catalog.id === '00000000-0000-0000-0000-000000000001') {
+      toast.error("O catálogo padrão não pode ser excluído, apenas desativado.");
+      return;
+    }
+    
     const { error } = await supabase.from('catalogs').delete().eq('id', id);
     if (!error) {
       setCompanyState({ ...company, catalogs: company.catalogs.filter(c => c.id !== id) });

@@ -1,4 +1,4 @@
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { 
@@ -26,8 +26,9 @@ interface OverviewTabProps {
   handleDeleteSession: (id: string) => void;
 }
 
-const StatCard = ({ label, value, sub, icon: Icon, trend }: any) => (
-  <div className="bg-card rounded-xl border border-border/50 p-4 sm:p-6 transition-all duration-normal hover:border-primary/20 shadow-sm hover:shadow-md animate-fade-in">
+const StatCard = ({ label, value, sub, icon: Icon, trend, onClick }: any) => (
+  <div className="bg-card rounded-xl border border-border/50 p-4 sm:p-6 transition-all duration-normal hover:border-primary/20 shadow-sm hover:shadow-md animate-fade-in cursor-pointer"
+       onClick={onClick}>
     <div className="flex items-center justify-between mb-3 sm:mb-4">
       <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-xl flex items-center justify-center bg-slate-50 text-foreground/60 border border-border/40 shadow-sm">
         <Icon className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
@@ -51,7 +52,8 @@ const ProjectCard = ({ session, onOpen, onDelete, formatDate }: any) => {
   const thumbnailUrl = firstRoom?.thumbnailUrl || firstRoom?.imageUrl || "/placeholder.svg";
 
   return (
-    <div className="group bg-card rounded-xl border border-border/50 overflow-hidden hover:border-primary/30 hover:shadow-sm transition-all duration-normal animate-fade-in">
+    <div className="group bg-card rounded-xl border border-border/50 overflow-hidden hover:border-primary/30 hover:shadow-sm transition-all duration-normal animate-fade-in cursor-pointer"
+         onClick={() => onOpen(session.id)}>
       <div className="aspect-video w-full bg-slate-100 relative overflow-hidden">
         <img 
           src={thumbnailUrl} 
@@ -59,10 +61,10 @@ const ProjectCard = ({ session, onOpen, onDelete, formatDate }: any) => {
           className="w-full h-full object-cover transition-transform duration-normal group-hover:scale-105"
         />
         <div className="absolute inset-0 bg-black/20 opacity-0 group-hover:opacity-100 transition-opacity duration-normal flex items-center justify-center gap-2">
-          <Button size="sm" onClick={() => onOpen(session.id)} className="h-8 px-4 rounded-lg font-bold text-xs mobile-touch-target">
+          <Button size="sm" onClick={(e) => { e.stopPropagation(); onOpen(session.id); }} className="h-8 px-4 rounded-lg font-bold text-xs mobile-touch-target">
             Abrir
           </Button>
-          <Button size="icon" variant="secondary" onClick={() => onDelete(session.id)} className="h-8 w-8 rounded-lg bg-white/90 border-red-200 hover:bg-red-50 group mobile-touch-target">
+          <Button size="icon" variant="secondary" onClick={(e) => { e.stopPropagation(); onDelete(session.id); }} className="h-8 w-8 rounded-lg bg-white/90 border-red-200 hover:bg-red-50 group mobile-touch-target">
             <Trash2 className="w-3.5 h-3.5 text-red-600 group-hover:text-red-700" />
           </Button>
         </div>
@@ -94,6 +96,29 @@ export const OverviewTab = ({
   const totalPaints = company?.catalogs?.reduce((s: number, c: any) => s + c.paints.length, 0) || 0;
   const activeCatalogs = company?.catalogs?.filter((c: any) => c.active).length || 0;
 
+  // Navegação para cards estatísticos - seguindo exemplo da barra lateral
+  const navigate = useNavigate();
+
+  const handleStatCardClick = (type: string) => {
+    switch (type) {
+      case 'Projetos':
+        // Já está na visão geral
+        break;
+      case 'Simulações':
+        // Navegar para aba de catálogos (onde estão as cores)
+        navigate('/dashboard?tab=catalogs');
+        break;
+      case 'Cores':
+        // Navegar para aba de catálogos (onde estão as cores)
+        navigate('/dashboard?tab=catalogs');
+        break;
+      case 'Catálogos':
+        // Navegar para aba de catálogos (onde estão os catálogos)
+        navigate('/dashboard?tab=catalogs');
+        break;
+    }
+  };
+
   return (
     <div className="space-y-8 sm:space-y-12 animate-fade-in">
       
@@ -117,6 +142,7 @@ export const OverviewTab = ({
             sub="Total criados"
             icon={FolderOpen}
             trend="+12%"
+            onClick={() => handleStatCardClick('Projetos')}
           />
           <StatCard
             label="Simulações"
@@ -124,18 +150,21 @@ export const OverviewTab = ({
             sub="Este mês"
             icon={Layers}
             trend="+8%"
+            onClick={() => handleStatCardClick('Simulações')}
           />
           <StatCard
             label="Cores"
             value={totalPaints}
             sub="No catálogo"
             icon={Palette}
+            onClick={() => handleStatCardClick('Cores')}
           />
           <StatCard
             label="Catálogos"
             value={activeCatalogs}
             sub="Ativos"
             icon={TrendingUp}
+            onClick={() => handleStatCardClick('Catálogos')}
           />
         </div>
       </div>

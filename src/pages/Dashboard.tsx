@@ -30,6 +30,7 @@ const Dashboard = () => {
   const tokenManagement = useTokenManagement();
   const catalogManagement = useCatalogManagement();
   const accessibleStyles = useAccessibleStyles();
+  const navigate = useNavigate();
 
   // Estado para aba ativa (substituindo o Tabs do Radix por controle via Sidebar)
   const [activeTab, setActiveTab] = useState("overview");
@@ -44,6 +45,11 @@ const Dashboard = () => {
     branding: "Identidade Visual",
     profile: "Tokens & Faturamento",
     settings: "Configurações da Conta"
+  };
+
+  // Modificar handleOpenProject para navegar para o simulador
+  const handleOpenProject = (sessionId: string) => {
+    navigate(`/simulator?session=${sessionId}`);
   };
 
   const handleSaveSettings = async () => {
@@ -146,7 +152,7 @@ const Dashboard = () => {
             company={dashboardState.company}
             sessions={dashboardState.sessions}
             sessionsLoading={dashboardState.sessionsLoading}
-            handleOpenProject={dashboardState.handleOpenProject}
+            handleOpenProject={handleOpenProject}
             handleNewProject={dashboardState.handleNewProject}
             handleDeleteSession={dashboardState.handleDeleteSession}
           />
@@ -178,6 +184,7 @@ const Dashboard = () => {
             handleDeleteCatalog={catalogManagement.handleDeleteCatalog}
             handleEditCatalog={catalogManagement.handleEditCatalog}
             handleSaveCatalog={catalogManagement.handleSaveCatalog}
+            handleToggleCatalog={catalogManagement.handleToggleCatalog}
             handleImportCSV={catalogManagement.handleImportCSV}
             handleExportCSV={catalogManagement.handleExportCSV}
             handleAddPaint={catalogManagement.handleAddPaint}

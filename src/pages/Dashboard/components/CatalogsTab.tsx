@@ -1,6 +1,7 @@
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
+import { Switch } from "@/components/ui/switch";
 import { 
   Plus, 
   FileUp, 
@@ -49,6 +50,7 @@ interface CatalogsTabProps {
   handleAddCatalog: () => void;
   handleDeleteCatalog: (id: string) => void;
   handleEditCatalog: (id: string) => void;
+  handleToggleCatalog: (id: string, active: boolean) => void;
   handleImportCSV: (e: React.ChangeEvent<HTMLInputElement>) => void;
   handleExportCSV: () => void;
   handleAddPaint: () => void;
@@ -61,10 +63,10 @@ interface CatalogsTabProps {
   isSavingPaint: boolean;
 }
 
-const PaintCard = ({ paint, onEdit, onDelete }: { paint: Paint, onEdit: (p: Paint) => void, onDelete: (id: string) => void }) => {
+const PaintCard = ({ paint, onEdit, onDelete, disabled }: { paint: Paint, onEdit: (p: Paint) => void, onDelete: (id: string) => void, disabled?: boolean }) => {
   return (
     <div className="group relative">
-      <div className="bg-white rounded-xl border border-border/50 overflow-hidden hover:border-primary/40 transition-all duration-150 shadow-sm">
+      <div className={cn("bg-white rounded-xl border border-border/50 overflow-hidden transition-all duration-150 shadow-sm", disabled ? "opacity-50" : "hover:border-primary/40")}>
         <div className="h-20 w-full" style={{ backgroundColor: paint.hex }} />
         <div className="p-2.5">
           <p className="text-[10px] font-bold text-foreground truncate">{paint.name}</p>
@@ -72,38 +74,30 @@ const PaintCard = ({ paint, onEdit, onDelete }: { paint: Paint, onEdit: (p: Pain
         </div>
       </div>
 
-      <div className="absolute -inset-4 z-50 opacity-0 pointer-events-none group-hover:opacity-100 group-hover:pointer-events-auto transition-all duration-150 ease-out scale-95 group-hover:scale-100">
+      <div className={cn("absolute -inset-4 z-50 transition-all duration-150 ease-out scale-95", disabled ? "opacity-0 pointer-events-none" : "opacity-0 pointer-events-none group-hover:opacity-100 group-hover:pointer-events-auto")}>
         <div className="bg-card rounded-2xl shadow-2xl border border-primary/20 overflow-hidden w-[240px]">
           <div className="h-32 w-full relative" style={{ backgroundColor: paint.hex }}>
-            <div className="absolute top-2 right-2">
-              <Badge className="bg-white/90 text-black border-0 text-[9px] font-bold uppercase tracking-widest px-2 py-0.5">
-                {paint.category}
-              </Badge>
-            </div>
+            <div className="absolute inset-0 bg-gradient-to-b from-transparent to-black/20" />
           </div>
-          <div className="p-4 space-y-4">
-            <div>
-              <h4 className="text-sm font-bold text-foreground leading-tight">{paint.name}</h4>
-              <p className="text-[10px] text-muted-foreground font-black uppercase tracking-tighter">ID: {paint.code || 'N/A'}</p>
-            </div>
-            <div className="grid grid-cols-2 gap-2">
-              <div className="space-y-1 text-center bg-slate-50 p-2 rounded-xl border border-border/40">
-                <span className="text-[8px] font-bold text-muted-foreground uppercase">Hex</span>
-                <p className="text-[10px] font-mono font-black">{paint.hex.toUpperCase()}</p>
-              </div>
-              <div className="space-y-1 text-center bg-slate-50 p-2 rounded-xl border border-border/40">
-                <span className="text-[8px] font-bold text-muted-foreground uppercase">RGB</span>
-                <p className="text-[10px] font-mono font-black">{paint.rgb || '---'}</p>
-              </div>
-            </div>
-            <div className="flex gap-2 pt-2 border-t border-border/40">
-              <Button size="sm" variant="outline" className="flex-1 h-8 text-[10px] font-bold rounded-lg" onClick={() => onEdit(paint)}>
-                Editar
-              </Button>
-              <Button size="sm" variant="destructive" className="h-8 w-8 rounded-lg p-0" onClick={() => onDelete(paint.id)}>
-                <Trash2 className="w-3.5 h-3.5" />
-              </Button>
-            </div>
+          <div className="absolute bottom-2 left-2 right-2 flex justify-between">
+            <Button size="icon" variant="secondary" className="h-6 w-6 rounded-lg bg-white/90 backdrop-blur-sm border border-white/20 shadow-sm" onClick={() => onEdit(paint)} disabled={disabled}>
+              <Pencil className="w-3 h-3" />
+            </Button>
+            <Button size="icon" variant="destructive" className="h-6 w-6 rounded-lg bg-white/90 backdrop-blur-sm border border-white/20 shadow-sm" onClick={() => onDelete(paint.id)} disabled={disabled}>
+              <Trash2 className="w-3 h-3" />
+            </Button>
+          </div>
+          <div className="space-y-1 text-center bg-slate-50 p-2 rounded-xl border border-border/40">
+            <span className="text-[8px] font-bold text-muted-foreground uppercase">RGB</span>
+            <p className="text-[10px] font-mono font-black">{paint.rgb || '---'}</p>
+          </div>
+          <div className="flex gap-2 pt-2 border-t border-border/40">
+            <Button size="sm" variant="outline" className="flex-1 h-8 text-[10px] font-bold rounded-lg" onClick={() => onEdit(paint)} disabled={disabled}>
+              Editar
+            </Button>
+            <Button size="sm" variant="destructive" className="h-8 w-8 rounded-lg p-0" onClick={() => onDelete(paint.id)} disabled={disabled}>
+              <Trash2 className="w-3.5 h-3.5" />
+            </Button>
           </div>
         </div>
       </div>
@@ -131,6 +125,7 @@ export const CatalogsTab = ({
   handleAddCatalog,
   handleDeleteCatalog,
   handleEditCatalog,
+  handleToggleCatalog,
   handleImportCSV,
   handleExportCSV,
   handleAddPaint,
@@ -168,7 +163,7 @@ export const CatalogsTab = ({
       {company?.catalogs?.length > 0 ? (
         <div className="flex flex-col lg:flex-row gap-10 items-start">
           {/* Sidebar de Catálogos */}
-          <div className="w-full lg:w-64 shrink-0 space-y-6">
+          <div className="w-full lg:w-80 shrink-0 space-y-6">
             <h3 className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground px-1">Suas Coleções</h3>
             <div className="space-y-1">
               {company?.catalogs?.map((catalog: any) => (
@@ -176,7 +171,7 @@ export const CatalogsTab = ({
                   <button
                     onClick={() => setSelectedCatalogId(catalog.id)}
                     className={cn(
-                      "w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all border text-left",
+                      "w-full flex items-center gap-3 px-4 py-3.5 rounded-xl transition-all border text-left",
                       selectedCatalogId === catalog.id
                         ? "bg-white border-primary/20 shadow-sm ring-1 ring-primary/10"
                         : "bg-transparent border-transparent hover:bg-slate-100/50"
@@ -185,19 +180,21 @@ export const CatalogsTab = ({
                     <div className={cn("w-8 h-8 rounded-lg flex items-center justify-center shrink-0 transition-colors", selectedCatalogId === catalog.id ? "bg-primary text-primary-foreground" : "bg-slate-100 text-muted-foreground")}>
                       <Box className="w-4 h-4" />
                     </div>
-                    <div className="flex-1 min-w-0 pr-4">
-                      <span className="text-xs font-bold truncate block">{catalog.name}</span>
-                      <span className="text-[9px] font-medium text-muted-foreground uppercase">{catalog.paints?.length || 0} Cores</span>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs font-bold truncate">{catalog.name}</span>
+                        <span className="text-[9px] font-medium text-muted-foreground uppercase">{catalog.paints?.length || 0} Cores</span>
+                      </div>
                     </div>
+                    <Switch
+                      checked={catalog.active}
+                      onCheckedChange={(checked) => {
+                        console.log('Switch clicked:', catalog.id, checked);
+                        handleToggleCatalog(catalog.id, checked);
+                      }}
+                      className="scale-75"
+                    />
                   </button>
-                  <div className="absolute right-2 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 transition-all flex items-center gap-1">
-                    <Button size="icon" variant="ghost" className="h-6 w-6 rounded-md bg-white border shadow-sm" onClick={(e) => { e.stopPropagation(); handleEditCatalog(catalog.id); }}>
-                      <Pencil className="w-3 h-3" />
-                    </Button>
-                    <Button size="icon" variant="ghost" className="h-6 w-6 rounded-md bg-white border shadow-sm text-red-500" onClick={(e) => { e.stopPropagation(); handleDeleteCatalog(catalog.id); }}>
-                      <Trash2 className="w-3 h-3" />
-                    </Button>
-                  </div>
                 </div>
               ))}
             </div>
@@ -207,20 +204,20 @@ export const CatalogsTab = ({
           <div className="flex-1 w-full space-y-10">
             {activeCatalog ? (
               <>
-                <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                <div className={cn("flex flex-col md:flex-row md:items-center justify-between gap-4", !activeCatalog.active && "opacity-50")}>
                   <div className="flex items-center gap-3">
-                    <CheckCircle2 className="w-5 h-5 text-primary" />
+                    <CheckCircle2 className={cn("w-5 h-5", activeCatalog.active ? "text-primary" : "text-muted-foreground")} />
                     <h3 className="text-lg font-bold text-foreground">{activeCatalog.name}</h3>
                   </div>
                   <div className="flex items-center gap-2">
                     <input type="file" ref={fileInputRef} className="hidden" accept=".csv" onChange={handleImportCSV} />
-                    <Button variant="ghost" size="sm" className="text-[10px] font-bold uppercase tracking-widest text-primary hover:bg-primary/5" onClick={() => fileInputRef.current?.click()}>
+                    <Button variant="ghost" size="sm" className="text-[10px] font-bold uppercase tracking-widest text-primary hover:bg-primary/5" onClick={() => fileInputRef.current?.click()} disabled={!activeCatalog.active}>
                       <FileUp className="w-3.5 h-3.5 mr-1.5" /> Importar CSV
                     </Button>
                     <div className="h-4 w-px bg-border/60" />
-                    <Button variant="ghost" size="sm" className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground" onClick={handleExportCSV}>Exportar</Button>
+                    <Button variant="ghost" size="sm" className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground" onClick={handleExportCSV} disabled={!activeCatalog.active}>Exportar</Button>
                     <div className="h-4 w-px bg-border/60" />
-                    <Button variant="ghost" size="sm" className="text-[10px] font-bold uppercase tracking-widest text-primary" onClick={handleAddPaint}>Add Cor</Button>
+                    <Button variant="ghost" size="sm" className="text-[10px] font-bold uppercase tracking-widest text-primary" onClick={handleAddPaint} disabled={!activeCatalog.active}>Add Cor</Button>
                   </div>
                 </div>
 
@@ -247,7 +244,7 @@ export const CatalogsTab = ({
                         </div>
                         <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 xl:grid-cols-6 2xl:grid-cols-8 gap-3">
                           {catPaints.map((paint) => (
-                            <PaintCard key={paint.id} paint={paint} onEdit={handleEditPaint} onDelete={handleDeletePaint} />
+                            <PaintCard key={paint.id} paint={paint} onEdit={handleEditPaint} onDelete={handleDeletePaint} disabled={!activeCatalog.active} />
                           ))}
                         </div>
                       </div>
