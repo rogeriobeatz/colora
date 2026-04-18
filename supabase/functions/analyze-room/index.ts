@@ -36,7 +36,10 @@ serve(async (req) => {
       SUPABASE_ANON_KEY: Deno.env.get("SUPABASE_ANON_KEY")
     };
 
-    if (!LOVABLE_API_KEY || !SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) throw new Error("Configurações ausentes.");
+    if (!LOVABLE_API_KEY || !SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) {
+      console.error("[analyze-room] Missing environment variables");
+      return jsonResponse({ error: "Erro de configuração do servidor." }, 500, req);
+    }
 
     const serviceRoleClient = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
     const userClient = createClient(SUPABASE_URL, SUPABASE_ANON_KEY || "", {
@@ -44,21 +47,34 @@ serve(async (req) => {
     });
     
     const { data: { user }, error: userError } = await userClient.auth.getUser();
-    if (userError || !user) return jsonResponse({ error: "Autenticação requerida." }, 401, req);
+    if (userError || !user) return jsonResponse({ error: "Sessão expirada ou inválida." }, 401, req);
 
-    const { imageBase64, imageUrl, cropCoordinates, aspectMode } = await req.json();
-    if (!imageBase64 && !imageUrl) return jsonResponse({ error: "Imagem não fornecida." }, 400, req);
+    const body = await req.json();
+    const { imageBase64, imageUrl } = body;
+
+    // Basic Input Validation
+    if (!imageBase64 && !imageUrl) {
+      return jsonResponse({ error: "Uma imagem é obrigatória para a análise." }, 400, req);
+    }
+
+    if (imageBase64 && typeof imageBase64 !== 'string') {
+      return jsonResponse({ error: "Formato de imagem inválido." }, 400, req);
+    }
 
     // Hash SHA-256 para Cache
     const imageSource = imageBase64 || imageUrl;
     const imageHash = await cryptoHash(imageSource);
     
     // ISOLAMENTO TOTAL: Busca cache apenas para ESTE user_id
-    const { data: cached } = await serviceRoleClient.from('wall_cache')
+    const { data: cached, error: cacheError } = await serviceRoleClient.from('wall_cache')
       .select('surfaces, room_name, room_type')
       .eq('hash', imageHash)
       .eq('user_id', user.id)
-      .single();
+      .maybeSingle();
+
+    if (cacheError) {
+      console.error("[analyze-room] Cache lookup error:", cacheError);
+    }
 
     if (cached) {
       console.log(`[analyze-room] Cache HIT for user ${user.id}: ${imageHash}`);
@@ -78,25 +94,44 @@ serve(async (req) => {
       method: "POST",
       headers: { Authorization: `Bearer ${LOVABLE_API_KEY}`, "Content-Type": "application/json" },
       body: JSON.stringify({
-        model: "google/gemini-2.5-flash",
+        model: "google/gemini-2.0-flash", 
         messages: [
           { 
             role: "system", 
-            content: `You are an expert Architectural Surface Identifier. Identify room type and all paintable walls. 
-            Respond with JSON: { room_name: string, room_type: string, surfaces: [{ id, label_pt, label_en, type: "wall" }] }` 
+            content: `You are an expert Architectural Surface Identifier. 
+            Identify room type and all paintable walls. 
+            Crucial: Analyze the lighting of the room (soft, direct sun, artificial, shadow) and the current wall texture (smooth, brick, plaster).
+            Respond with JSON: 
+            { 
+              room_name: string, 
+              room_type: string, 
+              lighting_context: string,
+              surfaces: [{ id, label_pt, label_en, type: "wall", original_texture: string }] 
+            }` 
           },
-          { role: "user", content: [{ type: "image_url", image_url: { url: formattedImage } }, { type: "text", text: "Analyze this room." }] },
+          { role: "user", content: [{ type: "image_url", image_url: { url: formattedImage } }, { type: "text", text: "Analyze this room and its lighting/textures." }] },
         ],
         temperature: 0.1,
       }),
     });
 
-    if (!response.ok) throw new Error("Falha na API de IA.");
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error("[analyze-room] AI API Error:", response.status, errorText);
+      throw new Error("Não foi possível analisar a imagem no momento.");
+    }
 
     const aiData = await response.json();
     const content = aiData.choices?.[0]?.message?.content || "";
     const jsonMatch = content.match(/```(?:json)?\s*([\s\S]*?)```/) || [null, content];
-    const parsed = JSON.parse(jsonMatch[1]?.trim() || content);
+    
+    let parsed;
+    try {
+      parsed = JSON.parse(jsonMatch[1]?.trim() || content);
+    } catch (e) {
+      console.error("[analyze-room] JSON Parse Error:", content);
+      throw new Error("Erro ao processar resposta da IA.");
+    }
 
     const walls = (parsed.surfaces || []).map((s: any, i: number) => ({
       id: s.id || `s${i+1}`,
@@ -106,13 +141,17 @@ serve(async (req) => {
     }));
 
     // Save to cache WITH user_id
-    await serviceRoleClient.from('wall_cache').upsert({ 
+    const { error: upsertError } = await serviceRoleClient.from('wall_cache').upsert({ 
       hash: imageHash, 
       user_id: user.id,
       surfaces: walls, 
       room_name: parsed.room_name, 
       room_type: parsed.room_type 
     });
+
+    if (upsertError) {
+      console.error("[analyze-room] Cache upsert error:", upsertError);
+    }
 
     return jsonResponse({ 
       walls, 
@@ -122,6 +161,10 @@ serve(async (req) => {
     }, 200, req);
 
   } catch (error: any) {
-    return jsonResponse({ error: error.message, sucesso: false }, 500, req);
+    console.error("[analyze-room] Unexpected error:", error);
+    return jsonResponse({ 
+      error: error.message.includes("Não foi possível") ? error.message : "Ocorreu um erro interno ao analisar a sala.", 
+      sucesso: false 
+    }, 500, req);
   }
 });

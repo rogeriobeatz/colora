@@ -20,3 +20,21 @@ verify_jwt = false
 
 [functions.stripe-webhook]
 verify_jwt = false
+
+[functions.paint-wall-replicate]
+verify_jwt = false
+
+[functions.test-replicate]
+verify_jwt = false
+
+[functions.paint-wall-replicate-simple]
+verify_jwt = false
+
+[functions.paint-wall-replicate-debug]
+verify_jwt = false
+
+[functions.get-token]
+verify_jwt = false
+
+[functions.get-local-token]
+verify_jwt = false

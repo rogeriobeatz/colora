@@ -14,16 +14,23 @@ serve(async (req) => {
     return new Response(null, { headers });
   }
 
-  const supabaseAdmin = createClient(
-    Deno.env.get("SUPABASE_URL") ?? "",
-    Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "",
-    { auth: { persistSession: false } }
-  );
+  const supabaseUrl = Deno.env.get("SUPABASE_URL");
+  const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+  const stripeKey = Deno.env.get("STRIPE_SECRET_KEY");
+
+  if (!supabaseUrl || !supabaseServiceKey || !stripeKey) {
+    console.error("[CHECK-SUBSCRIPTION] Missing configuration");
+    return new Response(JSON.stringify({ error: "Service configuration error" }), {
+      headers: { ...headers, "Content-Type": "application/json" },
+      status: 500,
+    });
+  }
+
+  const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey, {
+    auth: { persistSession: false },
+  });
 
   try {
-    const stripeKey = Deno.env.get("STRIPE_SECRET_KEY");
-    if (!stripeKey) throw new Error("STRIPE_SECRET_KEY is not set");
-
     const authHeader = req.headers.get("Authorization");
     if (!authHeader) {
       return new Response(JSON.stringify({ subscribed: false }), {
@@ -33,10 +40,17 @@ serve(async (req) => {
     }
 
     const token = authHeader.replace("Bearer ", "");
+    if (!token) {
+      return new Response(JSON.stringify({ subscribed: false }), {
+        headers: { ...headers, "Content-Type": "application/json" },
+        status: 200,
+      });
+    }
+
     const { data: userData, error: userError } = await supabaseAdmin.auth.getUser(token);
     
     if (userError || !userData.user?.email) {
-      logStep("Auth failed", { error: userError?.message });
+      if (userError) console.error("[CHECK-SUBSCRIPTION] Auth error:", userError.message);
       return new Response(JSON.stringify({ subscribed: false }), {
         headers: { ...headers, "Content-Type": "application/json" },
         status: 200,
@@ -62,10 +76,15 @@ serve(async (req) => {
     logStep("Found customer", { customerId });
 
     // Ensure stripe_customer_id is linked in profile
-    await supabaseAdmin
+    const { error: updateError } = await supabaseAdmin
       .from('profiles')
       .update({ stripe_customer_id: customerId })
       .eq('id', user.id);
+
+    if (updateError) {
+      console.error("[CHECK-SUBSCRIPTION] Profile update error:", updateError.message);
+      // Continue anyway, this is not critical for checking sub
+    }
 
     // Check active subscriptions
     const subscriptions = await stripe.subscriptions.list({
@@ -79,34 +98,43 @@ serve(async (req) => {
 
     if (hasActiveSub) {
       const sub = subscriptions.data[0];
-      // Safely handle current_period_end - it may be a number (unix timestamp) or nested
       try {
         const rawEnd = (sub as any).current_period_end;
         if (typeof rawEnd === 'number') {
           subscriptionEnd = new Date(rawEnd * 1000).toISOString();
         }
-      } catch { /* ignore date parsing errors */ }
+      } catch (err) { 
+        console.error("[CHECK-SUBSCRIPTION] Error parsing sub end date:", err);
+      }
       
       logStep("Active subscription", { subscriptionId: sub.id, end: subscriptionEnd });
       await updateProfileStatus(supabaseAdmin, user.id, 'active', 'subscriber');
     } else {
       logStep("No active subscription");
-      // Don't override trial users to churned if they never subscribed
-      const { data: profile } = await supabaseAdmin
+      const { data: profile, error: fetchError } = await supabaseAdmin
         .from('profiles')
         .select('account_type')
         .eq('id', user.id)
         .maybeSingle();
+      
+      if (fetchError) {
+        console.error("[CHECK-SUBSCRIPTION] Profile fetch error:", fetchError.message);
+      }
+      
       const newAccountType = profile?.account_type === 'trial' ? 'trial' : 'churned';
       await updateProfileStatus(supabaseAdmin, user.id, 'inactive', newAccountType);
     }
 
     // Get updated profile for response
-    const { data: finalProfile } = await supabaseAdmin
+    const { data: finalProfile, error: finalFetchError } = await supabaseAdmin
       .from('profiles')
       .select('tokens, subscription_status, account_type')
       .eq('id', user.id)
       .maybeSingle();
+
+    if (finalFetchError) {
+      console.error("[CHECK-SUBSCRIPTION] Final profile fetch error:", finalFetchError.message);
+    }
 
     return new Response(JSON.stringify({
       success: true,
@@ -120,10 +148,13 @@ serve(async (req) => {
       status: 200,
     });
   } catch (error: any) {
-    logStep("ERROR", { message: error.message });
-    return new Response(JSON.stringify({ subscribed: false, error: error.message }), {
+    console.error("[CHECK-SUBSCRIPTION] Global Error:", error.message);
+    return new Response(JSON.stringify({ 
+      subscribed: false, 
+      error: "Could not verify subscription status. Please try again later." 
+    }), {
       headers: { ...headers, "Content-Type": "application/json" },
-      status: 200,
+      status: 200, // Or 500, but keeping 200 to not break frontend retry logic if any
     });
   }
 });

@@ -11,7 +11,24 @@ const AUTOSAVE_DELAY = 2000;
 const nowIso = () => new Date().toISOString();
 
 type State = { session: SimulatorSessionData | null; loadingSession: boolean; isPainting: boolean; hasUnsavedChanges: boolean; };
-type Action = | { type: 'SET_STATE'; payload: Partial<State> } | { type: 'CREATE_SESSION'; payload: SimulatorSessionData } | { type: 'LOAD_SESSION'; payload: SimulatorSessionData } | { type: 'DELETE_SESSION' } | { type: 'START_LOADING_SESSION' } | { type: 'SET_SESSION_NAME'; payload: string } | { type: 'ADD_ROOM_START'; payload: Room } | { type: 'ADD_ROOM_SUCCESS'; payload: { roomId: string; walls: DetectedWall[] } } | { type: 'ADD_ROOM_FAILURE'; payload: { roomId: string } } | { type: 'UPDATE_ROOM_NAME'; payload: { roomId: string; name: string } } | { type: 'SELECT_ROOM'; payload: string } | { type: 'SELECT_WALL'; payload: string | null } | { type: 'SET_PAINTING'; payload: boolean } | { type: 'ADD_SIMULATION'; payload: { roomId: string; simulation: any } } | { type: 'SELECT_SIMULATION'; payload: { roomId: string; simulationId: string | null } } | { type: 'REMOVE_SIMULATION'; payload: { roomId: string; simulationId: string } } | { type: 'CLEAR_ROOM'; payload: string };
+type Action = 
+  | { type: 'SET_STATE'; payload: Partial<State> } 
+  | { type: 'CREATE_SESSION'; payload: SimulatorSessionData } 
+  | { type: 'LOAD_SESSION'; payload: SimulatorSessionData } 
+  | { type: 'DELETE_SESSION' } 
+  | { type: 'START_LOADING_SESSION' } 
+  | { type: 'SET_SESSION_NAME'; payload: string } 
+  | { type: 'ADD_ROOM_START'; payload: Room } 
+  | { type: 'ADD_ROOM_SUCCESS'; payload: { roomId: string; walls: DetectedWall[]; lightingContext?: string } } 
+  | { type: 'ADD_ROOM_FAILURE'; payload: { roomId: string } } 
+  | { type: 'UPDATE_ROOM_NAME'; payload: { roomId: string; name: string } } 
+  | { type: 'SELECT_ROOM'; payload: string } 
+  | { type: 'SELECT_WALL'; payload: string | null } 
+  | { type: 'SET_PAINTING'; payload: boolean } 
+  | { type: 'ADD_SIMULATION'; payload: { roomId: string; simulation: any } } 
+  | { type: 'SELECT_SIMULATION'; payload: { roomId: string; simulationId: string | null } } 
+  | { type: 'REMOVE_SIMULATION'; payload: { roomId: string; simulationId: string } } 
+  | { type: 'CLEAR_ROOM'; payload: string };
 
 function reducer(state: State, action: Action): State {
   switch (action.type) {
@@ -22,7 +39,24 @@ function reducer(state: State, action: Action): State {
     case 'DELETE_SESSION': return { ...state, session: null, hasUnsavedChanges: false };
     case 'SET_SESSION_NAME': if (!state.session) return state; return { ...state, session: { ...state.session, name: action.payload, updatedAt: nowIso() }, hasUnsavedChanges: true };
     case 'ADD_ROOM_START': if (!state.session) return state; return { ...state, session: { ...state.session, rooms: [...state.session.rooms, action.payload], updatedAt: nowIso() }, hasUnsavedChanges: true };
-    case 'ADD_ROOM_SUCCESS': if (!state.session) return state; return { ...state, session: { ...state.session, activeRoomId: action.payload.roomId, rooms: state.session.rooms.map(r => r.id === action.payload.roomId ? { ...r, walls: action.payload.walls, isAnalyzing: false, isAnalyzed: true } : r), updatedAt: nowIso() }, hasUnsavedChanges: true };
+    case 'ADD_ROOM_SUCCESS': 
+      if (!state.session) return state; 
+      return { 
+        ...state, 
+        session: { 
+          ...state.session, 
+          activeRoomId: action.payload.roomId, 
+          rooms: state.session.rooms.map(r => r.id === action.payload.roomId ? { 
+            ...r, 
+            walls: action.payload.walls, 
+            lightingContext: action.payload.lightingContext, 
+            isAnalyzing: false, 
+            isAnalyzed: true 
+          } : r), 
+          updatedAt: nowIso() 
+        }, 
+        hasUnsavedChanges: true 
+      };
     case 'ADD_ROOM_FAILURE': if (!state.session) return state; return { ...state, session: { ...state.session, rooms: state.session.rooms.filter(r => r.id !== action.payload.roomId), updatedAt: nowIso() }, hasUnsavedChanges: true };
     case 'UPDATE_ROOM_NAME': if (!state.session) return state; return { ...state, session: { ...state.session, rooms: state.session.rooms.map(r => r.id === action.payload.roomId ? { ...r, name: action.payload.name } : r), updatedAt: nowIso() }, hasUnsavedChanges: true };
     case 'SELECT_ROOM': if (!state.session) return state; return { ...state, session: { ...state.session, activeRoomId: action.payload, selectedWallId: null, updatedAt: nowIso() }, hasUnsavedChanges: true };
@@ -73,7 +107,6 @@ export const useSimulator = () => {
   const addRoom = useCallback(async (file: File, cropCoordinates?: any, aspectMode?: AspectMode) => {
     if ((company?.tokens ?? 0) <= 0) return toast.error("Tokens insuficientes");
     
-    // 1. OBRIGATÓRIO: Estar logado para operar
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return toast.error("Você precisa estar logado para simular.");
 
@@ -81,7 +114,6 @@ export const useSimulator = () => {
     const id = generateUUID();
     const imageBase64 = await preprocessImageFile(file);
     
-    // 2. UPLOAD ISOLADO: Caminho sempre prefixado com o ID da loja
     let uploadedUrl = "";
     try {
       const fileName = `${user.id}/${id}_original.jpg`;
@@ -100,16 +132,21 @@ export const useSimulator = () => {
       if (error || data?.error) throw error || new Error(data.error);
       
       await refreshData();
-      const detectedWalls: DetectedWall[] = (data.walls || []).map((w: any, i: number) => ({ id: w.id || `s${i}`, label: w.label_pt || w.label, englishLabel: w.label_en || "Wall", description: w.description || "" }));
+      const detectedWalls: DetectedWall[] = (data.walls || []).map((w: any, i: number) => ({ 
+        id: w.id || `s${i}`, 
+        label: w.label_pt || w.label, 
+        englishLabel: w.label_en || "Wall", 
+        description: w.description || "" 
+      }));
       dispatch({ type: 'UPDATE_ROOM_NAME', payload: { roomId: id, name: data.roomName || "Ambiente" } });
-      dispatch({ type: 'ADD_ROOM_SUCCESS', payload: { roomId: id, walls: detectedWalls } });
+      dispatch({ type: 'ADD_ROOM_SUCCESS', payload: { roomId: id, walls: detectedWalls, lightingContext: data.lightingContext } });
     } catch (err: any) {
       dispatch({ type: 'ADD_ROOM_FAILURE', payload: { roomId: id } });
       toast.error("Erro na análise", { description: err.message });
     }
   }, [company, ensureSession, refreshData]);
 
-  const applyColor = useCallback(async () => {
+  const applyColor = useCallback(async (provider: 'kie' | 'replicate' = 'kie') => {
     if (!activeRoom || !selectedWallId || !selectedPaint) return;
     dispatch({ type: 'SET_PAINTING', payload: true });
     
@@ -118,25 +155,33 @@ export const useSimulator = () => {
     const baseImage = activeSim?.imageUrl || activeRoom.imageUrl;
     const isUrl = baseImage.startsWith('http');
     
+    const functionName = provider === 'replicate' ? 'paint-wall-replicate' : 'paint-wall';
+    const providerName = provider === 'replicate' ? 'Replicate' : 'KIE.ai';
+    
     try {
-      const { data, error } = await supabase.functions.invoke("paint-wall", {
+      const { data, error } = await supabase.functions.invoke(functionName, {
         body: { 
           imageUrl: isUrl ? baseImage : null, 
           imageBase64: isUrl ? null : baseImage.replace(/^data:image\/[a-z]+;base64,/, ''), 
           paintColor: selectedPaint.hex, 
+          paintFinish: selectedPaint.finish || 'fosco',
           wallLabel: wall?.label, 
           wallLabelEn: wall?.englishLabel, 
-          aspectMode: activeRoom.aspectMode 
+          aspectMode: activeRoom.aspectMode,
+          lightingContext: activeRoom.lightingContext
         }
       });
 
       if (error || data?.error) throw error || new Error(data?.error);
 
-      const newSimulation = { id: generateUUID(), paint: selectedPaint, imageUrl: data.imageUrl, wallId: selectedWallId, wallLabel: wall?.label || "Parede" };
+      // Atualiza os dados globais (incluindo saldo de tokens)
+      await refreshData();
+
+      const newSimulation = { id: generateUUID(), paint: selectedPaint, imageUrl: data.imageUrl, wallId: selectedWallId, wallLabel: wall?.label || "Parede", provider };
       dispatch({ type: 'ADD_SIMULATION', payload: { roomId: activeRoom.id, simulation: newSimulation } });
-      toast.success("Cor aplicada!");
+      toast.success(`Cor aplicada com ${providerName}!`);
     } catch (err: any) {
-      toast.error("Erro ao aplicar cor", { description: err.message });
+      toast.error(`Erro ao aplicar cor com ${providerName}`, { description: err.message });
     } finally {
       dispatch({ type: 'SET_PAINTING', payload: false });
     }
@@ -174,7 +219,7 @@ export const useSimulator = () => {
       }));
       
       dispatch({ type: 'UPDATE_ROOM_NAME', payload: { roomId, name: data.roomName || "Ambiente" } });
-      dispatch({ type: 'ADD_ROOM_SUCCESS', payload: { roomId, walls: detectedWalls } });
+      dispatch({ type: 'ADD_ROOM_SUCCESS', payload: { roomId, walls: detectedWalls, lightingContext: data.lightingContext } });
       toast.success("Análise concluída!");
     } catch (err: any) {
       console.error("Erro na re-análise:", err);
@@ -234,7 +279,6 @@ export const useSimulator = () => {
 
   useEffect(() => {
     (async () => {
-      // 1. Verificar se há um projeto pendente vindo do Dashboard
       const pendingId = localStorage.getItem("colora_pending_session");
       const isNewProject = localStorage.getItem("colora_new_project");
 
@@ -256,7 +300,6 @@ export const useSimulator = () => {
         }
       }
 
-      // 2. Se não houver pendente, carregar o último
       const lastId = await getLastSessionId();
       if (lastId) {
         const record = await getSimulatorSession(lastId);

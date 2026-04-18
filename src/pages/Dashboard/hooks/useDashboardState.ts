@@ -13,7 +13,7 @@ export const useDashboardState = () => {
   const [searchParams] = useSearchParams();
   const { user, loading: authLoading, signOut } = useAuth();
   const debouncedCheckSubscription = useSubscriptionCheck(); // ✅ NOVO: Usa hook otimizado
-  const { company, updateCompany, updateCompanyLocal, addCatalog, updateCatalog, deleteCatalog, importPaintsCSV, exportPaintsCSV, refreshData, depositMonthlyTokens } = useStore();
+  const { company, updateCompany, updateCompanyLocal, addCatalog, updateCatalog, deleteCatalog, importPaintsCSV, exportPaintsCSV, refreshData } = useStore();
 
   // Estados principais
   const [isInitialLoading, setIsInitialLoading] = useState(true);
@@ -160,19 +160,14 @@ export const useDashboardState = () => {
     }
   }, [user]);
 
-  // Verificar status de assinatura e depositar tokens mensais
+  // Verificar status de assinatura
   useEffect(() => {
-    const checkAndDepositTokens = async () => {
+    const checkStatus = async () => {
       if (!user || !company) return;
 
       try {
         const result = await debouncedCheckSubscription();
         console.log("[Dashboard] Status da assinatura:", result);
-
-        if (result && result.subscriptionStatus === 'active') {
-          await depositMonthlyTokens();
-          await refreshData();
-        }
       } catch (error) {
         console.error("Erro ao verificar assinatura:", error);
       } finally {
@@ -181,11 +176,11 @@ export const useDashboardState = () => {
     };
 
     if (user && company) {
-      checkAndDepositTokens();
+      checkStatus();
     } else {
       setIsInitialLoading(false);
     }
-  }, [user, company, debouncedCheckSubscription, depositMonthlyTokens, refreshData]);
+  }, [user, company, debouncedCheckSubscription]);
 
   // Handlers
   const handleSignOut = async () => {

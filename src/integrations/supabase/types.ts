@@ -20,6 +20,7 @@ export type Database = {
           company_id: string
           created_at: string | null
           id: string
+          logo_url: string | null
           name: string
         }
         Insert: {
@@ -27,6 +28,7 @@ export type Database = {
           company_id: string
           created_at?: string | null
           id?: string
+          logo_url?: string | null
           name: string
         }
         Update: {
@@ -34,6 +36,7 @@ export type Database = {
           company_id?: string
           created_at?: string | null
           id?: string
+          logo_url?: string | null
           name?: string
         }
         Relationships: [

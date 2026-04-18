@@ -14,32 +14,10 @@ serve(async (req) => {
     return new Response(null, { headers });
   }
 
-  // 🔍 DEBUG: Log completo da requisição
-  const origin = req.headers.get("origin");
-  logStep("=== REQUEST DEBUG ===", {
-    method: req.method,
-    url: req.url,
-    origin: origin,
-    headers: {
-      origin: origin,
-      contentType: req.headers.get("content-type"),
-      authorization: req.headers.get("authorization") ? "***" : "missing",
-      userAgent: req.headers.get("user-agent")
-    }
-  });
-
   const stripeKey = Deno.env.get("STRIPE_SECRET_KEY");
-  const webhookSecret = Deno.env.get("STRIPE_WEBHOOK_SECRET");
-  
-  logStep("ENV CHECK", {
-    hasStripeKey: !!stripeKey,
-    hasWebhookSecret: !!webhookSecret,
-    stripeKeyPrefix: stripeKey ? stripeKey.substring(0, 10) + "..." : "null"
-  });
-  
   if (!stripeKey) {
-    logStep("ERROR: STRIPE_SECRET_KEY not configured");
-    return new Response(JSON.stringify({ error: "Stripe configuration missing" }), {
+    console.error("[CREATE-CHECKOUT] STRIPE_SECRET_KEY not configured");
+    return new Response(JSON.stringify({ error: "Service configuration error" }), {
       headers: { ...headers, "Content-Type": "application/json" },
       status: 500,
     });
@@ -50,46 +28,47 @@ serve(async (req) => {
   });
 
   try {
-    // 🔍 DEBUG: Log do body parsing
-    const bodyText = await req.text();
-    logStep("RAW BODY", { bodyText, bodyLength: bodyText.length });
-    
     let parsedBody;
     try {
-      parsedBody = JSON.parse(bodyText);
+      parsedBody = await req.json();
     } catch (parseError) {
-      logStep("JSON PARSE ERROR", { error: (parseError as Error).message, rawBody: bodyText });
-      throw new Error("Invalid JSON in request body");
+      console.error("[CREATE-CHECKOUT] JSON parse error:", parseError);
+      return new Response(JSON.stringify({ error: "Invalid request format" }), {
+        headers: { ...headers, "Content-Type": "application/json" },
+        status: 400,
+      });
     }
     
     const { mode, customerData } = parsedBody;
     const origin = req.headers.get("origin") || getDomainForContext();
-    
-    logStep("PARSED DATA", { 
-      mode, 
-      origin,
-      customer: customerData.email
-    });
 
     if (!customerData?.email || !customerData?.name) {
-      throw new Error("Dados do cliente incompletos (e-mail e nome são obrigatórios)");
+      return new Response(JSON.stringify({ error: "Customer email and name are required" }), {
+        headers: { ...headers, "Content-Type": "application/json" },
+        status: 400,
+      });
     }
 
-    // Find or create Stripe customer
-    logStep("FINDING CUSTOMER", { email: customerData.email });
-    const customers = await stripe.customers.list({ email: customerData.email, limit: 1 });
-    let customerId: string | undefined;
-    
-    logStep("CUSTOMER SEARCH RESULT", { 
-      found: customers.data.length > 0,
-      customerCount: customers.data.length
+    if (mode !== "subscription" && mode !== "payment") {
+      return new Response(JSON.stringify({ error: "Invalid checkout mode" }), {
+        headers: { ...headers, "Content-Type": "application/json" },
+        status: 400,
+      });
+    }
+
+    logStep("Processing checkout", { 
+      mode, 
+      email: customerData.email
     });
+
+    // Find or create Stripe customer
+    const customers = await stripe.customers.list({ email: customerData.email, limit: 1 });
+    let customerId: string;
     
     if (customers.data.length > 0) {
       customerId = customers.data[0].id;
       logStep("Found existing customer", { customerId });
     } else {
-      logStep("CREATING NEW CUSTOMER", { email: customerData.email, name: customerData.name });
       const customerParams: any = {
         email: customerData.email,
         name: customerData.name,
@@ -103,52 +82,29 @@ serve(async (req) => {
     }
 
     const isSubscription = mode === "subscription";
-    
-    // 🔧 CORREÇÃO: Success URL dinâmica baseada no frontend
-    // Detecta se está em localhost ou produção
     const isLocalhost = origin?.includes('localhost') || origin?.includes('127.0.0.1');
     const baseUrl = isLocalhost ? origin : getDomainForContext();
     
-    // Success URL → página de sucesso com redirecionamento dinâmico
     const successUrl = `${baseUrl}/checkout/sucesso?email=${encodeURIComponent(customerData.email)}&session_id={CHECKOUT_SESSION_ID}&mode=${mode}&origin=${encodeURIComponent(origin || baseUrl)}`;
     const cancelUrl = `${baseUrl}/checkout?payment=canceled`;
-    
-    logStep("URL CONFIG", {
-      origin,
-      isLocalhost,
-      baseUrl,
-      successUrl,
-      cancelUrl
-    });
 
-    // Verificar se os preços existem antes de criar sessão
     const subscriptionPrice = isSubscription ? "price_1TMJyxDjnFXv6Lea0fS0peL1" : null;
     const rechargePrice = !isSubscription ? "price_1TMJz5DjnFXv6LeaLN6eugl2" : null;
-    
-    logStep("PRICE CHECK", {
-      isSubscription,
-      subscriptionPrice,
-      rechargePrice,
-      finalPrice: subscriptionPrice || rechargePrice
-    });
-    
-    if (!subscriptionPrice && !rechargePrice) {
-      throw new Error("Preço não configurado para o modo selecionado");
-    }
+    const priceId = subscriptionPrice || rechargePrice;
 
-    logStep("CREATING CHECKOUT SESSION", {
-      customerId,
-      price: subscriptionPrice || rechargePrice,
-      mode: isSubscription ? "subscription" : "payment",
-      successUrl,
-      cancelUrl
-    });
+    if (!priceId) {
+      console.error("[CREATE-CHECKOUT] Price ID not configured for mode:", mode);
+      return new Response(JSON.stringify({ error: "Pricing configuration error" }), {
+        headers: { ...headers, "Content-Type": "application/json" },
+        status: 500,
+      });
+    }
 
     const session = await stripe.checkout.sessions.create({
       customer: customerId,
       line_items: [
         {
-          price: subscriptionPrice || rechargePrice,
+          price: priceId,
           quantity: 1,
         },
       ],
@@ -163,8 +119,8 @@ serve(async (req) => {
         customer_company: customerData.company || '',
         customer_document: customerData.document || '',
         customer_document_type: customerData.documentType || 'cpf',
-        create_user_on_success: isSubscription ? 'true' : 'false', // 🔧 CORREÇÃO: Só para assinaturas
-        is_recharge: !isSubscription ? 'true' : 'false', // ✅ Identificar recargas
+        create_user_on_success: isSubscription ? 'true' : 'false',
+        is_recharge: !isSubscription ? 'true' : 'false',
         origin: origin,
       },
     });
@@ -176,8 +132,8 @@ serve(async (req) => {
       status: 200,
     });
   } catch (error: any) {
-    logStep("ERROR", { message: error.message });
-    return new Response(JSON.stringify({ error: error.message }), {
+    console.error("[CREATE-CHECKOUT] Global Error:", error.message);
+    return new Response(JSON.stringify({ error: "An error occurred while creating the checkout session" }), {
       headers: { ...headers, "Content-Type": "application/json" },
       status: 500,
     });

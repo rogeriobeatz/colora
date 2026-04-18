@@ -36,8 +36,7 @@ interface StoreContextType {
   deleteCatalog: (id: string) => Promise<void>;
   importPaintsCSV: (catalogId: string, csvText: string) => Promise<void>;
   exportPaintsCSV: (catalogId: string) => Promise<void>;
-  depositMonthlyTokens: () => Promise<void>;
-  consumeToken: (amount: number, description: string) => Promise<boolean>;
+  savePaintsToDatabase: (catalogId: string, paints: Paint[]) => Promise<void>;
 }
 
 const StoreContext = createContext<StoreContextType | undefined>(undefined);
@@ -72,7 +71,23 @@ export function StoreProvider({ children }: { children: ReactNode }) {
           primaryColor: p.primary_color || "#1a8a6a",
           secondaryColor: p.secondary_color || "#e87040",
           logo: p.avatar_url || undefined,
-          catalogs: (catalogsRes.data || []).map((cat: any) => ({ id: cat.id, name: cat.name, active: cat.active, paints: cat.paints || [] })),
+          catalogs: (catalogsRes.data || []).map((cat: any) => ({ 
+          id: cat.id, 
+          name: cat.name, 
+          active: cat.active, 
+          paints: (cat.paints || []).map((paint: any) => ({
+            id: paint.id,
+            name: paint.name,
+            code: paint.code || '',
+            hex: paint.hex,
+            rgb: paint.rgb || '',
+            cmyk: paint.cmyk || '',
+            category: paint.category || '',
+            subcategory: paint.subcategory || undefined,
+            finish: paint.finish || 'fosco'
+          })),
+          logo_url: cat.logo_url || undefined
+        })),
           phone: p.company_phone || "",
           website: p.company_website || "",
           address: p.company_address || "",
@@ -164,6 +179,69 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     if (!error) refreshData();
   };
 
+  const savePaintsToDatabase = async (catalogId: string, paints: Paint[]) => {
+    console.log('=== DEBUG: savePaintsToDatabase iniciado ===');
+    console.log('DEBUG: catalogId:', catalogId);
+    console.log('DEBUG: paints.length:', paints.length);
+    console.log('DEBUG: paints:', paints);
+    
+    if (!company) {
+      console.error('DEBUG: company é null em savePaintsToDatabase');
+      return;
+    }
+    
+    try {
+      console.log('DEBUG: Removendo cores existentes do catálogo...');
+      // Remover cores existentes do catálogo
+      const { error: deleteError } = await supabase.from('paints').delete().eq('catalog_id', catalogId);
+      if (deleteError) {
+        console.error('DEBUG: Erro ao deletar cores existentes:', deleteError);
+        throw deleteError;
+      }
+      console.log('DEBUG: Cores existentes removidas com sucesso');
+      
+      // Inserir novas cores
+      const paintsToInsert = paints.map(paint => ({
+        catalog_id: catalogId,
+        name: paint.name,
+        code: paint.code,
+        hex: paint.hex,
+        rgb: paint.rgb,
+        cmyk: paint.cmyk,
+        category: paint.category,
+        subcategory: paint.subcategory || null,
+        finish: paint.finish
+      }));
+      
+      console.log('DEBUG: paintsToInsert preparados:', paintsToInsert);
+      console.log('DEBUG: paintsToInsert.length:', paintsToInsert.length);
+      
+      if (paintsToInsert.length > 0) {
+        console.log('DEBUG: Inserindo novas cores no banco...');
+        const { error: insertError } = await supabase.from('paints').insert(paintsToInsert);
+        if (insertError) {
+          console.error('DEBUG: Erro ao inserir cores:', insertError);
+          throw insertError;
+        }
+        console.log('DEBUG: Cores inseridas com sucesso');
+      } else {
+        console.log('DEBUG: Nenhuma cor para inserir');
+      }
+      
+      console.log('Cores salvas no banco:', paintsToInsert.length);
+      
+      console.log('DEBUG: Recarregando dados do banco...');
+      // Recarregar dados do banco para garantir sincronização
+      await refreshData();
+      console.log('DEBUG: refreshData concluído');
+    } catch (error) {
+      console.error('DEBUG: Erro ao salvar cores no banco:', error);
+      throw error;
+    }
+    
+    console.log('=== DEBUG: savePaintsToDatabase finalizado ===');
+  };
+
   const exportPaintsCSV = async (catalogId: string) => {
     if (!company) return;
     const catalog = company.catalogs.find(c => c.id === catalogId);
@@ -182,57 +260,12 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     document.body.removeChild(link);
   };
 
-  const depositMonthlyTokens = async () => {
-    if (!company || company.subscriptionStatus !== 'active') return;
-    
-    const now = new Date();
-    const currentMonthYear = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-01`;
-    
-    if (company.lastTokenDeposit === currentMonthYear) return;
-
-    try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return;
-
-      const newTokens = (company.tokens || 0) + 200;
-      const expiresAt = new Date();
-      expiresAt.setDate(expiresAt.getDate() + 30);
-
-      const { error } = await supabase.from('profiles').update({
-        tokens: newTokens,
-        last_token_deposit: currentMonthYear,
-        tokens_expires_at: expiresAt.toISOString()
-      }).eq('id', user.id);
-
-      if (!error) {
-        setCompanyState({
-          ...company,
-          tokens: newTokens,
-          lastTokenDeposit: currentMonthYear,
-          tokensExpiresAt: expiresAt.toISOString()
-        });
-        toast.success("Tokens mensais depositados!");
-      }
-    } catch (error) {
-      console.error("Erro ao depositar tokens:", error);
-    }
-  };
-
-  const consumeToken = async (amount: number, description: string) => {
-    if (!company || (company.tokens || 0) < amount) return false;
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return false;
-    await supabase.from('token_consumptions').insert({ user_id: user.id, amount: -amount, description });
-    await updateCompany({ tokens: (company.tokens || 0) - amount });
-    return true;
-  };
-
   useEffect(() => { refreshData(); }, []);
 
   return (
     <StoreContext.Provider value={{ 
       company, loading, updateCompany, updateCompanyLocal: (u) => company && setCompanyState({ ...company, ...u }), 
-      refreshData, addCatalog, updateCatalog, deleteCatalog, importPaintsCSV, exportPaintsCSV, depositMonthlyTokens, consumeToken 
+      refreshData, addCatalog, updateCatalog, deleteCatalog, importPaintsCSV, exportPaintsCSV, savePaintsToDatabase
     }}>
       {children}
     </StoreContext.Provider>

@@ -11,30 +11,51 @@ serve(async (req) => {
 
   try {
     const stripeKey = Deno.env.get("STRIPE_SECRET_KEY");
-    if (!stripeKey) throw new Error("STRIPE_SECRET_KEY is not set");
+    const supabaseUrl = Deno.env.get("SUPABASE_URL");
+    const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
 
-    const supabaseClient = createClient(
-      Deno.env.get("SUPABASE_URL") ?? "",
-      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "",
-      { auth: { persistSession: false } }
-    );
+    if (!stripeKey || !supabaseUrl || !supabaseServiceKey) {
+      console.error("[CUSTOMER-PORTAL] Missing configuration");
+      return new Response(JSON.stringify({ error: "Service configuration error" }), {
+        headers: { ...headers, "Content-Type": "application/json" },
+        status: 500,
+      });
+    }
+
+    const supabaseClient = createClient(supabaseUrl, supabaseServiceKey, {
+      auth: { persistSession: false },
+    });
 
     const authHeader = req.headers.get("Authorization");
-    if (!authHeader) throw new Error("No authorization header");
+    if (!authHeader) {
+      return new Response(JSON.stringify({ error: "No authorization header" }), {
+        headers: { ...headers, "Content-Type": "application/json" },
+        status: 401,
+      });
+    }
 
     const token = authHeader.replace("Bearer ", "");
     const { data: userData, error: userError } = await supabaseClient.auth.getUser(token);
-    if (userError) throw new Error(`Auth error: ${userError.message}`);
+    if (userError || !userData.user?.email) {
+      if (userError) console.error("[CUSTOMER-PORTAL] Auth error:", userError.message);
+      return new Response(JSON.stringify({ error: "User not authenticated" }), {
+        headers: { ...headers, "Content-Type": "application/json" },
+        status: 401,
+      });
+    }
     const user = userData.user;
-    if (!user?.email) throw new Error("User not authenticated");
 
     const stripe = new Stripe(stripeKey, { apiVersion: "2025-08-27.basil" });
     const customers = await stripe.customers.list({ email: user.email, limit: 1 });
     if (customers.data.length === 0) {
-      throw new Error("No Stripe customer found");
+      console.error("[CUSTOMER-PORTAL] No Stripe customer found for:", user.email);
+      return new Response(JSON.stringify({ error: "Customer profile not found" }), {
+        headers: { ...headers, "Content-Type": "application/json" },
+        status: 404,
+      });
     }
 
-    const origin = req.headers.get("origin") || "http://localhost:3000";
+    const origin = req.headers.get("origin") || "https://colora.app"; // Fallback to production
     const portalSession = await stripe.billingPortal.sessions.create({
       customer: customers.data[0].id,
       return_url: `${origin}/dashboard`,
@@ -45,7 +66,8 @@ serve(async (req) => {
       status: 200,
     });
   } catch (error: any) {
-    return new Response(JSON.stringify({ error: error.message }), {
+    console.error("[CUSTOMER-PORTAL] Global Error:", error.message);
+    return new Response(JSON.stringify({ error: "An error occurred while opening the customer portal" }), {
       headers: { ...headers, "Content-Type": "application/json" },
       status: 500,
     });

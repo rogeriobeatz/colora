@@ -12,7 +12,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { Paint } from "@/data/defaultColors";
+import { Paint, PaintFinish } from "@/data/defaultColors";
 import { Palette, Loader2 } from "lucide-react";
 
 interface PaintDialogProps {
@@ -38,11 +38,19 @@ const categories = [
   "Geral",
 ];
 
+const finishes: { label: string; value: PaintFinish }[] = [
+  { label: "Fosco", value: "fosco" },
+  { label: "Acetinado", value: "acetinado" },
+  { label: "Semibrilho", value: "semibrilho" },
+];
+
 const PaintDialog = ({ open, onOpenChange, paint, onSave, isSaving }: PaintDialogProps) => {
   const [name, setName] = useState("");
   const [code, setCode] = useState("");
   const [hex, setHex] = useState("#000000");
   const [category, setCategory] = useState("Geral");
+  const [subcategory, setSubcategory] = useState("");
+  const [finish, setFinish] = useState<PaintFinish>("fosco");
 
   useEffect(() => {
     if (paint) {
@@ -50,17 +58,21 @@ const PaintDialog = ({ open, onOpenChange, paint, onSave, isSaving }: PaintDialo
       setCode(paint.code);
       setHex(paint.hex);
       setCategory(paint.category);
+      setSubcategory(paint.subcategory || "");
+      setFinish(paint.finish || "fosco");
     } else {
       setName("");
       setCode("");
       setHex("#000000");
       setCategory("Geral");
+      setSubcategory("");
+      setFinish("fosco");
     }
   }, [paint, open]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    onSave({ name, code, hex, category });
+    onSave({ name, code, hex, category, subcategory: subcategory || null, finish });
   };
 
   const isEditing = !!paint;
@@ -94,13 +106,12 @@ const PaintDialog = ({ open, onOpenChange, paint, onSave, isSaving }: PaintDialo
 
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
-              <Label htmlFor="code">Código</Label>
+              <Label htmlFor="code">Código (opcional)</Label>
               <Input
                 id="code"
                 placeholder="Ex: AZ-001"
                 value={code}
                 onChange={(e) => setCode(e.target.value)}
-                required
               />
             </div>
 
@@ -120,6 +131,33 @@ const PaintDialog = ({ open, onOpenChange, paint, onSave, isSaving }: PaintDialo
                 ))}
               </select>
             </div>
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="subcategory">Subcategoria (opcional)</Label>
+            <Input
+              id="subcategory"
+              placeholder="Ex: Claro, Escuro, Metálico, Pastel"
+              value={subcategory}
+              onChange={(e) => setSubcategory(e.target.value)}
+            />
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="finish">Acabamento</Label>
+            <select
+              id="finish"
+              value={finish}
+              onChange={(e) => setFinish(e.target.value as PaintFinish)}
+              className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+              required
+            >
+              {finishes.map((f) => (
+                <option key={f.value} value={f.value}>
+                  {f.label}
+                </option>
+              ))}
+            </select>
           </div>
 
           <div className="space-y-2">
@@ -157,8 +195,8 @@ const PaintDialog = ({ open, onOpenChange, paint, onSave, isSaving }: PaintDialo
             />
             <div>
               <p className="font-medium text-foreground">{name || "Nome da cor"}</p>
-              <p className="text-xs text-muted-foreground">
-                {code || "Código"} · {hex.toUpperCase()}
+              <p className="text-xs text-muted-foreground uppercase">
+                {code || "Código"} · {hex.toUpperCase()} · <span className="font-bold">{finish}</span>
               </p>
             </div>
           </div>

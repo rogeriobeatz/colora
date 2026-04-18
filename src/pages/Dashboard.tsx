@@ -175,6 +175,7 @@ const Dashboard = () => {
             editingPaint={catalogManagement.editingPaint}
             isSavingPaint={catalogManagement.isSavingPaint}
             fileInputRef={catalogManagement.fileInputRef}
+            logoInputRef={catalogManagement.logoInputRef}
             activeCatalog={catalogManagement.activeCatalog}
             filteredPaints={catalogManagement.filteredPaints}
             categories={catalogManagement.categories}
@@ -191,6 +192,7 @@ const Dashboard = () => {
             handleEditPaint={catalogManagement.handleEditPaint}
             handleSavePaint={catalogManagement.handleSavePaint}
             handleDeletePaint={catalogManagement.handleDeletePaint}
+            handleUploadLogo={catalogManagement.handleUploadLogo}
             setEditingCatalogId={catalogManagement.setEditingCatalogId}
             setEditingCatalogName={catalogManagement.setEditingCatalogName}
             setPaintDialogOpen={catalogManagement.setPaintDialogOpen}

@@ -14,7 +14,8 @@ import {
   ChevronRight,
   CheckCircle2,
   Box,
-  LayoutGrid
+  LayoutGrid,
+  Image
 } from "lucide-react";
 import PaintDialog from "@/components/simulator/PaintDialog";
 import { Paint } from "@/data/defaultColors";
@@ -47,6 +48,7 @@ interface CatalogsTabProps {
   filteredPaints: Paint[];
   categories: string[];
   fileInputRef: React.RefObject<HTMLInputElement>;
+  logoInputRef: React.RefObject<HTMLInputElement>;
   handleAddCatalog: () => void;
   handleDeleteCatalog: (id: string) => void;
   handleEditCatalog: (id: string) => void;
@@ -56,6 +58,7 @@ interface CatalogsTabProps {
   handleAddPaint: () => void;
   handleEditPaint: (paint: Paint) => void;
   handleDeletePaint: (paintId: string) => void;
+  handleUploadLogo: (e: React.ChangeEvent<HTMLInputElement>, catalogId: string) => void;
   paintDialogOpen: boolean;
   setPaintDialogOpen: (open: boolean) => void;
   editingPaint: Paint | null;
@@ -65,39 +68,56 @@ interface CatalogsTabProps {
 
 const PaintCard = ({ paint, onEdit, onDelete, disabled }: { paint: Paint, onEdit: (p: Paint) => void, onDelete: (id: string) => void, disabled?: boolean }) => {
   return (
-    <div className="group relative">
-      <div className={cn("bg-white rounded-xl border border-border/50 overflow-hidden transition-all duration-150 shadow-sm", disabled ? "opacity-50" : "hover:border-primary/40")}>
-        <div className="h-20 w-full" style={{ backgroundColor: paint.hex }} />
-        <div className="p-2.5">
-          <p className="text-[10px] font-bold text-foreground truncate">{paint.name}</p>
-          <p className="text-[9px] font-mono text-muted-foreground uppercase">{paint.hex}</p>
+    <div className={cn(
+      "relative group bg-white rounded-xl border border-border/30 overflow-hidden transition-all duration-200",
+      disabled ? "opacity-50 cursor-not-allowed" : "hover:border-primary/40 hover:shadow-lg hover:-translate-y-1 cursor-pointer"
+    )}>
+      {/* Preview da Cor */}
+      <div className="h-24 w-full relative" style={{ backgroundColor: paint.hex }}>
+        {/* Gradiente Sutil */}
+        <div className="absolute inset-0 bg-gradient-to-b from-transparent to-black/10" />
+        
+        {/* Badge de Acabamento */}
+        <div className="absolute top-2 right-2">
+          <span className="text-[9px] px-2 py-1 rounded-full bg-white/90 backdrop-blur-sm text-slate-700 font-bold uppercase tracking-wider shadow-sm border border-white/20">
+            {paint.finish || 'Fosco'}
+          </span>
         </div>
+
+        {/* Ações Visíveis */}
+        {!disabled && (
+          <div className="absolute top-2 left-2 flex gap-1.5 opacity-0 group-hover:opacity-100 transition-opacity">
+            <button 
+              className="h-7 w-7 rounded-lg bg-white/90 backdrop-blur-sm border border-white/20 shadow-sm flex items-center justify-center hover:bg-primary hover:text-white transition-all"
+              onClick={(e) => {
+                e.stopPropagation();
+                onEdit(paint);
+              }}
+            >
+              <Pencil className="w-3.5 h-3.5" />
+            </button>
+            <button 
+              className="h-7 w-7 rounded-lg bg-white/90 backdrop-blur-sm border border-white/20 shadow-sm flex items-center justify-center hover:bg-destructive hover:text-white transition-all"
+              onClick={(e) => {
+                e.stopPropagation();
+                onDelete(paint.id);
+              }}
+            >
+              <Trash2 className="w-3.5 h-3.5" />
+            </button>
+          </div>
+        )}
       </div>
 
-      <div className={cn("absolute -inset-4 z-50 transition-all duration-150 ease-out scale-95", disabled ? "opacity-0 pointer-events-none" : "opacity-0 pointer-events-none group-hover:opacity-100 group-hover:pointer-events-auto")}>
-        <div className="bg-card rounded-2xl shadow-2xl border border-primary/20 overflow-hidden w-[240px]">
-          <div className="h-32 w-full relative" style={{ backgroundColor: paint.hex }}>
-            <div className="absolute inset-0 bg-gradient-to-b from-transparent to-black/20" />
-          </div>
-          <div className="absolute bottom-2 left-2 right-2 flex justify-between">
-            <Button size="icon" variant="secondary" className="h-6 w-6 rounded-lg bg-white/90 backdrop-blur-sm border border-white/20 shadow-sm" onClick={() => onEdit(paint)} disabled={disabled}>
-              <Pencil className="w-3 h-3" />
-            </Button>
-            <Button size="icon" variant="destructive" className="h-6 w-6 rounded-lg bg-white/90 backdrop-blur-sm border border-white/20 shadow-sm" onClick={() => onDelete(paint.id)} disabled={disabled}>
-              <Trash2 className="w-3 h-3" />
-            </Button>
-          </div>
-          <div className="space-y-1 text-center bg-slate-50 p-2 rounded-xl border border-border/40">
-            <span className="text-[8px] font-bold text-muted-foreground uppercase">RGB</span>
-            <p className="text-[10px] font-mono font-black">{paint.rgb || '---'}</p>
-          </div>
-          <div className="flex gap-2 pt-2 border-t border-border/40">
-            <Button size="sm" variant="outline" className="flex-1 h-8 text-[10px] font-bold rounded-lg" onClick={() => onEdit(paint)} disabled={disabled}>
-              Editar
-            </Button>
-            <Button size="sm" variant="destructive" className="h-8 w-8 rounded-lg p-0" onClick={() => onDelete(paint.id)} disabled={disabled}>
-              <Trash2 className="w-3.5 h-3.5" />
-            </Button>
+      {/* Informações */}
+      <div className="p-3 space-y-2">
+        <div className="space-y-1">
+          <h4 className="text-sm font-bold text-foreground leading-tight">{paint.name}</h4>
+          <div className="flex items-center justify-between">
+            <code className="text-xs font-mono text-muted-foreground bg-slate-50 px-2 py-1 rounded">{paint.hex}</code>
+            {paint.category && (
+              <span className="text-[10px] text-muted-foreground font-medium uppercase tracking-wider">{paint.category}</span>
+            )}
           </div>
         </div>
       </div>
@@ -122,6 +142,7 @@ export const CatalogsTab = ({
   filteredPaints,
   categories,
   fileInputRef,
+  logoInputRef,
   handleAddCatalog,
   handleDeleteCatalog,
   handleEditCatalog,
@@ -131,6 +152,7 @@ export const CatalogsTab = ({
   handleAddPaint,
   handleEditPaint,
   handleDeletePaint,
+  handleUploadLogo,
   paintDialogOpen,
   setPaintDialogOpen,
   editingPaint,
@@ -161,101 +183,260 @@ export const CatalogsTab = ({
       </div>
 
       {company?.catalogs?.length > 0 ? (
-        <div className="flex flex-col lg:flex-row gap-10 items-start">
-          {/* Sidebar de Catálogos */}
-          <div className="w-full lg:w-80 shrink-0 space-y-6">
-            <h3 className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground px-1">Suas Coleções</h3>
-            <div className="space-y-1">
-              {company?.catalogs?.map((catalog: any) => (
-                <div key={catalog.id} className="group relative">
-                  <button
-                    onClick={() => setSelectedCatalogId(catalog.id)}
-                    className={cn(
-                      "w-full flex items-center gap-3 px-4 py-3.5 rounded-xl transition-all border text-left",
-                      selectedCatalogId === catalog.id
-                        ? "bg-white border-primary/20 shadow-sm ring-1 ring-primary/10"
-                        : "bg-transparent border-transparent hover:bg-slate-100/50"
-                    )}
-                  >
-                    <div className={cn("w-8 h-8 rounded-lg flex items-center justify-center shrink-0 transition-colors", selectedCatalogId === catalog.id ? "bg-primary text-primary-foreground" : "bg-slate-100 text-muted-foreground")}>
-                      <Box className="w-4 h-4" />
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2">
-                        <span className="text-xs font-bold truncate">{catalog.name}</span>
-                        <span className="text-[9px] font-medium text-muted-foreground uppercase">{catalog.paints?.length || 0} Cores</span>
+        <div className="space-y-8">
+          {/* Seção de Catálogos */}
+          <div className="bg-white rounded-2xl border border-border/20 p-6">
+            <div className="flex items-center justify-between mb-6">
+              <h3 className="text-lg font-bold text-foreground">Seus Catálogos</h3>
+              <Badge variant="secondary" className="text-xs">
+                {company?.catalogs?.length || 0} coleções
+              </Badge>
+            </div>
+            
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {[...(company?.catalogs || [])]
+                .sort((a, b) => (a.active === b.active ? 0 : a.active ? -1 : 1))
+                .map((catalog: any) => (
+                <div key={catalog.id} className={cn(
+                  "relative group border rounded-xl p-4 transition-all cursor-pointer",
+                  selectedCatalogId === catalog.id
+                    ? "border-primary/30 bg-primary/5 shadow-lg"
+                    : "border-border/30 hover:border-primary/20 hover:shadow-md",
+                  !catalog.active && "opacity-60 grayscale"
+                )}>
+                  <div onClick={() => setSelectedCatalogId(catalog.id)}>
+                    {/* Header do Catálogo */}
+                    <div className="flex items-start justify-between mb-3">
+                      <div className="flex items-center gap-3">
+                        {/* Logo ou Icone */}
+                        {catalog.logo_url ? (
+                          <div className="w-10 h-10 rounded-lg overflow-hidden border border-border/20 flex items-center justify-center bg-white">
+                            <img 
+                              src={catalog.logo_url} 
+                              alt={catalog.name}
+                              className="w-full h-full object-contain p-1"
+                              onError={(e) => {
+                                e.currentTarget.style.display = 'none';
+                                e.currentTarget.nextElementSibling?.classList.remove('hidden');
+                              }}
+                            />
+                            <div className="hidden w-10 h-10 rounded-lg flex items-center justify-center bg-slate-100 text-muted-foreground">
+                              <Box className="w-5 h-5" />
+                            </div>
+                          </div>
+                        ) : (
+                          <div className={cn(
+                            "w-10 h-10 rounded-lg flex items-center justify-center transition-colors",
+                            selectedCatalogId === catalog.id ? "bg-primary text-primary-foreground" : "bg-slate-100 text-muted-foreground"
+                          )}>
+                            <Box className="w-5 h-5" />
+                          </div>
+                        )}
+                        <div>
+                          <h4 className={cn(
+                            "font-bold text-sm",
+                            selectedCatalogId === catalog.id ? "text-primary" : "text-foreground"
+                          )}>
+                            {catalog.name}
+                          </h4>
+                          <p className="text-xs text-muted-foreground">
+                            {catalog.paints?.length || 0} cores
+                          </p>
+                        </div>
                       </div>
+                      
+                      {/* Switch */}
+                      <Switch
+                        checked={catalog.active}
+                        onCheckedChange={(checked) => {
+                          handleToggleCatalog(catalog.id, checked);
+                        }}
+                        className="scale-90"
+                      />
                     </div>
-                    <Switch
-                      checked={catalog.active}
-                      onCheckedChange={(checked) => {
-                        console.log('Switch clicked:', catalog.id, checked);
-                        handleToggleCatalog(catalog.id, checked);
-                      }}
-                      className="scale-75"
-                    />
-                  </button>
+                    
+                    {/* Ações */}
+                    <div className="flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                      <input 
+                        type="file" 
+                        ref={(el) => {
+                          if (logoInputRef.current) {
+                            logoInputRef.current.setAttribute('data-catalog-id', catalog.id);
+                          }
+                        }}
+                        className="hidden" 
+                        accept="image/*" 
+                        onChange={(e) => {
+                          e.stopPropagation();
+                          handleUploadLogo(e, catalog.id);
+                        }}
+                      />
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="h-8 text-xs"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          const fileInput = document.querySelector(`input[data-catalog-id="${catalog.id}"]`) as HTMLInputElement;
+                          fileInput?.click();
+                        }}
+                        disabled={catalog.id === '00000000-0000-0000-0000-000000000001'}
+                      >
+                        <Image className="w-3 h-3 mr-1" /> Logo
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="h-8 text-xs"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleEditCatalog(catalog.id);
+                        }}
+                      >
+                        <Pencil className="w-3 h-3 mr-1" /> Editar
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="h-8 text-xs hover:border-destructive hover:text-destructive"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleDeleteCatalog(catalog.id);
+                        }}
+                        disabled={catalog.id === '00000000-0000-0000-0000-000000000001'}
+                      >
+                        <Trash2 className="w-3 h-3 mr-1" /> Excluir
+                      </Button>
+                    </div>
+                  </div>
                 </div>
               ))}
             </div>
           </div>
 
-          {/* Grid de Cores */}
-          <div className="flex-1 w-full space-y-10">
+          {/* Seção de Cores */}
+          <div className="space-y-8">
             {activeCatalog ? (
               <>
-                <div className={cn("flex flex-col md:flex-row md:items-center justify-between gap-4", !activeCatalog.active && "opacity-50")}>
-                  <div className="flex items-center gap-3">
-                    <CheckCircle2 className={cn("w-5 h-5", activeCatalog.active ? "text-primary" : "text-muted-foreground")} />
-                    <h3 className="text-lg font-bold text-foreground">{activeCatalog.name}</h3>
+                {/* Header do Catálogo Ativo */}
+                <div className="bg-gradient-to-r from-primary/5 to-primary/10 rounded-2xl border border-primary/20 p-6">
+                  <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6">
+                    <div className="flex items-center gap-4">
+                      <div className="w-12 h-12 rounded-xl bg-primary/20 flex items-center justify-center">
+                        <CheckCircle2 className="w-6 h-6 text-primary" />
+                      </div>
+                      <div>
+                        <h3 className="text-xl font-bold text-foreground">{activeCatalog.name}</h3>
+                        <p className="text-sm text-muted-foreground">
+                          {activeCatalog.paints?.length || 0} cores disponíveis
+                        </p>
+                      </div>
+                    </div>
+                    
+                    {/* Ações Principais */}
+                    <div className="flex flex-wrap items-center gap-3">
+                      <input type="file" ref={fileInputRef} className="hidden" accept=".csv" onChange={handleImportCSV} />
+                      <Button 
+                        onClick={() => fileInputRef.current?.click()} 
+                        disabled={!activeCatalog.active}
+                        className="h-10 px-4 rounded-xl font-medium"
+                      >
+                        <FileUp className="w-4 h-4 mr-2" /> Importar CSV
+                      </Button>
+                      <Button 
+                        variant="outline" 
+                        onClick={handleExportCSV} 
+                        disabled={!activeCatalog.active}
+                        className="h-10 px-4 rounded-xl font-medium"
+                      >
+                        <FileDown className="w-4 h-4 mr-2" /> Exportar
+                      </Button>
+                      <Button 
+                        onClick={handleAddPaint} 
+                        disabled={!activeCatalog.active}
+                        className="h-10 px-4 rounded-xl font-medium"
+                      >
+                        <Plus className="w-4 h-4 mr-2" /> Nova Cor
+                      </Button>
+                    </div>
                   </div>
-                  <div className="flex items-center gap-2">
-                    <input type="file" ref={fileInputRef} className="hidden" accept=".csv" onChange={handleImportCSV} />
-                    <Button variant="ghost" size="sm" className="text-[10px] font-bold uppercase tracking-widest text-primary hover:bg-primary/5" onClick={() => fileInputRef.current?.click()} disabled={!activeCatalog.active}>
-                      <FileUp className="w-3.5 h-3.5 mr-1.5" /> Importar CSV
-                    </Button>
-                    <div className="h-4 w-px bg-border/60" />
-                    <Button variant="ghost" size="sm" className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground" onClick={handleExportCSV} disabled={!activeCatalog.active}>Exportar</Button>
-                    <div className="h-4 w-px bg-border/60" />
-                    <Button variant="ghost" size="sm" className="text-[10px] font-bold uppercase tracking-widest text-primary" onClick={handleAddPaint} disabled={!activeCatalog.active}>Add Cor</Button>
+                  
+                  {/* Instruções de Importação */}
+                  <div className="mt-4 p-3 bg-white/50 rounded-lg border border-white/20">
+                    <p className="text-xs text-muted-foreground">
+                      <strong>Formato CSV:</strong> nome,hex,acabamento,categoria (ex: "Branco Gelo,#FFFFFF,Fosco,Parede")
+                    </p>
                   </div>
                 </div>
 
-              <div className="relative">
-                <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground/30" />
-                <Input
-                  placeholder="Pesquisar por nome ou hexadecimal..."
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                  className="h-11 pl-11 rounded-xl bg-white border-border/60 focus:ring-primary/5 text-sm"
-                />
-              </div>
+                {/* Barra de Pesquisa */}
+                <div className="relative">
+                  <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
+                  <Input
+                    placeholder="Pesquisar cores por nome, código hexadecimal ou categoria..."
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                    className="h-12 pl-12 pr-4 rounded-xl bg-white border-border/30 focus:ring-primary/10 focus:border-primary/30 text-sm"
+                  />
+                </div>
 
-              <div className="space-y-10">
-                {categories.length > 0 ? (
-                  categories.map((cat) => {
-                    const catPaints = filteredPaints.filter((p) => p.category === cat);
-                    if (catPaints.length === 0) return null;
-                    return (
-                      <div key={cat} className="space-y-4">
-                        <div className="flex items-center gap-4">
-                          <h3 className="text-[10px] font-bold text-muted-foreground uppercase tracking-[0.2em]">{cat}</h3>
-                          <div className="h-px flex-1 bg-border/40" />
+                {/* Grid de Cores */}
+                <div className="space-y-8">
+                  {filteredPaints.length > 0 ? (
+                    <>
+                      {/* Filtros por Categoria */}
+                      {categories.length > 0 && (
+                        <div className="flex flex-wrap gap-2">
+                          {categories.map((cat) => {
+                            const catPaints = filteredPaints.filter((p) => p.category === cat);
+                            if (catPaints.length === 0) return null;
+                            return (
+                              <Badge 
+                                key={cat} 
+                                variant="outline" 
+                                className="text-xs px-3 py-1 rounded-full"
+                              >
+                                {cat} ({catPaints.length})
+                              </Badge>
+                            );
+                          })}
                         </div>
-                        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 xl:grid-cols-6 2xl:grid-cols-8 gap-3">
-                          {catPaints.map((paint) => (
-                            <PaintCard key={paint.id} paint={paint} onEdit={handleEditPaint} onDelete={handleDeletePaint} disabled={!activeCatalog.active} />
-                          ))}
-                        </div>
+                      )}
+                      
+                      {/* Grid de Cores */}
+                      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6 gap-4">
+                        {filteredPaints.map((paint) => (
+                          <PaintCard 
+                            key={paint.id} 
+                            paint={paint} 
+                            onEdit={handleEditPaint} 
+                            onDelete={handleDeletePaint} 
+                            disabled={!activeCatalog.active} 
+                          />
+                        ))}
                       </div>
-                    );
-                  })
-                ) : (
-                  <div className="py-20 text-center border-2 border-dashed border-border/40 rounded-[2rem] bg-slate-50/50">
-                    <p className="text-sm text-muted-foreground font-medium">Catálogo vazio.</p>
-                  </div>
-                )}
-              </div>
+                    </>
+                  ) : (
+                    <div className="py-16 text-center border-2 border-dashed border-border/30 rounded-2xl bg-slate-50/30">
+                      <div className="space-y-4">
+                        <div className="w-16 h-16 rounded-full bg-slate-100 flex items-center justify-center mx-auto">
+                          <Search className="w-6 h-6 text-muted-foreground" />
+                        </div>
+                        <div>
+                          <h4 className="text-lg font-bold text-foreground">Nenhuma cor encontrada</h4>
+                          <p className="text-sm text-muted-foreground mt-1">
+                            {searchTerm ? 'Tente uma outra busca' : 'Adicione cores ao catálogo para começar'}
+                          </p>
+                        </div>
+                        {!searchTerm && (
+                          <Button onClick={handleAddPaint} className="mt-2">
+                            <Plus className="w-4 h-4 mr-2" /> Adicionar Primeira Cor
+                          </Button>
+                        )}
+                      </div>
+                    </div>
+                  )}
+                </div>
             </>
           ) : (
             <div className="h-64 flex flex-col items-center justify-center opacity-30 text-center space-y-4">

@@ -38,6 +38,7 @@ export interface Room {
     height: number;
   };
   aspectMode?: AspectMode; // ✅ NOVO: Aspect ratio selecionado pelo usuário
+  lightingContext?: string; // ✅ NOVO: Contexto de iluminação detectado pela IA
 }
 
 export interface SimulatorSessionData {

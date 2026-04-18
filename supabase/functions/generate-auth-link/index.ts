@@ -25,24 +25,62 @@ serve(async (req) => {
   }
 
   try {
-    const { email, sessionId } = await req.json();
-    const normalizedEmail = normalizeEmail(email);
-    
-    logStep("Request received", { email: normalizedEmail, sessionId });
+    const supabaseUrl = Deno.env.get("SUPABASE_URL");
+    const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+    const stripeKey = Deno.env.get("STRIPE_SECRET_KEY");
 
-    if (!email || !sessionId) {
-      throw new Error("Email e sessionId são obrigatórios");
+    if (!supabaseUrl || !supabaseServiceKey || !stripeKey) {
+      console.error("[GENERATE-AUTH-LINK] Missing configuration");
+      return new Response(JSON.stringify({ error: "Service configuration error" }), {
+        headers: { ...headers, "Content-Type": "application/json" },
+        status: 500,
+      });
     }
 
+    let body;
+    try {
+      body = await req.json();
+    } catch (parseError) {
+      console.error("[GENERATE-AUTH-LINK] JSON parse error:", parseError);
+      return new Response(JSON.stringify({ error: "Invalid request format" }), {
+        headers: { ...headers, "Content-Type": "application/json" },
+        status: 400,
+      });
+    }
+
+    const { email, sessionId } = body;
+    if (!email || !sessionId) {
+      return new Response(JSON.stringify({ error: "Email and sessionId are required" }), {
+        headers: { ...headers, "Content-Type": "application/json" },
+        status: 400,
+      });
+    }
+
+    const normalizedEmail = normalizeEmail(email);
+    logStep("Request received", { email: normalizedEmail, sessionId });
+
     // 1. Verify the Stripe session is actually paid
-    const stripe = new Stripe(Deno.env.get("STRIPE_SECRET_KEY") || "", {
+    const stripe = new Stripe(stripeKey, {
       apiVersion: "2025-08-27.basil",
     });
 
-    const stripeSession = await stripe.checkout.sessions.retrieve(sessionId);
+    let stripeSession;
+    try {
+      stripeSession = await stripe.checkout.sessions.retrieve(sessionId);
+    } catch (stripeError) {
+      console.error("[GENERATE-AUTH-LINK] Stripe retrieve error:", stripeError);
+      return new Response(JSON.stringify({ error: "Could not verify payment session" }), {
+        headers: { ...headers, "Content-Type": "application/json" },
+        status: 400,
+      });
+    }
+
     if (stripeSession.payment_status !== "paid") {
       logStep("Payment not confirmed", { status: stripeSession.payment_status });
-      throw new Error("Pagamento não confirmado");
+      return new Response(JSON.stringify({ error: "Payment not confirmed" }), {
+        headers: { ...headers, "Content-Type": "application/json" },
+        status: 400,
+      });
     }
 
     // Verify email matches
@@ -51,7 +89,10 @@ serve(async (req) => {
     
     if (normalizedSessionEmail !== normalizedEmail) {
       logStep("Email mismatch", { sessionEmail: normalizedSessionEmail, requestEmail: normalizedEmail });
-      throw new Error("Email não corresponde à sessão de pagamento");
+      return new Response(JSON.stringify({ error: "Email does not match payment session" }), {
+        headers: { ...headers, "Content-Type": "application/json" },
+        status: 400,
+      });
     }
 
     logStep("Stripe session verified", { 
@@ -60,38 +101,36 @@ serve(async (req) => {
     });
 
     // 2. Initialize Supabase admin client
-    const supabaseAdmin = createClient(
-      Deno.env.get("SUPABASE_URL") ?? "",
-      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "",
-      { auth: { persistSession: false } },
-    );
+    const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey, { auth: { persistSession: false } });
 
-    // 3. CREDIT TOKENS - Main logic moved from webhook
+    // 3. CREDIT TOKENS
     const metadata = stripeSession.metadata || {};
     const isRecharge = metadata.is_recharge === 'true';
-    const isNewSubscription = metadata.create_user_on_success === 'true';
     const customerId = typeof stripeSession.customer === "string" 
       ? stripeSession.customer 
       : (stripeSession.customer as any)?.id;
     const customerName = metadata.customer_name || normalizedEmail.split('@')[0];
 
-    logStep("Processing tokens", { isRecharge, isNewSubscription, customerId });
+    logStep("Processing tokens", { isRecharge, customerId });
 
-    // Check idempotency - was this session already credited?
+    // Check idempotency
     const creditDescription = isRecharge 
       ? `Recarga de tokens - Sessão: ${sessionId}` 
       : `Crédito inicial - Sessão: ${sessionId}`;
 
-    const { data: existingCredit } = await supabaseAdmin
+    const { data: existingCredit, error: creditFetchError } = await supabaseAdmin
       .from('token_consumptions')
       .select('id')
       .ilike('description', `%${sessionId}%`)
       .maybeSingle();
 
+    if (creditFetchError) {
+      console.error("[GENERATE-AUTH-LINK] Error checking idempotency:", creditFetchError.message);
+    }
+
     if (existingCredit) {
       logStep("Tokens already credited for this session, skipping", { sessionId });
     } else {
-      // Find or create user - try to create first, handle "already exists"
       let userId: string;
 
       const { data: newUser, error: createError } = await supabaseAdmin.auth.admin.createUser({
@@ -107,33 +146,35 @@ serve(async (req) => {
       });
 
       if (createError) {
-        // User already exists - find them via magic link generation (which returns user data)
-        // or by generating a recovery link
-        logStep("User already exists, looking up", { error: createError.message });
+        logStep("User already exists or creation failed, looking up", { error: createError.message });
         
-        // Use generateLink to find user ID
         const { data: linkData, error: linkError } = await supabaseAdmin.auth.admin.generateLink({
           type: 'magiclink',
           email: normalizedEmail,
         });
         
         if (linkError || !linkData?.user) {
-          throw new Error(`Cannot find existing user: ${linkError?.message || 'Unknown error'}`);
+          console.error("[GENERATE-AUTH-LINK] Cannot find user:", linkError?.message);
+          return new Response(JSON.stringify({ error: "Could not find user account" }), {
+            headers: { ...headers, "Content-Type": "application/json" },
+            status: 404,
+          });
         }
         
         userId = linkData.user.id;
-        logStep("Existing user found via generateLink", { userId });
       } else {
         userId = newUser.user.id;
-        logStep("New user created", { userId });
       }
 
-      // Get current profile to determine token amount
-      const { data: currentProfile } = await supabaseAdmin
+      const { data: currentProfile, error: profileFetchError } = await supabaseAdmin
         .from('profiles')
         .select('tokens')
         .eq('id', userId)
         .maybeSingle();
+
+      if (profileFetchError) {
+        console.error("[GENERATE-AUTH-LINK] Error fetching profile:", profileFetchError.message);
+      }
 
       const currentTokens = currentProfile?.tokens || 0;
       let newTokens: number;
@@ -143,14 +184,12 @@ serve(async (req) => {
         creditAmount = 100;
         newTokens = currentTokens + 100;
       } else {
-        // New subscription: set to 200 (not additive)
         creditAmount = 200;
         newTokens = 200;
       }
 
       logStep("Crediting tokens", { userId, currentTokens, creditAmount, newTokens });
 
-      // Upsert profile
       const profileData: Record<string, any> = {
         id: userId,
         tokens: newTokens,
@@ -173,11 +212,10 @@ serve(async (req) => {
         .upsert(profileData, { onConflict: 'id' });
 
       if (profileError) {
-        logStep("Profile upsert error", { error: profileError.message });
-        throw new Error(`Profile update failed: ${profileError.message}`);
+        console.error("[GENERATE-AUTH-LINK] Profile upsert error:", profileError.message);
+        throw new Error("Profile update failed");
       }
 
-      // Record token credit
       await supabaseAdmin.from('token_consumptions').insert({
         user_id: userId,
         amount: creditAmount,
@@ -191,16 +229,6 @@ serve(async (req) => {
     const origin = req.headers.get("origin") || getDomainForContext();
     const redirectTo = `${origin}/dashboard?payment=success`;
 
-    const fixActionLink = (actionLink: string): string => {
-      try {
-        const url = new URL(actionLink);
-        url.searchParams.set("redirect_to", redirectTo);
-        return url.toString();
-      } catch {
-        return actionLink;
-      }
-    };
-
     const { data, error } = await supabaseAdmin.auth.admin.generateLink({
       type: 'magiclink',
       email: normalizedEmail,
@@ -208,33 +236,36 @@ serve(async (req) => {
     });
 
     if (error) {
-      logStep("Magiclink failed, trying recovery", { error: error.message });
+      console.error("[GENERATE-AUTH-LINK] Magiclink failed, trying recovery:", error.message);
       const { data: recoveryData, error: recoveryError } = await supabaseAdmin.auth.admin.generateLink({
         type: 'recovery',
         email: normalizedEmail,
         options: { redirectTo }
       });
 
-      if (recoveryError) throw recoveryError;
+      if (recoveryError) {
+        console.error("[GENERATE-AUTH-LINK] Recovery link failed:", recoveryError.message);
+        return new Response(JSON.stringify({ error: "Could not generate authentication link" }), {
+          headers: { ...headers, "Content-Type": "application/json" },
+          status: 500,
+        });
+      }
 
-      const fixedLink = fixActionLink(recoveryData.properties.action_link);
-      logStep("Recovery link generated", { fixedLink });
+      const fixedLink = recoveryData.properties.action_link;
       return new Response(JSON.stringify({ authLink: fixedLink, email: normalizedEmail }), {
         headers: { ...headers, "Content-Type": "application/json" },
         status: 200,
       });
     }
 
-    const fixedLink = fixActionLink(data.properties.action_link);
-    logStep("Auth link generated successfully", { email: normalizedEmail, fixedLink });
-
+    const fixedLink = data.properties.action_link;
     return new Response(JSON.stringify({ authLink: fixedLink, email: normalizedEmail }), {
       headers: { ...headers, "Content-Type": "application/json" },
       status: 200,
     });
   } catch (error: any) {
-    logStep("ERROR", { message: error.message });
-    return new Response(JSON.stringify({ error: error.message }), {
+    console.error("[GENERATE-AUTH-LINK] Global Error:", error.message);
+    return new Response(JSON.stringify({ error: "An unexpected error occurred" }), {
       headers: { ...headers, "Content-Type": "application/json" },
       status: 500,
     });

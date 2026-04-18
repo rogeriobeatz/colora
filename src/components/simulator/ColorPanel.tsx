@@ -11,7 +11,7 @@ interface ColorPanelProps {
   catalogs: Catalog[];
   selectedPaint: Paint | null;
   onSelectPaint: (paint: Paint) => void;
-  onApplyColor: () => void;
+  onApplyColor: (provider?: 'kie' | 'replicate', event?: React.MouseEvent<HTMLButtonElement>) => void;
   canApply: boolean;
   isPainting: boolean;
   selectedWallLabel?: string;
@@ -272,19 +272,34 @@ const ColorPanel = ({
                   <Box className="w-3 h-3" /> Aplicar em: <span className="font-black text-primary">{selectedWallLabel}</span>
                 </div>
               )}
-              <Button
-                className="w-full h-12 font-black text-[10px] uppercase tracking-[0.2em] shadow-lg gap-2 rounded-xl bg-primary text-primary-foreground hover:bg-primary/90"
-                disabled={!canApply || isPainting}
-                onClick={onApplyColor}
-              >
-                {isPainting ? (
-                  <Loader2 className="w-4 h-4 animate-spin" />
-                ) : (
-                  <>
-                    <Sparkles className="w-4 h-4" /> Pintar Superfície
-                  </>
-                )}
-              </Button>
+              <div className="flex gap-2">
+                <Button
+                  className="flex-1 h-12 font-black text-[10px] uppercase tracking-[0.2em] shadow-lg rounded-xl bg-primary text-primary-foreground hover:bg-primary/90"
+                  disabled={!canApply || isPainting}
+                  onClick={(e) => onApplyColor('kie', e)}
+                >
+                  {isPainting ? (
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                  ) : (
+                    <>
+                      <Sparkles className="w-4 h-4" /> KIE.ai
+                    </>
+                  )}
+                </Button>
+                <Button
+                  className="flex-1 h-12 font-black text-[10px] uppercase tracking-[0.2em] shadow-lg rounded-xl bg-gradient-to-r from-purple-600 to-blue-600 text-white hover:from-purple-700 hover:to-blue-700"
+                  disabled={!canApply || isPainting}
+                  onClick={(e) => onApplyColor('replicate', e)}
+                >
+                  {isPainting ? (
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                  ) : (
+                    <>
+                      <Sparkles className="w-4 h-4" /> Replicate ⚡
+                    </>
+                  )}
+                </Button>
+              </div>
             </div>
           </>
         ) : (
